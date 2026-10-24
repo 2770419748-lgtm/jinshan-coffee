@@ -1,0 +1,52 @@
+<view class="page" wx:if="{{staff}}">
+  <view class="who">
+    <text class="who-name">{{staff.name}}</text>
+    <text class="tag gold">{{staff.roleName}}</text>
+  </view>
+
+  <block wx:if="{{canCoffee}}">
+    <view class="section-title">咖啡后台</view>
+    <view class="grid">
+      <view class="tile primary" data-url="/admin/pages/orders/orders" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">订单处理</view>
+        <view class="tile-sub">新订单响铃，收款、出餐</view>
+      </view>
+      <view class="tile" data-url="/admin/pages/products/products" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">商品管理</view>
+        <view class="tile-sub">上下架、改价、售罄</view>
+      </view>
+      <view class="tile" data-url="/admin/pages/categories/categories" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">分类管理</view>
+        <view class="tile-sub">菜单分类和顺序</view>
+      </view>
+      <view class="tile" data-url="/admin/pages/tables/tables" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">桌台和桌码</view>
+        <view class="tile-sub">添加桌号，生成二维码</view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{canBook}}">
+    <view class="section-title">书籍后台</view>
+    <view class="grid">
+      <view class="tile disabled">
+        <view class="tile-title">书目和借阅</view>
+        <view class="tile-sub">第 2 步开放</view>
+      </view>
+      <view class="tile disabled">
+        <view class="tile-title">计费规则</view>
+        <view class="tile-sub">按小时、包天送咖啡，第 2 步开放</view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{isOwner}}">
+    <view class="section-title">店铺</view>
+    <view class="grid">
+      <view class="tile" data-url="/admin/pages/staff/staff" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">员工管理</view>
+        <view class="tile-sub">邀请员工，分配角色</view>
+      </view>
+    </view>
+  </block>
+</view>

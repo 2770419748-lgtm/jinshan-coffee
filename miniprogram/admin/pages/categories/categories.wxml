@@ -1,0 +1,18 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="card list" wx:if="{{list.length}}">
+    <view wx:for="{{list}}" wx:key="_id" class="cell">
+      <view class="flex-1" data-index="{{index}}" bindtap="rename">
+        <text>{{item.name}}</text>
+        <text class="faint count">{{item.count}} 个商品</text>
+      </view>
+      <text class="op {{index === 0 ? 'off' : ''}}" data-index="{{index}}" data-delta="-1" bindtap="move">↑</text>
+      <text class="op {{index === list.length - 1 ? 'off' : ''}}" data-index="{{index}}" data-delta="1" bindtap="move">↓</text>
+      <text class="op danger" data-index="{{index}}" bindtap="remove">删除</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{loading}}">加载中…</view>
+  <view class="empty" wx:elif="{{!list.length}}">还没有分类</view>
+  <view class="faint tip" wx:if="{{list.length}}">点名称可以改名；箭头调整顾客端菜单里的顺序。</view>
+
+  <view class="btn-gold btn-block add" bindtap="add">+ 新建分类</view>
+</view>

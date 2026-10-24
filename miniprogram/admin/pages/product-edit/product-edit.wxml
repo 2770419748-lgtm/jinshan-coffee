@@ -1,0 +1,64 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="card">
+    <view class="image-box" bindtap="chooseImage">
+      <image wx:if="{{form.image}}" class="image" src="{{form.image}}" mode="aspectFill" />
+      <view wx:else class="image placeholder-box">
+        <text class="plus">+</text>
+        <text class="faint">上传商品图片</text>
+      </view>
+    </view>
+    <view class="faint remove-img" wx:if="{{form.image}}" bindtap="removeImage">移除图片</view>
+
+    <view class="field">
+      <text class="field-label">名称</text>
+      <input class="field-input" placeholder="比如 拿铁" placeholder-class="placeholder" maxlength="30" value="{{form.name}}" data-field="name" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">价格（元）</text>
+      <input class="field-input" type="digit" placeholder="比如 22" placeholder-class="placeholder" value="{{form.priceText}}" data-field="priceText" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">分类</text>
+      <picker class="field-input" range="{{categories}}" range-key="name" value="{{catIndex === -1 ? 0 : catIndex}}" bindchange="onCategory">
+        <view class="{{catIndex === -1 ? 'placeholder' : ''}}">{{catIndex === -1 ? '请选择' : categories[catIndex].name}}</view>
+      </picker>
+    </view>
+    <view class="field">
+      <text class="field-label">简介</text>
+      <input class="field-input" placeholder="选填，一句话介绍" placeholder-class="placeholder" maxlength="60" value="{{form.desc}}" data-field="desc" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">排序</text>
+      <input class="field-input" type="number" placeholder="数字越小越靠前" placeholder-class="placeholder" value="{{form.sort}}" data-field="sort" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">上架</text>
+      <view class="field-input"><switch checked="{{form.onShelf}}" color="#d6b25e" bindchange="onShelf" /></view>
+    </view>
+  </view>
+
+  <view class="section-title">规格（顾客下单时选，比如杯型、温度）</view>
+  <view class="presets">
+    <view wx:for="{{presets}}" wx:key="name" class="chip" data-index="{{index}}" bindtap="addPreset">+ {{item.name}}</view>
+    <view class="chip" bindtap="addGroup">+ 自定义</view>
+  </view>
+
+  <view wx:for="{{form.specs}}" wx:for-item="g" wx:for-index="gi" class="card spec">
+    <view class="row-between">
+      <input class="group-name" placeholder="规格名称" placeholder-class="placeholder" maxlength="10" value="{{g.name}}" data-gi="{{gi}}" bindinput="onGroupName" />
+      <text class="danger small-link" data-gi="{{gi}}" bindtap="removeGroup">删除这组</text>
+    </view>
+    <view wx:for="{{g.options}}" wx:for-item="o" wx:for-index="oi" class="option">
+      <input class="opt-name" placeholder="选项" placeholder-class="placeholder" maxlength="10" value="{{o.name}}" data-gi="{{gi}}" data-oi="{{oi}}" data-field="name" bindinput="onOption" />
+      <text class="faint">加价</text>
+      <input class="opt-price" type="digit" placeholder="0" placeholder-class="placeholder" value="{{o.priceText}}" data-gi="{{gi}}" data-oi="{{oi}}" data-field="priceText" bindinput="onOption" />
+      <text class="faint">元</text>
+      <text class="opt-del" data-gi="{{gi}}" data-oi="{{oi}}" bindtap="removeOption">×</text>
+    </view>
+    <view class="gold small-link add-opt" data-gi="{{gi}}" bindtap="addOption">+ 加一个选项</view>
+  </view>
+
+  <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : '保存'}}</view>
+  <view class="btn-danger btn-block" wx:if="{{id}}" bindtap="remove">删除商品</view>
+  <view class="safe-bottom"></view>
+</view>

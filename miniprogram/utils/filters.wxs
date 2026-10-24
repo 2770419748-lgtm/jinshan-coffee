@@ -1,0 +1,61 @@
+// WXML 里用的格式化函数（WXS 只支持 ES5 写法）
+function yuan(fen) {
+  var s = ((fen || 0) / 100).toFixed(2)
+  if (s.substring(s.length - 3) === '.00') return s.substring(0, s.length - 3)
+  if (s.substring(s.length - 1) === '0') return s.substring(0, s.length - 1)
+  return s
+}
+
+var STATUS = { pending: '待制作', making: '制作中', done: '已完成', cancelled: '已取消' }
+var MODE = { dine_in: '堂食', takeaway: '外带' }
+
+function status(s) {
+  return STATUS[s] || s
+}
+
+function mode(m) {
+  return MODE[m] || m
+}
+
+function pad(n) {
+  return n < 10 ? '0' + n : '' + n
+}
+
+function time(value) {
+  if (!value) return ''
+  var d = getDate(value)
+  return (d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+}
+
+function clock(value) {
+  if (!value) return ''
+  var d = getDate(value)
+  return pad(d.getHours()) + ':' + pad(d.getMinutes())
+}
+
+function specText(specs) {
+  var out = []
+  for (var i = 0; i < (specs || []).length; i++) out.push(specs[i].option)
+  return out.join(' / ')
+}
+
+function itemsBrief(items) {
+  var list = items || []
+  var names = []
+  var count = 0
+  for (var i = 0; i < list.length; i++) {
+    count += list[i].qty
+    if (i < 2) names.push(list[i].name + '×' + list[i].qty)
+  }
+  return names.join('，') + (list.length > 2 ? ' 等' : '') + ' 共 ' + count + ' 件'
+}
+
+module.exports = {
+  yuan: yuan,
+  status: status,
+  mode: mode,
+  time: time,
+  clock: clock,
+  specText: specText,
+  itemsBrief: itemsBrief
+}

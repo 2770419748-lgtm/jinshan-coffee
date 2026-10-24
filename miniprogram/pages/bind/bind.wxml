@@ -1,0 +1,21 @@
+<view class="page">
+  <view class="card">
+    <view class="intro" wx:if="{{type === 'owner'}}">绑定后你就是店主，可以管理菜单、订单、桌码，并邀请员工。店里只有第一位店主能这样绑定，之后再加店主要用邀请码。</view>
+    <view class="intro" wx:else>输入店主给你的 6 位邀请码。邀请码 24 小时内有效，只能用一次。</view>
+
+    <view class="field">
+      <text class="field-label">称呼</text>
+      <input class="field-input" placeholder="比如 坤总、小王" placeholder-class="placeholder" maxlength="12" value="{{name}}" bindinput="onName" />
+    </view>
+    <view class="field" wx:if="{{type === 'staff'}}">
+      <text class="field-label">邀请码</text>
+      <input class="field-input" type="number" placeholder="6 位数字" placeholder-class="placeholder" maxlength="6" value="{{code}}" bindinput="onCode" />
+    </view>
+    <view class="field" wx:if="{{type === 'owner' && codeRequired}}">
+      <text class="field-label">绑定码</text>
+      <input class="field-input" placeholder="云函数里设置的 OWNER_CODE" placeholder-class="placeholder" maxlength="32" value="{{code}}" bindinput="onCode" />
+    </view>
+  </view>
+
+  <view class="btn-gold btn-block {{submitting ? 'disabled' : ''}}" bindtap="submit">{{submitting ? '绑定中…' : '确认绑定'}}</view>
+</view>

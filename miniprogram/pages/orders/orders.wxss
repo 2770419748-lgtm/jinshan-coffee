@@ -1,0 +1,13 @@
+.pickup {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: var(--gold);
+}
+.mode {
+  margin-left: 16rpx;
+  font-size: 24rpx;
+}
+.brief {
+  margin: 12rpx 0;
+  font-size: 26rpx;
+}

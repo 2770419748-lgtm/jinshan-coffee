@@ -1,0 +1,29 @@
+<view class="page">
+  <view class="hero">
+    <image class="logo" src="/images/logo.jpg" mode="aspectFill" />
+    <view class="hero-sub">扫桌码点单，店内书架慢慢看</view>
+  </view>
+
+  <view class="active card" wx:if="{{activeOrder}}" bindtap="openOrder" hover-class="btn-hover">
+    <view class="flex-1">
+      <view class="muted">你的订单{{activeOrder.status === 'making' ? '正在制作' : '已下单'}}</view>
+      <view class="active-no">取餐号 <text class="gold">{{activeOrder.pickupNo}}</text></view>
+    </view>
+    <text class="cell-arrow"></text>
+  </view>
+
+  <view class="table-tip" wx:if="{{tableNo}}">当前桌号 <text class="gold">{{tableNo}}</text>，点单会自动带上</view>
+
+  <view class="entry primary" bindtap="scan" hover-class="btn-hover">
+    <view class="entry-title">扫桌码点单</view>
+    <view class="entry-sub">扫桌上的二维码，下单自动带桌号</view>
+  </view>
+  <view class="entry" bindtap="goMenu" hover-class="btn-hover">
+    <view class="entry-title">直接点单</view>
+    <view class="entry-sub">堂食或外带，凭取餐号到吧台取</view>
+  </view>
+  <view class="entry disabled">
+    <view class="entry-title">店内书架</view>
+    <view class="entry-sub">即将开放</view>
+  </view>
+</view>

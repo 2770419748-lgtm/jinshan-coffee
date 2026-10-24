@@ -1,0 +1,51 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view wx:if="{{ready}}">
+  <view class="tabs">
+    <view wx:for="{{tabs}}" wx:key="key" class="tab {{current === item.key ? 'on' : ''}}" data-key="{{item.key}}" bindtap="switchTab">
+      {{item.name}}<text class="tab-count" wx:if="{{counts[item.key]}}">{{counts[item.key]}}</text>
+    </view>
+  </view>
+
+  <view class="toolbar">
+    <text class="faint">今天的订单 · 停在本页时自动刷新</text>
+    <text class="sound {{soundOn ? 'gold' : 'faint'}}" bindtap="toggleSound">{{soundOn ? '响铃开' : '响铃关'}}</text>
+  </view>
+
+  <view class="page">
+    <view wx:for="{{orders}}" wx:key="_id" class="card order">
+      <view class="row-between">
+        <view class="row">
+          <text class="pickup">{{item.pickupNo}}</text>
+          <text class="tag gold where" wx:if="{{item.tableNo}}">{{item.tableNo}} 号桌</text>
+          <text class="tag where" wx:else>{{f.mode(item.mode)}}</text>
+        </view>
+        <text class="faint">{{f.clock(item.createdAt)}}</text>
+      </view>
+
+      <view class="items">
+        <view wx:for="{{item.items}}" wx:for-item="line" class="item-line">
+          <text class="flex-1">{{line.name}}<text class="faint" wx:if="{{line.specs.length}}">（{{f.specText(line.specs)}}）</text></text>
+          <text class="qty">×{{line.qty}}</text>
+        </view>
+      </view>
+      <view class="remark" wx:if="{{item.remark}}">备注：{{item.remark}}</view>
+
+      <view class="row-between foot">
+        <view class="row">
+          <text class="price">{{f.yuan(item.payFee)}}</text>
+          <text class="tag {{item.payStatus === 'paid' ? 'ok' : 'danger'}} pay">{{item.payStatus === 'paid' ? '已收款' : '未收款'}}</text>
+        </view>
+        <view class="row ops">
+          <view wx:if="{{item.payStatus === 'unpaid' && item.status !== 'cancelled'}}" class="btn-ghost btn-small" data-id="{{item._id}}" data-op="paid" bindtap="act">已收款</view>
+          <view wx:if="{{item.status === 'pending'}}" class="btn-gold btn-small" data-id="{{item._id}}" data-op="making" bindtap="act">开始制作</view>
+          <view wx:if="{{item.status === 'making'}}" class="btn-gold btn-small" data-id="{{item._id}}" data-op="done" bindtap="act">制作完成</view>
+        </view>
+      </view>
+      <view class="cancel-link" wx:if="{{item.status === 'pending' || item.status === 'making'}}" data-id="{{item._id}}" data-op="cancelled" bindtap="act">取消订单</view>
+    </view>
+
+    <view class="empty" wx:if="{{!loading && !orders.length}}">暂时没有{{current === 'pending' ? '待制作的' : ''}}订单</view>
+    <view class="empty" wx:elif="{{loading}}">加载中…</view>
+  </view>
+</view>

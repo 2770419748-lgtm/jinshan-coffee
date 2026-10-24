@@ -1,0 +1,29 @@
+<view class="page">
+  <view class="profile">
+    <image class="avatar" src="/images/logo.jpg" mode="aspectFill" />
+    <view>
+      <view class="hello">欢迎来进山</view>
+      <view class="muted" wx:if="{{user && user.staff}}">{{user.staff.name}} · {{user.staff.roleName}}</view>
+    </view>
+  </view>
+
+  <view class="card list">
+    <view class="cell cell-arrow" bindtap="goOrders" hover-class="btn-hover">
+      <text class="flex-1">我的订单</text>
+    </view>
+    <view class="cell cell-arrow" wx:if="{{user && user.staff}}" bindtap="goAdmin" hover-class="btn-hover">
+      <text class="flex-1 gold">管理后台</text>
+    </view>
+  </view>
+
+  <view class="card list" wx:if="{{user && !user.hasOwner}}">
+    <view class="cell cell-arrow" bindtap="bindOwner" hover-class="btn-hover">
+      <view class="flex-1">
+        <view class="gold">店主绑定</view>
+        <view class="faint small">店里还没有店主。店主第一次使用时点这里，绑定后这个入口会消失。</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="staff-link" wx:if="{{user && !user.staff && user.hasOwner}}" bindtap="bindStaff">我是店员，用邀请码绑定</view>
+</view>

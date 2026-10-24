@@ -1,0 +1,22 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page">
+  <view wx:for="{{orders}}" wx:key="_id" class="card order" data-id="{{item._id}}" bindtap="open" hover-class="btn-hover">
+    <view class="row-between">
+      <view>
+        <text class="pickup">{{item.pickupNo}}</text>
+        <text class="faint mode">{{f.mode(item.mode)}}{{item.tableNo ? ' · ' + item.tableNo + ' 号桌' : ''}}</text>
+      </view>
+      <text class="tag {{item.status === 'done' ? 'ok' : item.status === 'cancelled' ? '' : 'gold'}}">{{f.status(item.status)}}</text>
+    </view>
+    <view class="muted brief">{{f.itemsBrief(item.items)}}</view>
+    <view class="row-between">
+      <text class="faint">{{f.time(item.createdAt)}}</text>
+      <text class="price">{{f.yuan(item.payFee)}}</text>
+    </view>
+  </view>
+
+  <view class="empty" wx:if="{{!loading && !orders.length}}">还没有订单，去点一杯吧</view>
+  <view class="empty" wx:elif="{{loading}}">加载中…</view>
+  <view class="empty" wx:elif="{{!hasMore}}">没有更多了</view>
+</view>

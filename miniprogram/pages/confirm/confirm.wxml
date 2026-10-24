@@ -1,0 +1,58 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page">
+  <view class="card">
+    <view class="mode-row">
+      <view class="chip {{mode === 'dine_in' ? 'on' : ''}}" data-mode="dine_in" bindtap="pickMode">堂食</view>
+      <view class="chip {{mode === 'takeaway' ? 'on' : ''}}" data-mode="takeaway" bindtap="pickMode">外带</view>
+    </view>
+    <view class="muted" wx:if="{{mode === 'dine_in' && tableNo}}">已带上 <text class="gold">{{tableNo}}</text> 号桌，店员能看到你坐哪桌</view>
+    <view class="muted" wx:elif="{{mode === 'dine_in'}}">没有扫桌码，做好后凭取餐号到吧台取</view>
+    <view class="muted" wx:else>做好后凭取餐号到吧台取</view>
+  </view>
+
+  <view class="card">
+    <view wx:for="{{list}}" wx:key="key" class="line">
+      <image class="line-img" src="{{item.image || '/images/logo.jpg'}}" mode="aspectFill" />
+      <view class="flex-1">
+        <view>{{item.name}}</view>
+        <view class="faint" wx:if="{{item.specText}}">{{item.specText}}</view>
+      </view>
+      <view class="line-right">
+        <text class="price">{{f.yuan(item.unitPrice * item.qty)}}</text>
+        <view class="faint">×{{item.qty}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="section-title remark-title">备注</view>
+    <textarea
+      class="remark"
+      placeholder="口味要求等，选填"
+      placeholder-class="placeholder"
+      maxlength="50"
+      auto-height
+      value="{{remark}}"
+      bindinput="onRemark"
+    />
+  </view>
+
+  <view class="card pay-card">
+    <view class="row-between">
+      <text class="muted">付款方式</text>
+      <text>到吧台付款</text>
+    </view>
+    <view class="faint pay-note">下单后到吧台报取餐号付款；微信支付开通后可以直接在线付。</view>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>
+
+<view class="submit-bar">
+  <view class="flex-1">
+    <text class="muted">共 {{count}} 件 合计 </text>
+    <text class="price big">{{f.yuan(total)}}</text>
+  </view>
+  <view class="btn-gold {{submitting ? 'disabled' : ''}}" bindtap="submit">{{submitting ? '提交中…' : '提交订单'}}</view>
+</view>

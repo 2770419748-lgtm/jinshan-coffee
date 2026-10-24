@@ -1,0 +1,55 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{order}}">
+  <view class="card pickup-card">
+    <view class="muted">取餐号</view>
+    <view class="pickup-no">{{order.pickupNo}}</view>
+    <view class="status {{order.status}}">{{f.status(order.status)}}</view>
+
+    <view class="steps" wx:if="{{order.status !== 'cancelled'}}">
+      <view class="step {{step >= 1 ? 'on' : ''}}">已下单</view>
+      <view class="step-line {{step >= 2 ? 'on' : ''}}"></view>
+      <view class="step {{step >= 2 ? 'on' : ''}}">制作中</view>
+      <view class="step-line {{step >= 3 ? 'on' : ''}}"></view>
+      <view class="step {{step >= 3 ? 'on' : ''}}">可取餐</view>
+    </view>
+
+    <view class="pay-tip" wx:if="{{order.payStatus === 'unpaid' && order.status !== 'cancelled'}}">
+      请到吧台报取餐号付款 <text class="price">{{f.yuan(order.payFee)}}</text>
+    </view>
+    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'paid'}}">已付款</view>
+  </view>
+
+  <view class="card">
+    <view class="row-between info-row">
+      <text class="muted">{{f.mode(order.mode)}}</text>
+      <text wx:if="{{order.tableNo}}">{{order.tableNo}} 号桌</text>
+    </view>
+    <view wx:for="{{order.items}}" class="line">
+      <view class="flex-1">
+        <view>{{item.name}}</view>
+        <view class="faint" wx:if="{{item.specs.length}}">{{f.specText(item.specs)}}</view>
+      </view>
+      <text class="faint qty">×{{item.qty}}</text>
+      <text class="price">{{f.yuan(item.subtotal)}}</text>
+    </view>
+    <view class="row-between total-row">
+      <text class="muted">合计</text>
+      <text class="price big">{{f.yuan(order.payFee)}}</text>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="cell" wx:if="{{order.remark}}"><text class="muted">备注</text><text>{{order.remark}}</text></view>
+    <view class="cell"><text class="muted">下单时间</text><text>{{f.time(order.createdAt)}}</text></view>
+    <view class="cell"><text class="muted">订单号</text><text selectable>{{order.orderNo}}</text></view>
+  </view>
+
+  <view class="actions">
+    <view class="btn-danger btn-block" wx:if="{{order.status === 'pending' && order.payStatus === 'unpaid'}}" bindtap="cancel">取消订单</view>
+    <view class="btn-ghost btn-block" bindtap="backToMenu">再点一单</view>
+  </view>
+</view>
+
+<view class="empty" wx:elif="{{loading}}">加载中…</view>
+<view class="empty" wx:else>没找到这个订单</view>
