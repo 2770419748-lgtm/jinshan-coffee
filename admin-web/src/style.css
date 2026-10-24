@@ -62,3 +62,10 @@ html.dark .el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
 html.dark .el-radio-button {
   --el-radio-button-checked-text-color: #1a1408;
 }
+/* 手机上对话框占满宽度，表单标签放到上面 */
+@media (max-width: 760px) {
+  .el-dialog { width: 94vw !important; }
+  .el-dialog .el-form-item { display: block; }
+  .el-dialog .el-form-item__label { width: auto !important; justify-content: flex-start; }
+  .el-message-box { max-width: 92vw; }
+}

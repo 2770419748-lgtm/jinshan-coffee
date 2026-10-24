@@ -7,4 +7,7 @@ import './style.css'
 import App from './App.vue'
 import router from './router'
 
+// 一直用深色主题（黑底金色）
+document.documentElement.classList.add('dark')
+
 createApp(App).use(ElementPlus, { locale: zhCn }).use(router).mount('#app')

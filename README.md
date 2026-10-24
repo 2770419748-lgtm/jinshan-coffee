@@ -110,7 +110,8 @@ cloudfunctions/
 admin-web/              电脑网页后台（Vue 3 + Element Plus）
   dist/                 打包好的网站，上传到静态网站托管
   src/                  源代码
-  mock/                 本地预览用的假后端
+  mock/                 本地预览用的假后端和假数据
+  demo/                 在线预览版：把云函数打包进浏览器
 tests/                  本地测试（不参与小程序打包）
 ```
 
@@ -139,4 +140,4 @@ tests/                  本地测试（不参与小程序打包）
 
 - `npm test`：用内存数据库模拟云开发（包括微信支付），把点单、借书计时、赠饮券、网页登录、在线支付和退款等流程跑一遍。需要 Node 18 以上，不用安装依赖。
 - `cloudfunctions/*/lib/base.js` 三个云函数里是同一份文件，`coffee/lib/pay.js` 和 `book/lib/pay.js` 也是同一份，改了要几处同步，测试会检查。
-- 网页后台：`cd admin-web && npm install`，`npm run dev` 开发，`npm run build` 打包到 `dist`，`npm run mock` 用假数据预览。
+- 网页后台：`cd admin-web && npm install`，`npm run dev` 开发，`npm run build` 打包到 `dist`，`npm run mock` 用假数据预览。`npm run build:demo` 打包一个不用服务器的预览版到 `dist-demo`：云函数和假数据直接跑在浏览器里，可以放到任何静态网页上给别人看。

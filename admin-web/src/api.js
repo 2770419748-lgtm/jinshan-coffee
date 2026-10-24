@@ -3,6 +3,8 @@ import cloudbase from '@cloudbase/js-sdk'
 import { reactive } from 'vue'
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
+// 在线预览：云函数和内存数据库打包在 demo-backend.js 里，跑在浏览器中
+const DEMO = import.meta.env.VITE_DEMO === '1'
 const TOKEN_KEY = 'jinshan_web_token'
 
 export class ApiError extends Error {
@@ -84,7 +86,9 @@ export async function call(name, action, data) {
   if (session.token) payload.webToken = session.token
   let result
   try {
-    if (MOCK) {
+    if (DEMO) {
+      result = await window.JinshanDemo.call(name, payload)
+    } else if (MOCK) {
       const res = await fetch('./mock/call', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -113,8 +117,13 @@ export async function call(name, action, data) {
 }
 
 // 本地预览没有手机：用店主身份模拟扫码确认
-export const isMock = MOCK
+export const isMock = MOCK || DEMO
 export async function mockConfirmLogin(id) {
+  if (DEMO) {
+    const result = await window.JinshanDemo.confirmLogin(id)
+    if (!result.ok) throw new ApiError(result.msg || '操作失败', result.code)
+    return
+  }
   const res = await fetch('./mock/confirm-login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) })
   const result = await res.json()
   if (!result.ok) throw new ApiError(result.msg || '操作失败', result.code)
@@ -134,7 +143,7 @@ const urlCache = {}
 export async function uploadImage(file, dir) {
   const ext = (file.name.match(/\.(\w+)$/) || [])[1] || 'jpg'
   const cloudPath = dir + '/' + Date.now() + '-' + Math.floor(Math.random() * 1e6) + '.' + ext.toLowerCase()
-  if (MOCK) {
+  if (MOCK || DEMO) {
     const id = 'cloud://mock/' + cloudPath
     mockFiles[id] = URL.createObjectURL(file)
     return id
@@ -147,7 +156,7 @@ export async function uploadImage(file, dir) {
 export async function tempUrl(fileID) {
   if (!fileID) return ''
   if (!fileID.startsWith('cloud://')) return fileID
-  if (MOCK) return mockFiles[fileID] || ''
+  if (MOCK || DEMO) return mockFiles[fileID] || ''
   if (urlCache[fileID]) return urlCache[fileID]
   await ensureAuth()
   const res = await cloudApp().getTempFileURL({ fileList: [fileID] })

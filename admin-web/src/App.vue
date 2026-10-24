@@ -19,6 +19,7 @@
     <el-container>
       <el-header class="header">
         <span class="title">{{ route.meta.title }}</span>
+        <el-tag v-if="isMock" type="warning" size="small" class="preview">预览 · 假数据，刷新页面会重置</el-tag>
         <span class="spacer"></span>
         <template v-if="session.staff">
           <span>{{ session.staff.name }}</span>
@@ -36,7 +37,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, session, setToken, config } from './api'
+import { api, session, setToken, config, isMock } from './api'
 import { MENU, allowed } from './router'
 import logo from './assets/logo.jpg'
 
@@ -112,5 +113,20 @@ async function logout() {
   font-weight: 600;
 }
 .header .spacer { flex: 1; }
+.header .preview { margin-left: 12px; }
 .main { background: var(--el-bg-color-page); }
+
+/* 手机和窄屏：菜单放到顶上横着滑 */
+@media (max-width: 760px) {
+  .layout { flex-direction: column; height: auto; min-height: 100%; }
+  .aside { width: auto !important; border-right: none; border-bottom: 1px solid var(--el-border-color); }
+  .brand { padding: 10px 16px; border-bottom: none; }
+  .brand img { width: 32px; height: 32px; }
+  .menu { display: flex; overflow-x: auto; padding: 0 8px; }
+  .menu-group { display: none; }
+  .menu :deep(.el-menu-item) { height: 40px; line-height: 40px; padding: 0 12px !important; white-space: nowrap; }
+  .header { flex-wrap: wrap; height: auto; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); }
+  .header .preview { margin-left: 0; order: 10; }
+  .main { padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
+}
 </style>

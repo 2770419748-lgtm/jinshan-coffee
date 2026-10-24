@@ -29,6 +29,7 @@
             </el-form-item>
             <el-button type="primary" size="large" class="submit" :loading="loading" native-type="submit">登录</el-button>
           </el-form>
+          <div class="tip center demo-account" v-if="isMock">预览账号 boss，密码 jinshan2026</div>
         </el-tab-pane>
       </el-tabs>
       <div class="tip help">只有店主和员工能登录。第一次用先在小程序里绑定身份；账号密码在小程序「我的 → 管理后台 → 电脑网页后台」里设置。</div>
@@ -154,6 +155,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .login {
   min-height: 100%;
+  box-sizing: border-box;
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -161,7 +164,9 @@ onBeforeUnmount(() => {
 }
 .box {
   width: 360px;
-  padding: 32px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 32px 24px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color);
   border-radius: 16px;
@@ -216,5 +221,6 @@ onBeforeUnmount(() => {
 }
 .center { text-align: center; }
 .submit { width: 100%; margin-top: 8px; }
+.demo-account { margin-top: 10px; }
 .help { margin-top: 16px; }
 </style>
