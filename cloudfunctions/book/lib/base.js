@@ -1,5 +1,6 @@
 // 每个云函数（common、coffee、book）各放一份这个文件，改的时候几份一起改。
 // tests/shared-files.test.js 会检查各份内容一致。
+const crypto = require('crypto')
 
 const ROLES = {
   owner: '店主',
@@ -24,8 +25,13 @@ const COLLECTIONS = [
   'book_books',
   'book_rules',
   'book_rentals',
-  'vouchers'
+  'vouchers',
+  'web_sessions',
+  'settings'
 ]
+
+// 电脑网页后台的登录有效期
+const WEB_SESSION_TTL = 7 * 24 * 3600 * 1000
 
 class BizError extends Error {
   constructor(message, code) {
@@ -101,21 +107,70 @@ async function nextSeq(db, counterId) {
   })
 }
 
+// 汇总用的日期范围：from 到 to（含），最多 62 天，返回每天的日期
+function dayRange(from, to) {
+  const re = /^\d{4}-\d{2}-\d{2}$/
+  const today = cnDay()
+  const start = re.test(from || '') ? from : today
+  const end = re.test(to || '') ? to : start
+  const a = Date.parse(start + 'T00:00:00Z')
+  const b = Date.parse(end + 'T00:00:00Z')
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a > b) throw new BizError('日期范围不对')
+  const days = []
+  for (let t = a; t <= b; t += 24 * 3600 * 1000) {
+    days.push(new Date(t).toISOString().slice(0, 10))
+    if (days.length > 62) throw new BizError('一次最多看 62 天')
+  }
+  return days
+}
+
+// 按条件取出全部记录（云数据库一次最多 1000 条）
+async function fetchAll(query, max) {
+  const out = []
+  const limit = 1000
+  for (let skip = 0; skip < (max || 20000); skip += limit) {
+    const res = await query.skip(skip).limit(limit).get()
+    out.push.apply(out, res.data)
+    if (res.data.length < limit) break
+  }
+  return out
+}
+
 function publicStaff(staff) {
   if (!staff) return null
   return { name: staff.name, role: staff.role, roleName: ROLES[staff.role] || staff.role }
 }
 
+function hashToken(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex')
+}
+
+// 电脑网页后台没有微信身份，登录后每次调用带上 webToken，换成对应员工的 openid
+async function resolveWebToken(db, token) {
+  if (typeof token !== 'string' || token.length < 32 || token.length > 128) {
+    throw new BizError('请先登录', 'NEED_LOGIN')
+  }
+  const res = await db.collection('web_sessions').where({ _id: hashToken(token) }).limit(1).get()
+  const session = res.data[0]
+  if (!session || session.expiresAt < Date.now()) throw new BizError('登录已过期，请重新登录', 'NEED_LOGIN')
+  return session.staffId
+}
+
 // 统一的云函数入口：handlers[action](event, openid)，返回 { ok, data } 或 { ok: false, msg, code }
-// 新版本加了集合、数据库里还没有时，自动建好再试一次
-function createMain(cloud, handlers) {
+// 小程序里调用时用微信身份；网页后台调用时用 webToken。都没有时只能调 options.anonymous 里列出的操作。
+// 新版本加了集合、数据库里还没有时，自动建好再试一次。
+function createMain(cloud, handlers, options) {
+  const anonymous = (options && options.anonymous) || []
   return async (event) => {
-    const { OPENID } = cloud.getWXContext()
-    const handler = handlers[event && event.action]
+    const action = event && event.action
+    const handler = handlers[action]
     if (!handler) return { ok: false, msg: '未知操作', code: 'UNKNOWN_ACTION' }
     for (let attempt = 0; ; attempt++) {
       try {
-        const data = await handler(event, OPENID)
+        let openid = cloud.getWXContext().OPENID || ''
+        if (!openid && event.webToken) openid = await resolveWebToken(cloud.database(), event.webToken)
+        if (!openid && anonymous.indexOf(action) === -1) throw new BizError('请先登录', 'NEED_LOGIN')
+        const data = await handler(event, openid)
         return { ok: true, data: data === undefined ? null : data }
       } catch (e) {
         if (e instanceof BizError) return { ok: false, msg: e.message, code: e.code }
@@ -135,6 +190,7 @@ module.exports = {
   COFFEE_ROLES,
   BOOK_ROLES,
   COLLECTIONS,
+  WEB_SESSION_TTL,
   BizError,
   isMissingCollection,
   cleanText,
@@ -144,6 +200,9 @@ module.exports = {
   getStaff,
   requireRole,
   nextSeq,
+  dayRange,
+  fetchAll,
+  hashToken,
   publicStaff,
   createMain
 }

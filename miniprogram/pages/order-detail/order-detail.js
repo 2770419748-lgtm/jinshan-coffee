@@ -1,4 +1,5 @@
 const api = require('../../utils/api')
+const pay = require('../../utils/pay')
 
 const POLL_MS = 10000
 const STEP = { pending: 1, making: 2, done: 3 }
@@ -66,6 +67,13 @@ Page({
           .then(() => this.load())
           .catch(api.toastError)
       }
+    })
+  },
+
+  payNow() {
+    pay.payOrder(this.id).then((paid) => {
+      if (paid) wx.showToast({ title: '付款成功', icon: 'success' })
+      this.load()
     })
   },
 

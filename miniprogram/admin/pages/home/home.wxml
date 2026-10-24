@@ -44,13 +44,19 @@
     </view>
   </block>
 
-  <block wx:if="{{isOwner}}">
-    <view class="section-title">店铺</view>
-    <view class="grid">
-      <view class="tile" data-url="/admin/pages/staff/staff" bindtap="go" hover-class="btn-hover">
-        <view class="tile-title">员工管理</view>
-        <view class="tile-sub">邀请员工，分配角色</view>
-      </view>
+  <view class="section-title">店铺</view>
+  <view class="grid">
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/staff/staff" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">员工管理</view>
+      <view class="tile-sub">邀请员工，分配角色</view>
     </view>
-  </block>
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/shop-settings/shop-settings" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">店铺设置</view>
+      <view class="tile-sub">微信支付开关、商户号</view>
+    </view>
+    <view class="tile" data-url="/admin/pages/web-account/web-account" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">电脑网页后台</view>
+      <view class="tile-sub">设置在电脑上登录的账号密码</view>
+    </view>
+  </view>
 </view>

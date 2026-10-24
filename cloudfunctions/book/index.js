@@ -1,5 +1,5 @@
-// 书籍云函数：书架、借书、借阅处理、书目和计费规则管理。
-// 读写 book_ 开头的集合；包天送咖啡时往 vouchers 里发赠饮券，咖啡下单时核销。
+// 书籍云函数：书架、借书、微信支付、借阅处理、书目和计费规则管理。
+// 读写 book_ 开头的集合；包天送咖啡时往 vouchers 里发赠饮券，咖啡下单时核销；读 settings 里的支付设置。
 const cloud = require('wx-server-sdk')
 const {
   BOOK_ROLES,
@@ -10,10 +10,13 @@ const {
   cnStamp,
   requireRole,
   nextSeq,
+  dayRange,
+  fetchAll,
   createMain
 } = require('./lib/base')
 const { sanitizeRule, quoteRental, dueAt, overtime, ruleSummary } = require('./lib/billing')
 const DEMO = require('./lib/demo')
+const pay = require('./lib/pay')
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
@@ -126,6 +129,60 @@ async function issueVouchers(rental, openid) {
   }
 }
 
+function overtimeTradeNo(rental) {
+  return 'JO' + rental.rentalNo.slice(2)
+}
+
+async function refundRental(rental) {
+  const settings = await pay.getSettings(db)
+  await pay.refund(cloud, settings, {
+    outTradeNo: rental.payOutTradeNo || rental.rentalNo,
+    outRefundNo: 'R' + rental.rentalNo,
+    totalFee: rental.fee,
+    functionName: 'book'
+  })
+  await col('book_rentals').doc(rental._id).update({ data: { payStatus: 'refunded', refundedAt: db.serverDate(), updatedAt: db.serverDate() } })
+}
+
+// 微信支付成功：核对金额，标记已付、发赠饮券；借阅已经取消的直接原路退回
+async function markRentalWechatPaid(rental, paid) {
+  if (!paid || paid.totalFee !== rental.fee) {
+    if (paid) console.error('pay amount mismatch', rental.rentalNo, paid.totalFee, rental.fee)
+    return false
+  }
+  const res = await col('book_rentals')
+    .where({ _id: rental._id, payStatus: 'unpaid' })
+    .update({ data: { payStatus: 'paid', payMethod: 'wechat', transactionId: paid.transactionId, paidAt: db.serverDate(), updatedAt: db.serverDate() } })
+  if (!res.stats.updated) return true
+  if (rental.status === 'cancelled') await refundRental(Object.assign({}, rental, { payStatus: 'paid' }))
+  else await issueVouchers(rental, '')
+  return true
+}
+
+async function markOvertimeWechatPaid(rental, paid) {
+  if (!paid || paid.totalFee !== rental.overtimeFee) {
+    if (paid) console.error('overtime amount mismatch', rental.rentalNo, paid.totalFee, rental.overtimeFee)
+    return false
+  }
+  await col('book_rentals')
+    .where({ _id: rental._id, overtimePayStatus: 'unpaid' })
+    .update({ data: { overtimePayStatus: 'paid', overtimePayMethod: 'wechat', overtimeTransactionId: paid.transactionId, overtimePaidAt: db.serverDate(), updatedAt: db.serverDate() } })
+  return true
+}
+
+// 微信支付回调：JB 开头是租金，JO 开头是超时费
+async function onPayNotify(event) {
+  const no = event.outTradeNo
+  const settings = await pay.getSettings(db)
+  if (no.indexOf('JB') === 0) {
+    const rental = await findOne('book_rentals', { rentalNo: no })
+    if (rental && rental.payStatus === 'unpaid') await markRentalWechatPaid(rental, await pay.queryPaid(cloud, settings, no))
+  } else if (no.indexOf('JO') === 0) {
+    const rental = await findOne('book_rentals', { rentalNo: 'JB' + no.slice(2) })
+    if (rental && rental.overtimePayStatus === 'unpaid') await markOvertimeWechatPaid(rental, await pay.queryPaid(cloud, settings, no))
+  }
+}
+
 async function deleteFiles(fileIds) {
   const list = fileIds.filter((id) => typeof id === 'string' && id.indexOf('cloud://') === 0)
   if (!list.length) return
@@ -169,7 +226,8 @@ const handlers = {
   async getBook({ id }) {
     const book = await findOne('book_books', { _id: String(id || '') })
     if (!book || !book.onShelf) throw new BizError('这本书暂时不在书架上了')
-    return { book: publicBook(book), rules: await shelfRules() }
+    const settings = await pay.getSettings(db)
+    return { book: publicBook(book), rules: await shelfRules(), pay: pay.publicPay(settings) }
   },
 
   async createRental({ bookId, ruleId, hours, remark }, openid) {
@@ -215,8 +273,9 @@ const handlers = {
         voucherCount: 0,
         remark: cleanText(remark, 50),
         status: 'pending',
-        payStatus: 'unpaid',
-        payMethod: 'counter',
+        // 0 元的规则不用付钱
+        payStatus: quote.fee === 0 ? 'paid' : 'unpaid',
+        payMethod: quote.fee === 0 ? 'free' : 'counter', // 微信付款后改成 wechat
         startAt: null,
         dueAt: null,
         returnedAt: null,
@@ -227,6 +286,7 @@ const handlers = {
         updatedAt: db.serverDate()
       }
       const added = await col('book_rentals').add({ data: rental })
+      if (rental.payStatus === 'paid') await issueVouchers(Object.assign({ _id: added._id }, rental), '')
       return { id: added._id }
     } catch (e) {
       await restoreStock(book._id)
@@ -239,7 +299,53 @@ const handlers = {
     if (!rental) throw new BizError('借阅记录不存在')
     if (rental._openid !== openid) await requireRole(db, openid, BOOK_ROLES)
     const now = Date.now()
-    return Object.assign(formatRental(rental, now), { serverNow: now })
+    const settings = await pay.getSettings(db)
+    return Object.assign(formatRental(rental, now), { serverNow: now, pay: pay.publicPay(settings) })
+  },
+
+  // 顾客用微信付租金（kind 不传）或超时费（kind: 'overtime'）
+  async payRental({ id, kind }, openid) {
+    const rental = await findOne('book_rentals', { _id: String(id || ''), _openid: openid })
+    if (!rental) throw new BizError('借阅记录不存在')
+    const settings = await pay.getSettings(db)
+    if (kind === 'overtime') {
+      if (rental.overtimePayStatus !== 'unpaid') throw new BizError('没有要付的超时费')
+      const payment = await pay.unifiedOrder(cloud, settings, {
+        body: '进山书屋-超时费',
+        outTradeNo: overtimeTradeNo(rental),
+        totalFee: rental.overtimeFee,
+        functionName: 'book'
+      })
+      return { payment }
+    }
+    if (rental.status !== 'pending') throw new BizError('这条借阅已经不能付款了')
+    if (rental.payStatus !== 'unpaid') throw new BizError('已经付过了')
+    const payment = await pay.unifiedOrder(cloud, settings, {
+      body: '进山书屋-《' + rental.bookTitle + '》',
+      outTradeNo: rental.rentalNo,
+      totalFee: rental.fee,
+      functionName: 'book'
+    })
+    await col('book_rentals').doc(rental._id).update({ data: { payOutTradeNo: rental.rentalNo, updatedAt: db.serverDate() } })
+    return { payment }
+  },
+
+  // 付完款后顾客端调一下，向微信查单确认
+  async confirmPay({ id, kind }, openid) {
+    const rental = await findOne('book_rentals', { _id: String(id || '') })
+    if (!rental) throw new BizError('借阅记录不存在')
+    if (rental._openid !== openid) await requireRole(db, openid, BOOK_ROLES)
+    const settings = await pay.getSettings(db)
+    if (kind === 'overtime') {
+      if (rental.overtimePayStatus === 'unpaid' && await markOvertimeWechatPaid(rental, await pay.queryPaid(cloud, settings, overtimeTradeNo(rental)))) {
+        return { overtimePayStatus: 'paid' }
+      }
+      return { overtimePayStatus: rental.overtimePayStatus }
+    }
+    if (rental.payStatus === 'unpaid' && rental.payOutTradeNo && await markRentalWechatPaid(rental, await pay.queryPaid(cloud, settings, rental.payOutTradeNo))) {
+      return { payStatus: 'paid' }
+    }
+    return { payStatus: rental.payStatus }
   },
 
   async myRentals({ page }, openid) {
@@ -361,6 +467,9 @@ const handlers = {
     await requireRole(db, openid, BOOK_ROLES)
     const rental = await getRentalForStaff(id)
     if (rental.status !== 'pending' && rental.status !== 'reading') throw new BizError('这条借阅已经结束了')
+    // 微信付过款的先原路退款，退款成功才取消
+    const refunded = rental.payStatus === 'paid' && rental.payMethod === 'wechat'
+    if (refunded) await refundRental(rental)
     const res = await col('book_rentals')
       .where({ _id: rental._id, status: rental.status })
       .update({ data: { status: 'cancelled', cancelledAt: db.serverDate(), cancelledBy: openid, updatedAt: db.serverDate() } })
@@ -371,7 +480,50 @@ const handlers = {
       const v = await col('vouchers').where({ sourceId: rental._id, status: 'unused' }).update({ data: { status: 'void' } })
       voided = v.stats.updated
     }
-    return { paid: rental.payStatus === 'paid', voidedVouchers: voided }
+    return { paid: rental.payStatus === 'paid' && !refunded && rental.fee > 0, refunded, voidedVouchers: voided }
+  },
+
+  // 店主看账：每天借了几本、租金和超时费，以及各计费规则的情况
+  async daySummary({ from, to }, openid) {
+    await requireRole(db, openid, ['owner'])
+    const days = dayRange(from, to)
+    const list = await fetchAll(col('book_rentals').where({ day: _.in(days) }).orderBy('createdAt', 'asc'))
+    const rows = {}
+    days.forEach((d) => {
+      rows[d] = { day: d, rentals: 0, cancelled: 0, fee: 0, paidFee: 0, unpaidFee: 0, wechatFee: 0, counterFee: 0, overtimePaid: 0, overtimeUnpaid: 0, vouchersIssued: 0, cancelledPaidFee: 0 }
+    })
+    const rules = {}
+    list.forEach((r) => {
+      const row = rows[r.day]
+      if (!row) return
+      if (r.status === 'cancelled') {
+        row.cancelled++
+        if (r.payStatus === 'paid') row.cancelledPaidFee += r.fee // 收了钱、还没在线退款的
+        return
+      }
+      row.rentals++
+      row.fee += r.fee
+      row.vouchersIssued += r.voucherCount || 0
+      if (r.payStatus === 'paid') {
+        row.paidFee += r.fee
+        if (r.payMethod === 'wechat') row.wechatFee += r.fee
+        else row.counterFee += r.fee
+      } else {
+        row.unpaidFee += r.fee
+      }
+      if (r.overtimePayStatus === 'paid') row.overtimePaid += r.overtimeFee
+      if (r.overtimePayStatus === 'unpaid') row.overtimeUnpaid += r.overtimeFee
+      const rule = rules[r.ruleId] || (rules[r.ruleId] = { ruleId: r.ruleId, name: r.ruleName, count: 0, amount: 0 })
+      rule.count++
+      rule.amount += r.fee
+    })
+    const out = days.map((d) => rows[d])
+    const totals = out.reduce((acc, r) => {
+      Object.keys(r).forEach((k) => { if (k !== 'day') acc[k] = (acc[k] || 0) + r[k] })
+      return acc
+    }, {})
+    const byRule = Object.keys(rules).map((k) => rules[k]).sort((a, b) => b.amount - a.amount)
+    return { days: out, totals, rules: byRule }
   },
 
   // ---------- 书籍后台：书目 ----------
@@ -432,6 +584,53 @@ const handlers = {
     data.createdAt = db.serverDate()
     const added = await col('book_books').add({ data })
     return { id: added._id }
+  },
+
+  // 网页后台从 Excel 批量导入：同一个 ISBN 已经有的跳过，其余新建
+  async importBooks({ books }, openid) {
+    await requireRole(db, openid, BOOK_ROLES)
+    if (!Array.isArray(books) || !books.length) throw new BizError('没有要导入的书')
+    if (books.length > 200) throw new BizError('一次最多导入 200 本')
+    const existing = await fetchAll(col('book_books').field({ isbn: true }).orderBy('createdAt', 'asc'))
+    const seen = {}
+    existing.forEach((b) => { if (b.isbn) seen[b.isbn] = true })
+    const count = await col('book_books').count()
+    let created = 0
+    const skipped = []
+    for (let i = 0; i < books.length; i++) {
+      const b = books[i] || {}
+      const title = cleanText(b.title, 40)
+      const isbn = String(b.isbn || '').replace(/[\s-]/g, '').toUpperCase()
+      const copies = b.copies === undefined || b.copies === '' || b.copies === null ? 1 : Number(b.copies)
+      let reason = ''
+      if (!title) reason = '没有书名'
+      else if (!Number.isInteger(copies) || copies < 1 || copies > MAX_COPIES) reason = '册数要是 1 到 ' + MAX_COPIES + ' 的整数'
+      else if (isbn && !ISBN_RE.test(isbn)) reason = 'ISBN 格式不对'
+      else if (isbn && seen[isbn]) reason = '这个 ISBN 已经有了'
+      if (reason) {
+        skipped.push({ index: i, title, reason })
+        continue
+      }
+      if (isbn) seen[isbn] = true
+      await col('book_books').add({
+        data: {
+          title,
+          author: cleanText(b.author, 30),
+          isbn,
+          cover: '',
+          category: cleanText(b.category, 10),
+          desc: cleanText(b.desc, 300),
+          copies,
+          available: copies,
+          onShelf: true,
+          sort: count.total + created,
+          createdAt: db.serverDate(),
+          updatedAt: db.serverDate()
+        }
+      })
+      created++
+    }
+    return { created, skipped }
   },
 
   async setBookFlags({ id, onShelf }, openid) {
@@ -533,4 +732,4 @@ const handlers = {
   }
 }
 
-exports.main = createMain(cloud, handlers)
+exports.main = pay.withPayNotify(createMain(cloud, handlers), onPayNotify)

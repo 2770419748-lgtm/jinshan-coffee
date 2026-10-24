@@ -34,7 +34,7 @@
       <view class="row-between foot">
         <view class="row">
           <text class="price">{{f.yuan(item.payFee)}}</text>
-          <text class="tag {{item.payStatus === 'paid' ? 'ok' : 'danger'}} pay">{{item.payStatus === 'paid' ? '已收款' : '未收款'}}</text>
+          <text class="tag {{item.payStatus === 'paid' ? 'ok' : item.payStatus === 'refunded' ? '' : 'danger'}} pay">{{f.payTag(item.payStatus, item.payMethod)}}</text>
         </view>
         <view class="row ops">
           <view wx:if="{{item.payStatus === 'unpaid' && item.status !== 'cancelled'}}" class="btn-ghost btn-small" data-id="{{item._id}}" data-op="paid" bindtap="act">已收款</view>

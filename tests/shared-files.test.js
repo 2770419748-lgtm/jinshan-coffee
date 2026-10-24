@@ -14,6 +14,13 @@ test('每个云函数里的 lib/base.js 内容一致', () => {
   })
 })
 
+test('咖啡和借书云函数里的 lib/pay.js 内容一致', () => {
+  const root = path.join(__dirname, '..', 'cloudfunctions')
+  const a = fs.readFileSync(path.join(root, 'coffee', 'lib', 'pay.js'), 'utf8')
+  const b = fs.readFileSync(path.join(root, 'book', 'lib', 'pay.js'), 'utf8')
+  assert.equal(a, b, '改了一份 pay.js 记得复制到另一个云函数')
+})
+
 test('每个云函数都有 package.json 和 config.json，依赖同一个版本的 wx-server-sdk', () => {
   const root = path.join(__dirname, '..', 'cloudfunctions')
   fs.readdirSync(root).forEach((d) => {

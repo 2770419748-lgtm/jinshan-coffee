@@ -15,8 +15,13 @@
     </view>
 
     <block wx:if="{{rental.status === 'pending'}}">
-      <view class="tip" wx:if="{{rental.payStatus === 'unpaid'}}">请到吧台报借书号付款 <text class="price">{{f.yuan(rental.fee)}}</text>，付款后取书</view>
-      <view class="tip ok" wx:else>已付款，请到吧台取书</view>
+      <block wx:if="{{rental.payStatus === 'unpaid'}}">
+        <view class="tip" wx:if="{{rental.pay.enabled && !rental.pay.allowCounter}}">还没付款 <text class="price">{{f.yuan(rental.fee)}}</text>，付款后到吧台报借书号取书</view>
+        <view class="tip" wx:elif="{{rental.pay.enabled}}">还没付款 <text class="price">{{f.yuan(rental.fee)}}</text>，可以微信支付，也可以到吧台报借书号付</view>
+        <view class="tip" wx:else>请到吧台报借书号付款 <text class="price">{{f.yuan(rental.fee)}}</text>，付款后取书</view>
+        <view class="btn-gold btn-block pay-btn" wx:if="{{rental.pay.enabled}}" bindtap="payNow">微信支付 ¥{{f.yuan(rental.fee)}}</view>
+      </block>
+      <view class="tip ok" wx:else>已付款，请到吧台报借书号取书</view>
     </block>
     <block wx:elif="{{rental.status === 'reading'}}">
       <view class="tip" wx:if="{{rental.ruleType === 'day'}}">今天打烊前还书就行</view>
@@ -25,8 +30,12 @@
         <view class="faint">{{f.clock(rental.dueAtMs)}} 到期，看完把书还到吧台<text wx:if="{{rental.dueAtMs < now}}">，还书时按 ¥{{f.yuan(rental.unitPrice)}}/小时补超时费</text></view>
       </view>
     </block>
+    <view class="tip ok" wx:elif="{{rental.payStatus === 'refunded'}}">租金已原路退回</view>
     <block wx:elif="{{rental.status === 'returned' && rental.overtimeFee}}">
-      <view class="tip warn" wx:if="{{rental.overtimePayStatus === 'unpaid'}}">超时 {{f.minutes(rental.overtimeMinutes)}}，请到吧台补 <text class="price">{{f.yuan(rental.overtimeFee)}}</text></view>
+      <block wx:if="{{rental.overtimePayStatus === 'unpaid'}}">
+        <view class="tip warn">超时 {{f.minutes(rental.overtimeMinutes)}}，要补 <text class="price">{{f.yuan(rental.overtimeFee)}}</text>{{rental.pay.enabled ? '' : '，请到吧台付'}}</view>
+        <view class="btn-gold btn-block pay-btn" wx:if="{{rental.pay.enabled}}" bindtap="payOvertime">微信支付超时费 ¥{{f.yuan(rental.overtimeFee)}}</view>
+      </block>
       <view class="tip ok" wx:else>超时费 ¥{{f.yuan(rental.overtimeFee)}} 已付</view>
     </block>
   </view>

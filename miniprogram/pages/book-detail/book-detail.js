@@ -1,4 +1,5 @@
 const api = require('../../utils/api')
+const pay = require('../../utils/pay')
 
 Page({
   data: {
@@ -8,6 +9,8 @@ Page({
     hours: 1,
     fee: 0,
     remark: '',
+    payInfo: null, // { enabled, allowCounter }
+    payMethod: 'counter',
     loading: true,
     submitting: false
   },
@@ -18,11 +21,13 @@ Page({
   },
 
   load() {
-    return api.book('getBook', { id: this.id }).then(({ book, rules }) => {
+    return api.book('getBook', { id: this.id }).then(({ book, rules, pay: payInfo }) => {
       wx.setNavigationBarTitle({ title: book.title })
       const keep = this.data.rules[this.data.ruleIndex]
       const index = keep ? rules.findIndex((r) => r._id === keep._id) : -1
-      this.setData({ book, rules, loading: false })
+      const data = { book, rules, payInfo, loading: false }
+      if (!this.methodPicked) data.payMethod = payInfo.enabled ? 'wechat' : 'counter'
+      this.setData(data)
       this.pickRuleAt(index === -1 ? 0 : index)
     }).catch((err) => {
       this.setData({ loading: false })
@@ -52,17 +57,24 @@ Page({
     this.setData({ hours, fee: rule.price * hours })
   },
 
+  pickPay(e) {
+    this.methodPicked = true
+    this.setData({ payMethod: e.currentTarget.dataset.method })
+  },
+
   onRemark(e) {
     this.setData({ remark: e.detail.value })
   },
 
   submit() {
-    const { book, rules, ruleIndex, hours, remark, submitting } = this.data
+    const { book, rules, ruleIndex, hours, remark, submitting, payMethod, fee } = this.data
     const rule = rules[ruleIndex]
     if (submitting || !book || !rule || !book.available) return
     this.setData({ submitting: true })
     api.book('createRental', { bookId: book._id, ruleId: rule._id, hours, remark }).then(({ id }) => {
-      wx.redirectTo({ url: '/pages/rental-detail/rental-detail?id=' + id })
+      const go = () => wx.redirectTo({ url: '/pages/rental-detail/rental-detail?id=' + id })
+      if (payMethod === 'wechat' && fee > 0) return pay.payRental(id).then(go)
+      go()
     }).catch((err) => {
       this.setData({ submitting: false })
       if (err.code === 'SHELF_CHANGED') {

@@ -1,0 +1,34 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="section-title">收款方式</view>
+  <view class="card">
+    <view class="field">
+      <text class="field-label">商户号</text>
+      <input class="field-input" type="number" placeholder="微信支付商户号，开通后填" placeholder-class="placeholder" maxlength="12" value="{{mchId}}" bindinput="onMchId" />
+    </view>
+    <view class="field">
+      <text class="field-label">微信支付</text>
+      <view class="field-input row-between">
+        <text class="muted small">{{payEnabled ? '顾客可以在小程序里直接付' : '没打开，顾客到吧台付'}}</text>
+        <switch checked="{{payEnabled}}" color="#d6b25e" bindchange="onPay" />
+      </view>
+    </view>
+    <view class="field" wx:if="{{payEnabled}}">
+      <text class="field-label">吧台付款</text>
+      <view class="field-input row-between">
+        <text class="muted small">{{allowCounter ? '顾客也能选到吧台付' : '只能在线付'}}</text>
+        <switch checked="{{allowCounter}}" color="#d6b25e" bindchange="onCounter" />
+      </view>
+    </view>
+  </view>
+
+  <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : '保存'}}</view>
+
+  <view class="section-title">怎么开通微信支付</view>
+  <view class="card steps">
+    <view class="step"><text class="gold">1</text><text>用个体户营业执照申请微信支付商户号，在商户平台把这个小程序的 AppID 关联上。</text></view>
+    <view class="step"><text class="gold">2</text><text>在微信开发者工具打开「云开发控制台」，在「设置」里找到微信支付配置，添加商户号；商户号管理员在微信里确认授权。</text></view>
+    <view class="step"><text class="gold">3</text><text>回到这里填商户号、打开微信支付，自己先下一单付 1 分钱的试试，再到订单里取消，看钱有没有原路退回。</text></view>
+    <view class="faint small">控制台的菜单名称可能会调整，以实际页面为准。没打开之前，小程序照常只收吧台付款。</view>
+  </view>
+  <view class="safe-bottom"></view>
+</view>

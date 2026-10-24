@@ -4,6 +4,13 @@ const guard = require('../../../utils/guard')
 // 停留在这个页面时每 8 秒查一次新订单，有新单就响铃并震动
 const POLL_MS = 8000
 
+function cancelText(order) {
+  if (order.payStatus !== 'paid') return '确定取消这单？'
+  if (order.payMethod === 'wechat') return '这单是微信支付的，取消后钱会原路退回顾客的微信。'
+  if (order.payMethod === 'voucher') return '这单用赠饮券抵扣，取消后券会退回给顾客。'
+  return '这单已在吧台收款，取消后请记得线下退款给顾客。'
+}
+
 Page({
   data: {
     tabs: [
@@ -123,9 +130,10 @@ Page({
       })
     }
     if (op === 'cancelled') {
+      const order = this.data.orders.find((o) => o._id === id) || {}
       wx.showModal({
         title: '取消订单',
-        content: '已收款的订单取消后请记得线下退款给顾客。',
+        content: cancelText(order),
         confirmText: '取消订单',
         cancelText: '不取消',
         success: (res) => { if (res.confirm) run() }

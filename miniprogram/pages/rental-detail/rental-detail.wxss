@@ -62,3 +62,6 @@
 .actions .btn-block {
   margin-bottom: 20rpx;
 }
+.pay-btn {
+  margin-top: 20rpx;
+}

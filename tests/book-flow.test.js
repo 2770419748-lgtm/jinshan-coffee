@@ -199,7 +199,7 @@ test('店员取消已付款的包天：书放回去，没用的券作废', async
   await ok(keeper.book('markRentalPaid', { id }))
   assert.equal((await ok(bob.coffee('myVouchers'))).usable.length, 1)
   const res = await ok(keeper.book('adminCancelRental', { id }))
-  assert.deepEqual(res, { paid: true, voidedVouchers: 1 })
+  assert.deepEqual(res, { paid: true, refunded: false, voidedVouchers: 1 })
   assert.equal((await ok(bob.coffee('myVouchers'))).usable.length, 0)
   assert.equal((await ok(bob.book('getShelf'))).books.find((b) => b._id === book._id).available, 1)
   const cancelled = await ok(keeper.book('listRentals', { status: 'cancelled' }))

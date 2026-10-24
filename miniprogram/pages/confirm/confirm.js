@@ -1,6 +1,7 @@
 const api = require('../../utils/api')
 const cart = require('../../utils/cart')
 const table = require('../../utils/table')
+const pay = require('../../utils/pay')
 
 Page({
   data: {
@@ -13,6 +14,7 @@ Page({
     quote: null, // 云端算的价和赠饮券 { total, vouchers, applied, discountFee, payFee }
     useVouchers: true,
     payable: 0,
+    payMethod: 'counter', // 开通微信支付后默认 wechat
     submitting: false
   },
 
@@ -49,7 +51,9 @@ Page({
   requote() {
     if (!this.data.list.length) return
     api.coffee('quote', { items: this.items() }).then((quote) => {
-      this.setData({ quote })
+      const data = { quote }
+      if (!this.methodPicked) data.payMethod = quote.pay.enabled ? 'wechat' : 'counter'
+      this.setData(data)
       this.updatePayable()
     }).catch(() => {
       this.setData({ quote: null })
@@ -60,6 +64,11 @@ Page({
   updatePayable() {
     const { quote, useVouchers, total } = this.data
     this.setData({ payable: quote ? (useVouchers ? quote.payFee : quote.total) : total })
+  },
+
+  pickPay(e) {
+    this.methodPicked = true
+    this.setData({ payMethod: e.currentTarget.dataset.method })
   },
 
   toggleVouchers(e) {
@@ -77,7 +86,7 @@ Page({
 
   submit() {
     if (this.data.submitting) return
-    const { mode, tableNo, remark, quote, useVouchers } = this.data
+    const { mode, tableNo, remark, quote, useVouchers, payMethod, payable } = this.data
     this.setData({ submitting: true })
     api.coffee('createOrder', {
       items: this.items(),
@@ -87,7 +96,10 @@ Page({
       voucherIds: useVouchers && quote ? quote.applied.map((a) => a.id) : []
     }).then(({ id }) => {
       cart.clear()
-      wx.redirectTo({ url: '/pages/order-detail/order-detail?id=' + id })
+      const go = () => wx.redirectTo({ url: '/pages/order-detail/order-detail?id=' + id })
+      // 选了微信支付就直接拉起支付；没付成也先进订单详情，在那里可以再付
+      if (payMethod === 'wechat' && payable > 0) return pay.payOrder(id).then(go)
+      go()
     }).catch((err) => {
       this.setData({ submitting: false })
       if (err.code === 'TABLE_INVALID') {

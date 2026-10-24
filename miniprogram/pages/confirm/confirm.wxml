@@ -49,12 +49,17 @@
     <view class="faint" wx:else>你有 {{quote.vouchers}} 张赠饮券，这单的商品用不上</view>
   </view>
 
-  <view class="card pay-card">
+  <view class="card pay-card" wx:if="{{payable > 0}}">
     <view class="row-between">
       <text class="muted">付款方式</text>
-      <text>到吧台付款</text>
+      <view class="row" wx:if="{{quote && quote.pay.enabled}}">
+        <view class="chip pay-chip {{payMethod === 'wechat' ? 'on' : ''}}" data-method="wechat" bindtap="pickPay">微信支付</view>
+        <view class="chip pay-chip {{payMethod === 'counter' ? 'on' : ''}}" wx:if="{{quote.pay.allowCounter}}" data-method="counter" bindtap="pickPay">到吧台付</view>
+      </view>
+      <text wx:else>到吧台付款</text>
     </view>
-    <view class="faint pay-note">下单后到吧台报取餐号付款；微信支付开通后可以直接在线付。</view>
+    <view class="faint pay-note" wx:if="{{payMethod === 'wechat'}}">提交后直接微信付款。</view>
+    <view class="faint pay-note" wx:else>下单后到吧台报取餐号付款。</view>
   </view>
 
   <view class="safe-bottom"></view>
@@ -65,5 +70,5 @@
     <text class="muted">共 {{count}} 件 合计 </text>
     <text class="price big">{{f.yuan(payable)}}</text>
   </view>
-  <view class="btn-gold {{submitting ? 'disabled' : ''}}" bindtap="submit">{{submitting ? '提交中…' : '提交订单'}}</view>
+  <view class="btn-gold {{submitting ? 'disabled' : ''}}" bindtap="submit">{{submitting ? '提交中…' : (payMethod === 'wechat' && payable > 0 ? '提交并付款' : '提交订单')}}</view>
 </view>

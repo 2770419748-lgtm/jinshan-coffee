@@ -83,3 +83,26 @@ test('后台表单的元和分互相转换', () => {
   assert.equal(money.fenToText(1850), '18.5')
   assert.equal(money.fenToText(0), '0')
 })
+
+// WXS 只支持 ES5：不能有 let、const、箭头函数、模板字符串
+const fs = require('fs')
+const path = require('path')
+const wxsSource = fs.readFileSync(path.join(__dirname, '../miniprogram/utils/filters.wxs'), 'utf8')
+const wxs = { exports: {} }
+new Function('module', 'getDate', 'getRegExp', wxsSource)(wxs, (...a) => new Date(...a), (s, f) => new RegExp(s, f))
+
+test('filters.wxs 只用 ES5 写法', () => {
+  const code = wxsSource.replace(/\/\/.*$/gm, '')
+  assert.doesNotMatch(code, /\b(let|const)\s/)
+  assert.doesNotMatch(code, /=>/)
+  assert.doesNotMatch(code, /`/)
+})
+
+test('后台列表的收款状态', () => {
+  const f = wxs.exports
+  assert.equal(f.payTag('paid', 'wechat'), '微信已付')
+  assert.equal(f.payTag('paid', 'voucher'), '券抵扣')
+  assert.equal(f.payTag('paid', 'counter'), '已收款')
+  assert.equal(f.payTag('refunded', 'wechat'), '已退款')
+  assert.equal(f.payTag('unpaid'), '未收款')
+})

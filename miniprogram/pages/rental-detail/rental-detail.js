@@ -1,4 +1,5 @@
 const api = require('../../utils/api')
+const pay = require('../../utils/pay')
 
 const POLL_MS = 15000
 const TICK_MS = 30000
@@ -73,6 +74,20 @@ Page({
           .then(() => this.load())
           .catch(api.toastError)
       }
+    })
+  },
+
+  payNow() {
+    pay.payRental(this.id).then((paid) => {
+      if (paid) wx.showToast({ title: '付款成功，到吧台取书', icon: 'none' })
+      this.load()
+    })
+  },
+
+  payOvertime() {
+    pay.payOvertime(this.id).then((paid) => {
+      if (paid) wx.showToast({ title: '超时费已付', icon: 'success' })
+      this.load()
     })
   },
 

@@ -45,3 +45,7 @@
 .small {
   font-size: 24rpx;
 }
+.pay-chip {
+  margin: 0 0 0 16rpx;
+  padding: 8rpx 20rpx;
+}

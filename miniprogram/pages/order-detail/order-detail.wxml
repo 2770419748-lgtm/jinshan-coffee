@@ -14,10 +14,14 @@
       <view class="step {{step >= 3 ? 'on' : ''}}">可取餐</view>
     </view>
 
-    <view class="pay-tip" wx:if="{{order.payStatus === 'unpaid' && order.status !== 'cancelled'}}">
-      请到吧台报取餐号付款 <text class="price">{{f.yuan(order.payFee)}}</text>
-    </view>
-    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'paid'}}">已付款</view>
+    <block wx:if="{{order.payStatus === 'unpaid' && order.status !== 'cancelled'}}">
+      <view class="pay-tip" wx:if="{{order.pay.enabled && !order.pay.allowCounter}}">还没付款 <text class="price">{{f.yuan(order.payFee)}}</text>，付款后开始制作</view>
+      <view class="pay-tip" wx:elif="{{order.pay.enabled}}">还没付款 <text class="price">{{f.yuan(order.payFee)}}</text>，可以微信支付，也可以到吧台报取餐号付</view>
+      <view class="pay-tip" wx:else>请到吧台报取餐号付款 <text class="price">{{f.yuan(order.payFee)}}</text></view>
+      <view class="btn-gold btn-block pay-btn" wx:if="{{order.pay.enabled}}" bindtap="payNow">微信支付 ¥{{f.yuan(order.payFee)}}</view>
+    </block>
+    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'paid'}}">已付款{{order.payMethod === 'wechat' ? '（微信支付）' : order.payMethod === 'voucher' ? '（赠饮券抵扣）' : ''}}</view>
+    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'refunded'}}">已原路退款</view>
   </view>
 
   <view class="card">

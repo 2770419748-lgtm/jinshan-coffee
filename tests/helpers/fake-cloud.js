@@ -20,6 +20,7 @@ const command = {
 }
 
 function clone(v) {
+  if (v && v[SERVER_DATE]) return v
   if (v instanceof Date) return new Date(v.getTime())
   if (Array.isArray(v)) return v.map(clone)
   if (v && typeof v === 'object') {
@@ -238,13 +239,35 @@ class FakeDb {
 }
 
 const db = new FakeDb()
-const state = { openid: '', files: [], deleted: [], envVersion: null }
+const state = { openid: '', files: [], deleted: [], envVersion: null, payOrders: {}, refunds: [], payFail: false }
 
 module.exports = {
   DYNAMIC_CURRENT_ENV: 'dynamic',
   init() {},
   database() { return db },
-  getWXContext() { return { OPENID: state.openid } },
+  getWXContext() { return { OPENID: state.openid, ENV: 'env-test' } },
+  // 微信支付：测试里用 __state.payOrders[outTradeNo].paid = true 假装顾客付了款
+  cloudPay: {
+    async unifiedOrder(params) {
+      if (state.payFail) return { returnCode: 'SUCCESS', resultCode: 'FAIL', errCodeDes: '商户号未绑定' }
+      const prev = state.payOrders[params.outTradeNo]
+      state.payOrders[params.outTradeNo] = { params, paid: prev ? prev.paid : false }
+      return {
+        returnCode: 'SUCCESS',
+        resultCode: 'SUCCESS',
+        payment: { timeStamp: '1', nonceStr: params.nonceStr, package: 'prepay_id=wx' + params.outTradeNo, signType: 'MD5', paySign: 'sign' }
+      }
+    },
+    async queryOrder({ outTradeNo }) {
+      const o = state.payOrders[outTradeNo]
+      if (!o) return { returnCode: 'SUCCESS', resultCode: 'FAIL', errCode: 'ORDERNOTEXIST' }
+      return { returnCode: 'SUCCESS', resultCode: 'SUCCESS', tradeState: o.paid ? 'SUCCESS' : 'NOTPAY', totalFee: o.params.totalFee, transactionId: 'tx' + outTradeNo }
+    },
+    async refund(params) {
+      state.refunds.push(params)
+      return { returnCode: 'SUCCESS', resultCode: 'SUCCESS' }
+    }
+  },
   openapi: {
     wxacode: {
       async getUnlimited(params) {

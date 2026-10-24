@@ -82,7 +82,17 @@ function itemsBrief(items) {
   return names.join('，') + (list.length > 2 ? ' 等' : '') + ' 共 ' + count + ' 件'
 }
 
+// 后台列表里的收款状态
+function payTag(status, method) {
+  if (status === 'refunded') return '已退款'
+  if (status !== 'paid') return '未收款'
+  if (method === 'wechat') return '微信已付'
+  if (method === 'voucher') return '券抵扣'
+  return '已收款'
+}
+
 module.exports = {
+  payTag: payTag,
   yuan: yuan,
   status: status,
   mode: mode,

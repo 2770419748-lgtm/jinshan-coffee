@@ -64,6 +64,19 @@ Page({
     })
   },
 
+  clearWeb(e) {
+    const item = this.data.list[e.currentTarget.dataset.index]
+    wx.showModal({
+      title: '停用网页后台',
+      content: '「' + item.name + '」在电脑上会马上退出登录，要用的话得重新设账号密码。',
+      confirmText: '停用',
+      success: (res) => {
+        if (!res.confirm) return
+        api.common('clearWebAccount', { id: item.id }).then(() => this.load()).catch(api.toastError)
+      }
+    })
+  },
+
   remove(e) {
     const item = this.data.list[e.currentTarget.dataset.index]
     wx.showModal({

@@ -28,7 +28,9 @@
         "pages/books/books",
         "pages/book-edit/book-edit",
         "pages/rules/rules",
-        "pages/rule-edit/rule-edit"
+        "pages/rule-edit/rule-edit",
+        "pages/web-account/web-account",
+        "pages/shop-settings/shop-settings"
       ]
     }
   ],

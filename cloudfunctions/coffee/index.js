@@ -1,5 +1,5 @@
-// 咖啡云函数：菜单、下单、订单处理、商品分类桌台管理。
-// 读写 coffee_ 开头的集合；下单时核销 vouchers 里的赠饮券（书籍模块包天时发放）。
+// 咖啡云函数：菜单、下单、微信支付、订单处理、商品分类桌台管理。
+// 读写 coffee_ 开头的集合；下单时核销 vouchers 里的赠饮券（书籍模块包天时发放）；读 settings 里的支付设置。
 const cloud = require('wx-server-sdk')
 const {
   COFFEE_ROLES,
@@ -10,9 +10,12 @@ const {
   cnStamp,
   requireRole,
   nextSeq,
+  dayRange,
+  fetchAll,
   createMain
 } = require('./lib/base')
 const { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers } = require('./lib/pricing')
+const pay = require('./lib/pay')
 const DEMO_MENU = require('./lib/demo')
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
@@ -114,6 +117,39 @@ function formatVoucher(v, today) {
   }
 }
 
+// 微信支付成功：核对金额后标记已付。订单如果已经取消了（顾客付款途中取消），直接原路退回。
+async function markWechatPaid(order, paid) {
+  if (!paid || paid.totalFee !== order.payFee) {
+    if (paid) console.error('pay amount mismatch', order.orderNo, paid.totalFee, order.payFee)
+    return false
+  }
+  const res = await col('coffee_orders')
+    .where({ _id: order._id, payStatus: 'unpaid' })
+    .update({ data: { payStatus: 'paid', payMethod: 'wechat', transactionId: paid.transactionId, paidAt: db.serverDate(), updatedAt: db.serverDate() } })
+  if (res.stats.updated && order.status === 'cancelled') await refundOrder(Object.assign({}, order, { payStatus: 'paid', payMethod: 'wechat' }))
+  return true
+}
+
+async function refundOrder(order) {
+  const settings = await pay.getSettings(db)
+  await pay.refund(cloud, settings, {
+    outTradeNo: order.payOutTradeNo || order.orderNo,
+    outRefundNo: 'R' + order.orderNo,
+    totalFee: order.payFee,
+    functionName: 'coffee'
+  })
+  await col('coffee_orders').doc(order._id).update({ data: { payStatus: 'refunded', refundedAt: db.serverDate(), updatedAt: db.serverDate() } })
+}
+
+// 微信支付回调
+async function onPayNotify(event) {
+  if (event.outTradeNo.indexOf('JS') !== 0) return
+  const order = await findOne('coffee_orders', { orderNo: event.outTradeNo })
+  if (!order || order.payStatus !== 'unpaid') return
+  const settings = await pay.getSettings(db)
+  await markWechatPaid(order, await pay.queryPaid(cloud, settings, event.outTradeNo))
+}
+
 async function deleteFiles(fileIds) {
   const list = fileIds.filter((id) => typeof id === 'string' && id.indexOf('cloud://') === 0)
   if (!list.length) return
@@ -160,7 +196,8 @@ const handlers = {
     const { lines, total } = await loadLines(items)
     const vouchers = await usableVouchers(openid)
     const { applied, discount } = applyVouchers(lines, vouchers)
-    return { total, vouchers: vouchers.length, applied, discountFee: discount, payFee: total - discount }
+    const settings = await pay.getSettings(db)
+    return { total, vouchers: vouchers.length, applied, discountFee: discount, payFee: total - discount, pay: pay.publicPay(settings) }
   },
 
   async createOrder({ items, mode, tableNo, remark, voucherIds }, openid) {
@@ -213,8 +250,9 @@ const handlers = {
         discountFee: discount,
         payFee: total - discount,
         remark: cleanText(remark, 50),
-        payStatus: 'unpaid',
-        payMethod: 'counter', // 第 4 步接入微信支付后会有 wechat
+        // 赠饮券全抵了就不用再付钱
+        payStatus: total - discount === 0 ? 'paid' : 'unpaid',
+        payMethod: total - discount === 0 ? 'voucher' : 'counter', // 微信付款后改成 wechat
         status: 'pending',
         createdAt: db.serverDate(),
         updatedAt: db.serverDate()
@@ -248,7 +286,37 @@ const handlers = {
     const order = await findOne('coffee_orders', { _id: String(id || '') })
     if (!order) throw new BizError('订单不存在')
     if (order._openid !== openid) await requireRole(db, openid, COFFEE_ROLES)
-    return formatOrder(order)
+    const settings = await pay.getSettings(db)
+    return Object.assign(formatOrder(order), { pay: pay.publicPay(settings) })
+  },
+
+  // 顾客用微信支付：返回 wx.requestPayment 要的参数
+  async payOrder({ id }, openid) {
+    const order = await findOne('coffee_orders', { _id: String(id || ''), _openid: openid })
+    if (!order) throw new BizError('订单不存在')
+    if (order.status === 'cancelled') throw new BizError('订单已经取消了')
+    if (order.payStatus !== 'unpaid') throw new BizError('这单已经付过了')
+    const settings = await pay.getSettings(db)
+    const payment = await pay.unifiedOrder(cloud, settings, {
+      body: '进山咖啡-取餐号' + order.pickupNo,
+      outTradeNo: order.orderNo,
+      totalFee: order.payFee,
+      functionName: 'coffee'
+    })
+    await col('coffee_orders').doc(order._id).update({ data: { payOutTradeNo: order.orderNo, updatedAt: db.serverDate() } })
+    return { payment }
+  },
+
+  // 付完款后顾客端调一下，向微信查单确认（回调慢的时候不用干等）
+  async confirmPay({ id }, openid) {
+    const order = await findOne('coffee_orders', { _id: String(id || '') })
+    if (!order) throw new BizError('订单不存在')
+    if (order._openid !== openid) await requireRole(db, openid, COFFEE_ROLES)
+    if (order.payStatus === 'unpaid' && order.payOutTradeNo) {
+      const settings = await pay.getSettings(db)
+      if (await markWechatPaid(order, await pay.queryPaid(cloud, settings, order.payOutTradeNo))) return { payStatus: 'paid' }
+    }
+    return { payStatus: order.payStatus }
   },
 
   async myOrders({ page }, openid) {
@@ -316,6 +384,8 @@ const handlers = {
     if (!order) throw new BizError('订单不存在')
     const allowed = NEXT_STATUS[order.status] || []
     if (allowed.indexOf(status) === -1) throw new BizError('订单状态已经变了，请刷新')
+    // 微信付过款的单先原路退款，退款成功才取消
+    if (status === 'cancelled' && order.payStatus === 'paid' && order.payMethod === 'wechat') await refundOrder(order)
     const data = { status, updatedAt: db.serverDate() }
     data[STATUS_TIME_FIELD[status]] = db.serverDate()
     // 带上原状态做条件，防止两位店员同时操作
@@ -323,6 +393,50 @@ const handlers = {
     if (!res.stats.updated) throw new BizError('订单状态已经变了，请刷新')
     if (status === 'cancelled') await releaseVouchers(order)
     return true
+  },
+
+  // 店主看账：每天的单数、收款、赠饮券抵扣，以及这段时间卖得最多的商品
+  async daySummary({ from, to }, openid) {
+    await requireRole(db, openid, ['owner'])
+    const days = dayRange(from, to)
+    const orders = await fetchAll(col('coffee_orders').where({ day: _.in(days) }).orderBy('createdAt', 'asc'))
+    const rows = {}
+    days.forEach((d) => {
+      rows[d] = { day: d, orders: 0, cancelled: 0, totalFee: 0, discountFee: 0, paidFee: 0, unpaidFee: 0, wechatFee: 0, counterFee: 0, vouchersUsed: 0, cancelledPaidFee: 0 }
+    })
+    const products = {}
+    orders.forEach((o) => {
+      const r = rows[o.day]
+      if (!r) return
+      if (o.status === 'cancelled') {
+        r.cancelled++
+        if (o.payStatus === 'paid') r.cancelledPaidFee += o.payFee // 收了钱、还没在线退款的
+        return
+      }
+      r.orders++
+      r.totalFee += o.totalFee
+      r.discountFee += o.discountFee || 0
+      r.vouchersUsed += (o.vouchers || []).length
+      if (o.payStatus === 'paid') {
+        r.paidFee += o.payFee
+        if (o.payMethod === 'wechat') r.wechatFee += o.payFee
+        else r.counterFee += o.payFee
+      } else {
+        r.unpaidFee += o.payFee
+      }
+      ;(o.items || []).forEach((i) => {
+        const p = products[i.productId] || (products[i.productId] = { productId: i.productId, name: i.name, qty: 0, amount: 0 })
+        p.qty += i.qty
+        p.amount += i.subtotal
+      })
+    })
+    const list = days.map((d) => rows[d])
+    const totals = list.reduce((acc, r) => {
+      Object.keys(r).forEach((k) => { if (k !== 'day') acc[k] = (acc[k] || 0) + r[k] })
+      return acc
+    }, {})
+    const top = Object.keys(products).map((k) => products[k]).sort((a, b) => b.qty - a.qty || b.amount - a.amount)
+    return { days: list, totals, products: top }
   },
 
   // ---------- 咖啡后台：商品和分类 ----------
@@ -535,4 +649,4 @@ const handlers = {
   }
 }
 
-exports.main = createMain(cloud, handlers)
+exports.main = pay.withPayNotify(createMain(cloud, handlers), onPayNotify)

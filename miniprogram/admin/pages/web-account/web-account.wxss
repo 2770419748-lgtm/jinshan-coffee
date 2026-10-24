@@ -1,0 +1,19 @@
+.intro .title {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+.url {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+}
+.copy {
+  margin-left: 16rpx;
+}
+.tip {
+  font-size: 24rpx;
+  margin: 0 8rpx 16rpx;
+}
+.save {
+  margin: 16rpx 0 20rpx;
+}

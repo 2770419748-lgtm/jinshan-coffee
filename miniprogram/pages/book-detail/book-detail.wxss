@@ -68,3 +68,7 @@
   background: #121110;
   border-top: 1rpx solid var(--line);
 }
+.pay-chip {
+  margin: 0 0 0 16rpx;
+  padding: 8rpx 20rpx;
+}

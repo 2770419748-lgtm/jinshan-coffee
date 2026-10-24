@@ -4,6 +4,7 @@
       <view class="flex-1">
         <text>{{item.name}}</text>
         <text class="faint me" wx:if="{{item.isMe}}">（我）</text>
+        <view class="faint web" wx:if="{{item.webUsername}}">网页后台：{{item.webUsername}} <text class="link" data-index="{{index}}" bindtap="clearWeb">停用</text></view>
       </view>
       <text class="tag gold role" data-index="{{index}}" bindtap="changeRole">{{item.roleName}}</text>
       <text class="danger op" wx:if="{{!item.isMe}}" data-index="{{index}}" bindtap="remove">移除</text>

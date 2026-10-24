@@ -48,6 +48,16 @@
     <view class="faint">今天打烊前还书就行。<text wx:if="{{rules[ruleIndex].freeCups}}">付款后赠饮券会放进「我的 → 赠饮券」，今天点单时自动抵扣。</text></view>
   </view>
 
+  <view class="card" wx:if="{{rules.length && payInfo.enabled && fee > 0}}">
+    <view class="row-between">
+      <text>付款方式</text>
+      <view class="row">
+        <view class="chip pay-chip {{payMethod === 'wechat' ? 'on' : ''}}" data-method="wechat" bindtap="pickPay">微信支付</view>
+        <view class="chip pay-chip {{payMethod === 'counter' ? 'on' : ''}}" wx:if="{{payInfo.allowCounter}}" data-method="counter" bindtap="pickPay">到吧台付</view>
+      </view>
+    </view>
+  </view>
+
   <view class="card" wx:if="{{rules.length}}">
     <input class="remark" placeholder="备注，选填" placeholder-class="placeholder" maxlength="50" value="{{remark}}" bindinput="onRemark" />
   </view>
@@ -63,5 +73,5 @@
     <text class="muted">需付 </text>
     <text class="price big">{{f.yuan(fee)}}</text>
   </view>
-  <view class="btn-gold {{submitting || !book.available ? 'disabled' : ''}}" bindtap="submit">{{book.available ? (submitting ? '提交中…' : '下单借书') : '都借出了'}}</view>
+  <view class="btn-gold {{submitting || !book.available ? 'disabled' : ''}}" bindtap="submit">{{book.available ? (submitting ? '提交中…' : (payMethod === 'wechat' && fee > 0 ? '付款借书' : '下单借书')) : '都借出了'}}</view>
 </view>
