@@ -106,3 +106,17 @@ test('后台列表的收款状态', () => {
   assert.equal(f.payTag('refunded', 'wechat'), '已退款')
   assert.equal(f.payTag('unpaid'), '未收款')
 })
+
+const loginScene = require('../miniprogram/utils/login-scene')
+
+test('扫码登录：从小程序码的 scene 和扫码 path 里取登录码', () => {
+  const id = 'Ab3dEf6hIj9kLm2nOp5q'
+  assert.equal(loginScene.parseQuery({ scene: encodeURIComponent('w=' + id) }), id)
+  assert.equal(loginScene.parseQuery({ id }), id)
+  assert.equal(loginScene.parseQuery({ id: 'short' }), '')
+  assert.equal(loginScene.parseQuery({ scene: encodeURIComponent('t=5') }), '')
+  assert.equal(loginScene.parseQuery(null), '')
+  assert.equal(loginScene.parsePath('admin/pages/web-login/web-login?scene=' + encodeURIComponent('w=' + id)), id)
+  assert.equal(loginScene.parsePath('pages/menu/menu?scene=t%3D7'), '')
+  assert.equal(loginScene.parsePath(''), '')
+})

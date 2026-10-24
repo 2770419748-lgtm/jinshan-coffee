@@ -54,9 +54,13 @@
       <view class="tile-title">店铺设置</view>
       <view class="tile-sub">微信支付开关、商户号</view>
     </view>
+    <view class="tile" bindtap="scanLogin" hover-class="btn-hover">
+      <view class="tile-title">扫码登录电脑</view>
+      <view class="tile-sub">扫网页后台上的二维码</view>
+    </view>
     <view class="tile" data-url="/admin/pages/web-account/web-account" bindtap="go" hover-class="btn-hover">
       <view class="tile-title">电脑网页后台</view>
-      <view class="tile-sub">设置在电脑上登录的账号密码</view>
+      <view class="tile-sub">网址、备用的账号密码</view>
     </view>
   </view>
 </view>

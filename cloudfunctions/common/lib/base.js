@@ -27,6 +27,7 @@ const COLLECTIONS = [
   'book_rentals',
   'vouchers',
   'web_sessions',
+  'web_login_tickets',
   'settings'
 ]
 

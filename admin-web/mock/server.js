@@ -3,7 +3,14 @@
 const http = require('http')
 const fs = require('fs')
 const path = require('path')
+const QRCode = require('qrcode')
 const { cloud, as } = require('../../tests/helpers/load')
+
+// 预览时没有真的小程序码，画一个普通二维码代替
+cloud.openapi.wxacode.getUnlimited = async (params) => ({
+  buffer: await QRCode.toBuffer(params.page + '?scene=' + encodeURIComponent(params.scene), { width: 430, margin: 1 }),
+  contentType: 'image/png'
+})
 
 const PORT = Number(process.env.PORT || 8787)
 const ROOT = path.join(__dirname, '..', process.argv[2] || 'dist-mock')
@@ -52,23 +59,40 @@ function send(res, status, type, body) {
   res.end(body)
 }
 
-const server = http.createServer((req, res) => {
-  if (req.method === 'POST' && req.url.endsWith('/mock/call')) {
+function readJson(req) {
+  return new Promise((resolve, reject) => {
     let body = ''
     req.on('data', (c) => { body += c })
-    req.on('end', async () => {
+    req.on('end', () => {
       try {
-        const { name, data } = JSON.parse(body)
-        const fn = as('')[name]
-        if (!fn) return send(res, 404, 'application/json', JSON.stringify({ ok: false, msg: '没有这个云函数' }))
-        const { action } = data
-        const result = await fn(action, data)
-        send(res, 200, 'application/json', JSON.stringify(result))
+        resolve(JSON.parse(body))
       } catch (e) {
-        send(res, 500, 'application/json', JSON.stringify({ ok: false, msg: e.message }))
+        reject(e)
       }
     })
-    return
+  })
+}
+
+async function handle(req, res, run) {
+  try {
+    const result = await run(await readJson(req))
+    send(res, 200, 'application/json', JSON.stringify(result))
+  } catch (e) {
+    send(res, 500, 'application/json', JSON.stringify({ ok: false, msg: e.message }))
+  }
+}
+
+const server = http.createServer((req, res) => {
+  if (req.method === 'POST' && req.url.endsWith('/mock/call')) {
+    return handle(req, res, async ({ name, data }) => {
+      const fn = as('')[name]
+      if (!fn) return { ok: false, msg: '没有这个云函数' }
+      return fn(data.action, data)
+    })
+  }
+  // 预览时没有手机，用店主的身份模拟扫码确认
+  if (req.method === 'POST' && req.url.endsWith('/mock/confirm-login')) {
+    return handle(req, res, ({ id }) => as('OWNER').common('confirmWebLogin', { id }))
   }
   const url = decodeURIComponent(req.url.split('?')[0])
   const file = path.join(ROOT, url === '/' ? 'index.html' : url)

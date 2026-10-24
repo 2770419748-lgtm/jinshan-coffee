@@ -1,0 +1,30 @@
+.loading {
+  padding-top: 200rpx;
+  text-align: center;
+}
+.hero {
+  text-align: center;
+  padding: 48rpx 32rpx;
+}
+.badge {
+  display: inline-block;
+  font-size: 24rpx;
+  padding: 6rpx 20rpx;
+  border: 1rpx solid var(--gold);
+  border-radius: 999rpx;
+  margin-bottom: 20rpx;
+}
+.title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--gold);
+  margin-bottom: 16rpx;
+}
+.warn {
+  font-size: 24rpx;
+  line-height: 1.6;
+  margin: 0 8rpx 32rpx;
+}
+.cancel {
+  margin-top: 20rpx;
+}

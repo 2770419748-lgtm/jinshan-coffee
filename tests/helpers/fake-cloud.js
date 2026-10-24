@@ -239,7 +239,7 @@ class FakeDb {
 }
 
 const db = new FakeDb()
-const state = { openid: '', files: [], deleted: [], envVersion: null, payOrders: {}, refunds: [], payFail: false }
+const state = { openid: '', files: [], deleted: [], envVersion: null, payOrders: {}, refunds: [], payFail: false, unreleased: false }
 
 module.exports = {
   DYNAMIC_CURRENT_ENV: 'dynamic',
@@ -271,6 +271,12 @@ module.exports = {
   openapi: {
     wxacode: {
       async getUnlimited(params) {
+        // 小程序没发布时，正式版又要检查页面，微信会报 41030
+        if (state.unreleased && params.envVersion === 'release' && params.checkPath !== false) {
+          const e = new Error('errCode: 41030 | errMsg: invalid page')
+          e.errCode = 41030
+          throw e
+        }
         state.envVersion = params.envVersion
         state.lastCodeParams = params
         return { buffer: Buffer.from('png'), contentType: 'image/png' }

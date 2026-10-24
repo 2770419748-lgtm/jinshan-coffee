@@ -1,7 +1,7 @@
 <view class="page" wx:if="{{ready}}">
   <view class="card intro">
     <view class="gold title">在电脑上管理店铺</view>
-    <view class="muted">网页后台能看每日汇总、处理订单和借书、改菜单、批量导入书目。先在这里给自己设一个账号和密码。</view>
+    <view class="muted">网页后台能看每日汇总、处理订单和借书、改菜单、批量导入书目。在电脑上打开网址后，用微信扫页面上的二维码就能登录；下面的账号密码是备用的，手机不在身边时用。</view>
     <view class="url" wx:if="{{webUrl}}">
       <text class="faint">网址：</text><text selectable>{{webUrl}}</text>
       <text class="gold copy" bindtap="copyUrl">复制</text>

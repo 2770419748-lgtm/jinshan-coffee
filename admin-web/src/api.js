@@ -112,6 +112,14 @@ export async function call(name, action, data) {
   return result.data
 }
 
+// 本地预览没有手机：用店主身份模拟扫码确认
+export const isMock = MOCK
+export async function mockConfirmLogin(id) {
+  const res = await fetch('./mock/confirm-login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) })
+  const result = await res.json()
+  if (!result.ok) throw new ApiError(result.msg || '操作失败', result.code)
+}
+
 export const api = {
   common: (action, data) => call('common', action, data),
   coffee: (action, data) => call('coffee', action, data),
