@@ -42,3 +42,6 @@
   background: #121110;
   border-top: 1rpx solid var(--line);
 }
+.small {
+  font-size: 24rpx;
+}

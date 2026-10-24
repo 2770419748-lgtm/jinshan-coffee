@@ -20,6 +20,15 @@ Page({
     wx.switchTab({ url: '/pages/orders/orders' })
   },
 
+  goRentals() {
+    getApp().globalData.ordersTab = 'book'
+    wx.switchTab({ url: '/pages/orders/orders' })
+  },
+
+  goVouchers() {
+    wx.navigateTo({ url: '/pages/vouchers/vouchers' })
+  },
+
   goAdmin() {
     wx.navigateTo({ url: '/admin/pages/home/home' })
   },

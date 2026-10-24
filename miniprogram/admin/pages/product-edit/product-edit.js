@@ -1,5 +1,6 @@
 const api = require('../../../utils/api')
 const guard = require('../../../utils/guard')
+const { fenToText, textToFen } = require('../../../utils/money')
 
 // 常用规格，一键加入
 const PRESETS = [
@@ -7,18 +8,6 @@ const PRESETS = [
   { name: '温度', options: [{ name: '热', priceText: '0' }, { name: '冰', priceText: '0' }] },
   { name: '糖度', options: [{ name: '标准糖', priceText: '0' }, { name: '少糖', priceText: '0' }, { name: '无糖', priceText: '0' }] }
 ]
-
-function fenToText(fen) {
-  return String((fen || 0) / 100)
-}
-
-// 元转分；填错返回 null
-function textToFen(text) {
-  const s = String(text === undefined ? '' : text).trim()
-  if (s === '') return 0
-  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null
-  return Math.round(Number(s) * 100)
-}
 
 Page({
   data: {

@@ -69,3 +69,17 @@ test('菜单变了：改价跟着变，售罄和规格失效的移出购物车',
   synced = cart.syncWithMenu(cart.load(), [latte])
   assert.equal(synced.changed, false)
 })
+
+const money = require('../miniprogram/utils/money')
+
+test('后台表单的元和分互相转换', () => {
+  assert.equal(money.textToFen('18'), 1800)
+  assert.equal(money.textToFen('18.5'), 1850)
+  assert.equal(money.textToFen(' 0.01 '), 1)
+  assert.equal(money.textToFen(''), 0)
+  assert.equal(money.textToFen('18.555'), null)
+  assert.equal(money.textToFen('-1'), null)
+  assert.equal(money.textToFen('abc'), null)
+  assert.equal(money.fenToText(1850), '18.5')
+  assert.equal(money.fenToText(0), '0')
+})

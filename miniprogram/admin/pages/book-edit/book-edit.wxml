@@ -1,0 +1,61 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="card">
+    <view class="cover-box" bindtap="chooseCover">
+      <image wx:if="{{form.cover}}" class="cover" src="{{form.cover}}" mode="aspectFill" />
+      <view wx:else class="cover placeholder-box">
+        <text class="plus">+</text>
+        <text class="faint">拍封面</text>
+      </view>
+    </view>
+    <view class="faint remove-img" wx:if="{{form.cover}}" bindtap="removeCover">移除封面</view>
+
+    <view class="field">
+      <text class="field-label">书名</text>
+      <input class="field-input" placeholder="必填" placeholder-class="placeholder" maxlength="40" value="{{form.title}}" data-field="title" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">作者</text>
+      <input class="field-input" placeholder="选填" placeholder-class="placeholder" maxlength="30" value="{{form.author}}" data-field="author" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">ISBN</text>
+      <input class="field-input" type="text" placeholder="选填，可扫书背条形码" placeholder-class="placeholder" maxlength="17" value="{{form.isbn}}" data-field="isbn" bindinput="onInput" />
+      <text class="gold scan" bindtap="scanIsbn">扫码</text>
+    </view>
+    <view class="field">
+      <text class="field-label">分类</text>
+      <input class="field-input" placeholder="比如 文学、绘本，选填" placeholder-class="placeholder" maxlength="10" value="{{form.category}}" data-field="category" bindinput="onInput" />
+    </view>
+    <view class="chips cats" wx:if="{{categories.length}}">
+      <view wx:for="{{categories}}" wx:key="*this" class="chip {{form.category === item ? 'on' : ''}}" data-name="{{item}}" bindtap="pickCategory">{{item}}</view>
+    </view>
+    <view class="field">
+      <text class="field-label">册数</text>
+      <view class="field-input">
+        <view class="stepper">
+          <view class="stepper-btn" data-delta="-1" bindtap="changeCopies">−</view>
+          <text class="stepper-num">{{form.copies}}</text>
+          <view class="stepper-btn plus" data-delta="1" bindtap="changeCopies">+</view>
+        </view>
+      </view>
+      <text class="faint" wx:if="{{out}}">借出 {{out}} 本</text>
+    </view>
+    <view class="field">
+      <text class="field-label">排序</text>
+      <input class="field-input" type="number" placeholder="数字越小越靠前" placeholder-class="placeholder" value="{{form.sort}}" data-field="sort" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">上架</text>
+      <view class="field-input"><switch checked="{{form.onShelf}}" color="#d6b25e" bindchange="onShelf" /></view>
+    </view>
+  </view>
+
+  <view class="section-title">简介（选填，顾客在借书页能看到）</view>
+  <view class="card">
+    <textarea class="desc" placeholder="一两句推荐语" placeholder-class="placeholder" maxlength="300" auto-height value="{{form.desc}}" data-field="desc" bindinput="onInput" />
+  </view>
+
+  <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : '保存'}}</view>
+  <view class="btn-danger btn-block" wx:if="{{id}}" bindtap="remove">删除这本书</view>
+  <view class="safe-bottom"></view>
+</view>

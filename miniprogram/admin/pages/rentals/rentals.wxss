@@ -1,0 +1,69 @@
+.tabs {
+  display: flex;
+  background: #121110;
+  border-bottom: 1rpx solid var(--line);
+}
+.tab {
+  flex: 1;
+  text-align: center;
+  padding: 24rpx 0;
+  color: var(--text-2);
+  border-bottom: 4rpx solid transparent;
+}
+.tab.on {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+  font-weight: 600;
+}
+.tab-count {
+  margin-left: 6rpx;
+  font-size: 22rpx;
+}
+.toolbar {
+  padding: 16rpx 28rpx 0;
+  font-size: 24rpx;
+}
+.code {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: var(--gold);
+  margin-right: 16rpx;
+}
+.book {
+  font-size: 32rpx;
+  margin: 16rpx 0 8rpx;
+}
+.remark {
+  color: var(--gold);
+  margin-bottom: 8rpx;
+}
+.due {
+  padding: 12rpx 16rpx;
+  border-radius: 12rpx;
+  background: var(--gold-soft);
+  margin: 8rpx 0;
+}
+.due.warn {
+  background: rgba(224, 113, 92, 0.15);
+  color: var(--danger);
+}
+.small {
+  font-size: 24rpx;
+}
+.foot {
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--line);
+}
+.pay {
+  margin-left: 12rpx;
+}
+.ops .btn-small {
+  margin-left: 16rpx;
+}
+.cancel-link {
+  text-align: right;
+  color: var(--text-3);
+  font-size: 24rpx;
+  margin-top: 16rpx;
+}

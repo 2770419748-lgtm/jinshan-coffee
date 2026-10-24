@@ -1,5 +1,5 @@
-// 两个云函数（common、coffee）各放一份这个文件，改的时候两边一起改。
-// tests/shared-files.test.js 会检查两份内容一致。
+// 每个云函数（common、coffee、book）各放一份这个文件，改的时候几份一起改。
+// tests/shared-files.test.js 会检查各份内容一致。
 
 const ROLES = {
   owner: '店主',
@@ -7,10 +7,12 @@ const ROLES = {
   book_manager: '书籍管理员'
 }
 
-// 能进咖啡后台的角色
+// 能进咖啡后台、书籍后台的角色
 const COFFEE_ROLES = ['owner', 'barista']
+const BOOK_ROLES = ['owner', 'book_manager']
 
-// 第 1 步用到的集合；第 2 步书籍模块会再加 book_ 开头的集合
+// 咖啡模块用 coffee_ 开头的集合，书籍模块用 book_ 开头的集合；
+// vouchers 是包天送的赠饮券，书籍模块发放，咖啡下单时核销
 const COLLECTIONS = [
   'staff',
   'staff_invites',
@@ -18,7 +20,11 @@ const COLLECTIONS = [
   'coffee_categories',
   'coffee_products',
   'coffee_orders',
-  'coffee_tables'
+  'coffee_tables',
+  'book_books',
+  'book_rules',
+  'book_rentals',
+  'vouchers'
 ]
 
 class BizError extends Error {
@@ -80,24 +86,46 @@ async function requireRole(db, openid, roles) {
   return staff
 }
 
+// 每天的流水号从 1 开始（取餐号、借书号）
+async function nextSeq(db, counterId) {
+  try {
+    await db.collection('counters').add({ data: { _id: counterId, seq: 0 } })
+  } catch (e) {
+    // 计数器已存在
+  }
+  return db.runTransaction(async (t) => {
+    const res = await t.collection('counters').doc(counterId).get()
+    const seq = (res.data.seq || 0) + 1
+    await t.collection('counters').doc(counterId).update({ data: { seq } })
+    return seq
+  })
+}
+
 function publicStaff(staff) {
   if (!staff) return null
   return { name: staff.name, role: staff.role, roleName: ROLES[staff.role] || staff.role }
 }
 
 // 统一的云函数入口：handlers[action](event, openid)，返回 { ok, data } 或 { ok: false, msg, code }
+// 新版本加了集合、数据库里还没有时，自动建好再试一次
 function createMain(cloud, handlers) {
   return async (event) => {
     const { OPENID } = cloud.getWXContext()
     const handler = handlers[event && event.action]
     if (!handler) return { ok: false, msg: '未知操作', code: 'UNKNOWN_ACTION' }
-    try {
-      const data = await handler(event, OPENID)
-      return { ok: true, data: data === undefined ? null : data }
-    } catch (e) {
-      if (e instanceof BizError) return { ok: false, msg: e.message, code: e.code }
-      console.error('[' + event.action + ']', e)
-      return { ok: false, msg: '服务器开小差了，请稍后再试', code: 'SERVER_ERROR' }
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const data = await handler(event, OPENID)
+        return { ok: true, data: data === undefined ? null : data }
+      } catch (e) {
+        if (e instanceof BizError) return { ok: false, msg: e.message, code: e.code }
+        if (attempt === 0 && isMissingCollection(e)) {
+          await ensureCollections(cloud.database())
+          continue
+        }
+        console.error('[' + event.action + ']', e)
+        return { ok: false, msg: '服务器开小差了，请稍后再试', code: 'SERVER_ERROR' }
+      }
     }
   }
 }
@@ -105,6 +133,7 @@ function createMain(cloud, handlers) {
 module.exports = {
   ROLES,
   COFFEE_ROLES,
+  BOOK_ROLES,
   COLLECTIONS,
   BizError,
   isMissingCollection,
@@ -114,6 +143,7 @@ module.exports = {
   ensureCollections,
   getStaff,
   requireRole,
+  nextSeq,
   publicStaff,
   createMain
 }

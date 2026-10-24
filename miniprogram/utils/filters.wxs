@@ -8,6 +8,8 @@ function yuan(fen) {
 
 var STATUS = { pending: '待制作', making: '制作中', done: '已完成', cancelled: '已取消' }
 var MODE = { dine_in: '堂食', takeaway: '外带' }
+var RENTAL_STATUS = { pending: '待取书', reading: '阅读中', returned: '已归还', cancelled: '已取消' }
+var RULE_TYPE = { hourly: '按小时', day: '包天' }
 
 function status(s) {
   return STATUS[s] || s
@@ -31,6 +33,36 @@ function clock(value) {
   if (!value) return ''
   var d = getDate(value)
   return pad(d.getHours()) + ':' + pad(d.getMinutes())
+}
+
+function rentalStatus(s) {
+  return RENTAL_STATUS[s] || s
+}
+
+function ruleType(t) {
+  return RULE_TYPE[t] || t
+}
+
+// 分钟数写成「1 小时 20 分钟」
+function minutes(m) {
+  var n = Math.max(0, Math.round(m || 0))
+  var h = Math.floor(n / 60)
+  var rest = n % 60
+  if (!h) return rest + ' 分钟'
+  return h + ' 小时' + (rest ? ' ' + rest + ' 分钟' : '')
+}
+
+// 在读的书离到期还有多久：dueAtMs 到期时间，now 当前时间（都是毫秒）
+function left(dueAtMs, now) {
+  if (!dueAtMs) return ''
+  var diff = Math.round((dueAtMs - now) / 60000)
+  if (diff >= 0) return '还剩 ' + minutes(diff)
+  return '已超时 ' + minutes(-diff)
+}
+
+function rentalBrief(r) {
+  if (r.ruleType === 'hourly') return r.ruleName + ' · ' + r.hours + ' 小时'
+  return r.ruleName
 }
 
 function specText(specs) {
@@ -57,5 +89,10 @@ module.exports = {
   time: time,
   clock: clock,
   specText: specText,
-  itemsBrief: itemsBrief
+  itemsBrief: itemsBrief,
+  rentalStatus: rentalStatus,
+  ruleType: ruleType,
+  minutes: minutes,
+  left: left,
+  rentalBrief: rentalBrief
 }

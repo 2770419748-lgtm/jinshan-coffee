@@ -12,6 +12,14 @@
     <text class="cell-arrow"></text>
   </view>
 
+  <view class="active card" wx:if="{{activeRental}}" bindtap="openRental" hover-class="btn-hover">
+    <view class="flex-1">
+      <view class="muted">{{activeRental.status === 'reading' ? '正在看' : '借书号 ' + activeRental.code + '，到吧台付款取书'}}</view>
+      <view class="active-no">《{{activeRental.bookTitle}}》</view>
+    </view>
+    <text class="cell-arrow"></text>
+  </view>
+
   <view class="table-tip" wx:if="{{tableNo}}">当前桌号 <text class="gold">{{tableNo}}</text>，点单会自动带上</view>
 
   <view class="entry primary" bindtap="scan" hover-class="btn-hover">
@@ -22,8 +30,8 @@
     <view class="entry-title">直接点单</view>
     <view class="entry-sub">堂食或外带，凭取餐号到吧台取</view>
   </view>
-  <view class="entry disabled">
+  <view class="entry" bindtap="goBooks" hover-class="btn-hover">
     <view class="entry-title">店内书架</view>
-    <view class="entry-sub">即将开放</view>
+    <view class="entry-sub">按小时或包天借阅，包天送咖啡</view>
   </view>
 </view>

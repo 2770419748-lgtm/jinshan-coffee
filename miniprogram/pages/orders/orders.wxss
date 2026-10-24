@@ -1,3 +1,20 @@
+.tabs {
+  display: flex;
+  background: #121110;
+  border-bottom: 1rpx solid var(--line);
+}
+.tab {
+  flex: 1;
+  text-align: center;
+  padding: 24rpx 0;
+  color: var(--text-2);
+  border-bottom: 4rpx solid transparent;
+}
+.tab.on {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+  font-weight: 600;
+}
 .pickup {
   font-size: 36rpx;
   font-weight: 700;

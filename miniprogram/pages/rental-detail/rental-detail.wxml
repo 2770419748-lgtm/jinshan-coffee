@@ -1,0 +1,61 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{rental}}">
+  <view class="card code-card">
+    <view class="muted">借书号</view>
+    <view class="code">{{rental.code}}</view>
+    <view class="status {{rental.status}}">{{f.rentalStatus(rental.status)}}</view>
+
+    <view class="steps" wx:if="{{rental.status !== 'cancelled'}}">
+      <view class="step {{step >= 1 ? 'on' : ''}}">下单</view>
+      <view class="step-line {{step >= 2 ? 'on' : ''}}"></view>
+      <view class="step {{step >= 2 ? 'on' : ''}}">阅读中</view>
+      <view class="step-line {{step >= 3 ? 'on' : ''}}"></view>
+      <view class="step {{step >= 3 ? 'on' : ''}}">已归还</view>
+    </view>
+
+    <block wx:if="{{rental.status === 'pending'}}">
+      <view class="tip" wx:if="{{rental.payStatus === 'unpaid'}}">请到吧台报借书号付款 <text class="price">{{f.yuan(rental.fee)}}</text>，付款后取书</view>
+      <view class="tip ok" wx:else>已付款，请到吧台取书</view>
+    </block>
+    <block wx:elif="{{rental.status === 'reading'}}">
+      <view class="tip" wx:if="{{rental.ruleType === 'day'}}">今天打烊前还书就行</view>
+      <view class="tip {{rental.dueAtMs < now ? 'warn' : ''}}" wx:else>
+        <view class="left">{{f.left(rental.dueAtMs, now)}}</view>
+        <view class="faint">{{f.clock(rental.dueAtMs)}} 到期，看完把书还到吧台<text wx:if="{{rental.dueAtMs < now}}">，还书时按 ¥{{f.yuan(rental.unitPrice)}}/小时补超时费</text></view>
+      </view>
+    </block>
+    <block wx:elif="{{rental.status === 'returned' && rental.overtimeFee}}">
+      <view class="tip warn" wx:if="{{rental.overtimePayStatus === 'unpaid'}}">超时 {{f.minutes(rental.overtimeMinutes)}}，请到吧台补 <text class="price">{{f.yuan(rental.overtimeFee)}}</text></view>
+      <view class="tip ok" wx:else>超时费 ¥{{f.yuan(rental.overtimeFee)}} 已付</view>
+    </block>
+  </view>
+
+  <view class="card vouchers" wx:if="{{rental.voucherCount && rental.status !== 'cancelled'}}">
+    <view class="flex-1">
+      <view class="gold">送了 {{rental.voucherCount}} 杯饮品</view>
+      <view class="faint">今天点单时自动抵扣</view>
+    </view>
+    <view class="btn-ghost btn-small" bindtap="goVouchers">看看券</view>
+    <view class="btn-gold btn-small go-menu" bindtap="goMenu">去点单</view>
+  </view>
+
+  <view class="card">
+    <view class="cell"><text class="muted">书</text><text>《{{rental.bookTitle}}》</text></view>
+    <view class="cell"><text class="muted">计费</text><text>{{f.rentalBrief(rental)}}</text></view>
+    <view class="cell"><text class="muted">租金</text><text class="price">{{f.yuan(rental.fee)}}</text></view>
+    <view class="cell" wx:if="{{rental.startAt}}"><text class="muted">取书时间</text><text>{{f.time(rental.startAt)}}</text></view>
+    <view class="cell" wx:if="{{rental.returnedAt}}"><text class="muted">还书时间</text><text>{{f.time(rental.returnedAt)}}</text></view>
+    <view class="cell" wx:if="{{rental.remark}}"><text class="muted">备注</text><text>{{rental.remark}}</text></view>
+    <view class="cell"><text class="muted">下单时间</text><text>{{f.time(rental.createdAt)}}</text></view>
+    <view class="cell"><text class="muted">借阅单号</text><text selectable>{{rental.rentalNo}}</text></view>
+  </view>
+
+  <view class="actions">
+    <view class="btn-danger btn-block" wx:if="{{rental.status === 'pending' && rental.payStatus === 'unpaid'}}" bindtap="cancel">取消借书</view>
+    <view class="btn-ghost btn-block" bindtap="goShelf">回到书架</view>
+  </view>
+</view>
+
+<view class="empty" wx:elif="{{loading}}">加载中…</view>
+<view class="empty" wx:else>没找到这条借阅记录</view>

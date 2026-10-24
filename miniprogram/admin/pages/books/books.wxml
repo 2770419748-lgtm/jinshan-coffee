@@ -1,0 +1,33 @@
+<view wx:if="{{ready}}">
+  <view class="search-bar">
+    <input class="search" placeholder="搜书名、作者、ISBN" placeholder-class="placeholder" value="{{keyword}}" bindinput="onSearch" />
+  </view>
+
+  <view class="page">
+    <view wx:for="{{list}}" wx:key="_id" class="card book {{item.onShelf ? '' : 'off'}}" data-id="{{item._id}}" bindtap="edit">
+      <image wx:if="{{item.cover}}" class="cover" src="{{item.cover}}" mode="aspectFill" />
+      <view wx:else class="cover cover-text">{{item.title}}</view>
+      <view class="flex-1 info">
+        <view class="title">{{item.title}}</view>
+        <view class="faint small">{{item.author || '未填作者'}}{{item.category ? ' · ' + item.category : ''}}</view>
+        <view class="row-between">
+          <text class="{{item.available ? 'gold' : 'danger'}}">在架 {{item.available}} / 共 {{item.copies}} 本</text>
+          <view catchtap="noop">
+            <switch class="shelf" checked="{{item.onShelf}}" color="#d6b25e" data-id="{{item._id}}" bindchange="toggleShelf" />
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="empty" wx:if="{{loading}}">加载中…</view>
+    <view class="empty-box" wx:elif="{{!all.length}}">
+      <view class="empty">还没有录入书</view>
+      <view class="btn-ghost btn-block" bindtap="seedDemo">导入示例试试</view>
+    </view>
+    <view class="empty" wx:elif="{{!list.length}}">没找到</view>
+    <view class="faint tip" wx:if="{{all.length}}">开关控制顾客在书架上能不能看到这本书。</view>
+    <view class="safe-bottom"></view>
+  </view>
+
+  <view class="fab btn-gold" bindtap="add">+ 录入新书</view>
+</view>

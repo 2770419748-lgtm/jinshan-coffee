@@ -1,0 +1,53 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view wx:if="{{ready}}">
+  <view class="tabs">
+    <view wx:for="{{tabs}}" wx:key="key" class="tab {{current === item.key ? 'on' : ''}}" data-key="{{item.key}}" bindtap="switchTab">
+      {{item.name}}<text class="tab-count" wx:if="{{counts[item.key]}}">{{counts[item.key]}}</text>
+    </view>
+  </view>
+  <view class="toolbar faint">{{current === 'returned' || current === 'cancelled' ? '今天的记录' : '停在本页时自动刷新，新借书单会响铃'}}</view>
+
+  <view class="page">
+    <view wx:for="{{rentals}}" wx:key="_id" class="card rental">
+      <view class="row-between">
+        <view class="row">
+          <text class="code">{{item.code}}</text>
+          <text class="tag gold">{{f.rentalBrief(item)}}</text>
+        </view>
+        <text class="faint">{{f.clock(item.createdAt)}}</text>
+      </view>
+
+      <view class="book">《{{item.bookTitle}}》<text class="faint" wx:if="{{item.bookAuthor}}">{{item.bookAuthor}}</text></view>
+      <view class="remark" wx:if="{{item.remark}}">备注：{{item.remark}}</view>
+
+      <view class="due {{item.overtimeNow.fee ? 'warn' : ''}}" wx:if="{{item.status === 'reading'}}">
+        <block wx:if="{{item.ruleType === 'day'}}">包天，今天打烊前还</block>
+        <block wx:else>
+          {{f.left(item.dueAtMs, now)}} · {{f.clock(item.dueAtMs)}} 到期
+          <text wx:if="{{item.overtimeNow.fee}}">，现在还要补 ¥{{f.yuan(item.overtimeNow.fee)}}</text>
+        </block>
+      </view>
+      <view class="due warn" wx:if="{{item.overtimePayStatus === 'unpaid'}}">超时 {{f.minutes(item.overtimeMinutes)}}，待收超时费 ¥{{f.yuan(item.overtimeFee)}}</view>
+      <view class="faint small" wx:if="{{item.overtimePayStatus === 'paid'}}">超时费 ¥{{f.yuan(item.overtimeFee)}} 已收</view>
+      <view class="faint small" wx:if="{{item.voucherCount}}">送了 {{item.voucherCount}} 张赠饮券</view>
+
+      <view class="row-between foot">
+        <view class="row">
+          <text class="price">{{f.yuan(item.fee)}}</text>
+          <text class="tag {{item.payStatus === 'paid' ? 'ok' : 'danger'}} pay">{{item.payStatus === 'paid' ? '已收款' : '未收款'}}</text>
+        </view>
+        <view class="row ops">
+          <view wx:if="{{item.status === 'pending' && item.payStatus === 'unpaid'}}" class="btn-ghost btn-small" data-id="{{item._id}}" bindtap="markPaid">已收款</view>
+          <view wx:if="{{item.status === 'pending' && item.payStatus === 'paid'}}" class="btn-gold btn-small" data-id="{{item._id}}" bindtap="handOut">交书，开始计时</view>
+          <view wx:if="{{item.status === 'reading'}}" class="btn-gold btn-small" data-id="{{item._id}}" bindtap="returnBook">还书</view>
+          <view wx:if="{{item.overtimePayStatus === 'unpaid'}}" class="btn-ghost btn-small" data-id="{{item._id}}" bindtap="markOvertimePaid">超时费已收</view>
+        </view>
+      </view>
+      <view class="cancel-link" wx:if="{{item.status === 'pending' || item.status === 'reading'}}" data-id="{{item._id}}" bindtap="cancel">取消借阅</view>
+    </view>
+
+    <view class="empty" wx:if="{{!loading && !rentals.length}}">暂时没有记录</view>
+    <view class="empty" wx:elif="{{loading}}">加载中…</view>
+  </view>
+</view>

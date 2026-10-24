@@ -30,6 +30,7 @@ function toastError(err) {
 module.exports = {
   common: (action, data) => call('common', action, data),
   coffee: (action, data) => call('coffee', action, data),
+  book: (action, data) => call('book', action, data),
   errorText,
   toastError
 }

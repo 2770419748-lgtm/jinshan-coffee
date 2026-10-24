@@ -10,6 +10,9 @@ Page({
     tableNo: '',
     mode: 'dine_in',
     remark: '',
+    quote: null, // 云端算的价和赠饮券 { total, vouchers, applied, discountFee, payFee }
+    useVouchers: true,
+    payable: 0,
     submitting: false
   },
 
@@ -19,10 +22,12 @@ Page({
     // 进来时再对一次菜单，价格或库存变了先告诉顾客
     api.coffee('getMenu').then(({ products }) => {
       const synced = cart.syncWithMenu(cart.load(), products)
-      if (!synced.changed) return
-      cart.save(synced.list)
-      this.refresh(synced.list)
-      wx.showModal({ title: '菜单有更新', content: '部分商品的价格或库存变了，已按最新的为你更新。', showCancel: false })
+      if (synced.changed) {
+        cart.save(synced.list)
+        this.refresh(synced.list)
+        wx.showModal({ title: '菜单有更新', content: '部分商品的价格或库存变了，已按最新的为你更新。', showCancel: false })
+      }
+      this.requote()
     }).catch(() => {})
   },
 
@@ -33,6 +38,33 @@ Page({
     }
     const { count, total } = cart.summary(list)
     this.setData({ list, count, total })
+    this.updatePayable()
+  },
+
+  items() {
+    return this.data.list.map((i) => ({ productId: i.productId, qty: i.qty, specs: i.specs }))
+  },
+
+  // 让云端算一遍价，顺便看看有没有能用的赠饮券
+  requote() {
+    if (!this.data.list.length) return
+    api.coffee('quote', { items: this.items() }).then((quote) => {
+      this.setData({ quote })
+      this.updatePayable()
+    }).catch(() => {
+      this.setData({ quote: null })
+      this.updatePayable()
+    })
+  },
+
+  updatePayable() {
+    const { quote, useVouchers, total } = this.data
+    this.setData({ payable: quote ? (useVouchers ? quote.payFee : quote.total) : total })
+  },
+
+  toggleVouchers(e) {
+    this.setData({ useVouchers: e.detail.value })
+    this.updatePayable()
   },
 
   pickMode(e) {
@@ -45,13 +77,14 @@ Page({
 
   submit() {
     if (this.data.submitting) return
-    const { list, mode, tableNo, remark } = this.data
+    const { mode, tableNo, remark, quote, useVouchers } = this.data
     this.setData({ submitting: true })
     api.coffee('createOrder', {
-      items: list.map((i) => ({ productId: i.productId, qty: i.qty, specs: i.specs })),
+      items: this.items(),
       mode,
       tableNo: mode === 'dine_in' ? tableNo : '',
-      remark
+      remark,
+      voucherIds: useVouchers && quote ? quote.applied.map((a) => a.id) : []
     }).then(({ id }) => {
       cart.clear()
       wx.redirectTo({ url: '/pages/order-detail/order-detail?id=' + id })
@@ -61,8 +94,9 @@ Page({
         table.clear()
         this.setData({ tableNo: '' })
       }
-      if (err.code === 'MENU_CHANGED' || err.code === 'TABLE_INVALID') {
+      if (err.code === 'MENU_CHANGED' || err.code === 'TABLE_INVALID' || err.code === 'VOUCHER_CHANGED') {
         wx.showModal({ title: '没能下单', content: err.message, showCancel: false })
+        if (err.code === 'VOUCHER_CHANGED') this.requote()
         return
       }
       api.toastError(err)

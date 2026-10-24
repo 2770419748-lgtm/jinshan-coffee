@@ -1,4 +1,5 @@
-// 咖啡云函数：菜单、下单、订单处理、商品分类桌台管理。只读写 coffee_ 开头的集合。
+// 咖啡云函数：菜单、下单、订单处理、商品分类桌台管理。
+// 读写 coffee_ 开头的集合；下单时核销 vouchers 里的赠饮券（书籍模块包天时发放）。
 const cloud = require('wx-server-sdk')
 const {
   COFFEE_ROLES,
@@ -8,9 +9,10 @@ const {
   cnDay,
   cnStamp,
   requireRole,
+  nextSeq,
   createMain
 } = require('./lib/base')
-const { MAX_PRICE, isFen, buildLines, sanitizeSpecs } = require('./lib/pricing')
+const { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers } = require('./lib/pricing')
 const DEMO_MENU = require('./lib/demo')
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
@@ -31,21 +33,6 @@ const col = (name) => db.collection(name)
 async function findOne(name, where) {
   const res = await col(name).where(where).limit(1).get()
   return res.data[0] || null
-}
-
-// 每天的取餐号从 1 开始
-async function nextSeq(counterId) {
-  try {
-    await col('counters').add({ data: { _id: counterId, seq: 0 } })
-  } catch (e) {
-    // 计数器已存在
-  }
-  return db.runTransaction(async (t) => {
-    const res = await t.collection('counters').doc(counterId).get()
-    const seq = (res.data.seq || 0) + 1
-    await t.collection('counters').doc(counterId).update({ data: { seq } })
-    return seq
-  })
 }
 
 function makeOrderNo() {
@@ -75,6 +62,56 @@ function naturalCompare(a, b) {
 function toSort(value) {
   const n = Number(value)
   return Number.isFinite(n) ? Math.round(n) : 0
+}
+
+// 顾客今天能用的赠饮券；ids 不传时返回全部
+async function usableVouchers(openid, ids) {
+  const where = { _openid: openid, status: 'unused', day: cnDay() }
+  if (ids) where._id = _.in(ids)
+  try {
+    const res = await col('vouchers').where(where).limit(50).get()
+    return res.data
+  } catch (e) {
+    if (isMissingCollection(e)) return []
+    throw e
+  }
+}
+
+function voucherIdList(value) {
+  if (!Array.isArray(value)) return []
+  return value.filter((id) => typeof id === 'string').slice(0, 20)
+}
+
+// 订单取消时把用掉的赠饮券退回去
+async function releaseVouchers(order) {
+  const ids = (order.vouchers || []).map((v) => v.id)
+  if (!ids.length) return
+  await col('vouchers')
+    .where({ _id: _.in(ids), status: 'used', orderNo: order.orderNo })
+    .update({ data: { status: 'unused', orderNo: '', orderId: '', usedAt: null } })
+}
+
+async function loadLines(items) {
+  const ids = []
+  ;(Array.isArray(items) ? items : []).forEach((i) => {
+    if (i && typeof i.productId === 'string' && ids.indexOf(i.productId) === -1) ids.push(i.productId)
+  })
+  const res = ids.length
+    ? await col('coffee_products').where({ _id: _.in(ids) }).limit(100).get()
+    : { data: [] }
+  return buildLines(res.data, items)
+}
+
+function formatVoucher(v, today) {
+  return {
+    _id: v._id,
+    title: v.title,
+    productNames: v.productNames || [],
+    maxFee: v.maxFee || 0,
+    day: v.day,
+    status: v.status === 'unused' && v.day < today ? 'expired' : v.status,
+    createdAt: v.createdAt
+  }
 }
 
 async function deleteFiles(fileIds) {
@@ -118,16 +155,17 @@ const handlers = {
     }
   },
 
-  async createOrder({ items, mode, tableNo, remark }, openid) {
+  // 结算页算价：按数据库价格算总价，并自动用上今天能用的赠饮券
+  async quote({ items }, openid) {
+    const { lines, total } = await loadLines(items)
+    const vouchers = await usableVouchers(openid)
+    const { applied, discount } = applyVouchers(lines, vouchers)
+    return { total, vouchers: vouchers.length, applied, discountFee: discount, payFee: total - discount }
+  },
+
+  async createOrder({ items, mode, tableNo, remark, voucherIds }, openid) {
     if (mode !== 'dine_in' && mode !== 'takeaway') throw new BizError('请选择堂食或外带')
-    const ids = []
-    ;(Array.isArray(items) ? items : []).forEach((i) => {
-      if (i && typeof i.productId === 'string' && ids.indexOf(i.productId) === -1) ids.push(i.productId)
-    })
-    const res = ids.length
-      ? await col('coffee_products').where({ _id: _.in(ids) }).limit(100).get()
-      : { data: [] }
-    const { lines, total } = buildLines(res.data, items)
+    const { lines, total } = await loadLines(items)
 
     let table = ''
     if (mode === 'dine_in' && tableNo) {
@@ -136,29 +174,74 @@ const handlers = {
       table = t.tableNo
     }
 
-    const day = cnDay()
-    const seq = await nextSeq('coffee-pickup-' + day)
-    const order = {
-      _openid: openid,
-      orderNo: makeOrderNo(),
-      pickupNo: String(seq).padStart(3, '0'),
-      seq, // 当天第几单，后台按它排序
-      day,
-      mode,
-      tableNo: table,
-      items: lines,
-      totalFee: total,
-      discountFee: 0, // 第 2 步接入包天赠饮券后使用
-      payFee: total,
-      remark: cleanText(remark, 50),
-      payStatus: 'unpaid',
-      payMethod: 'counter', // 第 4 步接入微信支付后会有 wechat
-      status: 'pending',
-      createdAt: db.serverDate(),
-      updatedAt: db.serverDate()
+    // 赠饮券：带条件逐张核销，任何一张对不上就全部退回
+    const ids = voucherIdList(voucherIds)
+    const vouchers = ids.length ? await usableVouchers(openid, ids) : []
+    if (vouchers.length !== ids.length) throw new BizError('赠饮券有变化，请重新确认订单', 'VOUCHER_CHANGED')
+    const { applied, discount } = applyVouchers(lines, vouchers)
+    const orderNo = makeOrderNo()
+    const claimed = []
+    const release = () => (claimed.length
+      ? col('vouchers').where({ _id: _.in(claimed), orderNo }).update({ data: { status: 'unused', orderNo: '', usedAt: null } })
+      : Promise.resolve())
+    for (const a of applied) {
+      const res = await col('vouchers')
+        .where({ _id: a.id, _openid: openid, status: 'unused' })
+        .update({ data: { status: 'used', orderNo, usedAt: db.serverDate() } })
+      if (!res.stats.updated) {
+        await release()
+        throw new BizError('赠饮券有变化，请重新确认订单', 'VOUCHER_CHANGED')
+      }
+      claimed.push(a.id)
     }
-    const added = await col('coffee_orders').add({ data: order })
+
+    const day = cnDay()
+    let added
+    try {
+      const seq = await nextSeq(db, 'coffee-pickup-' + day)
+      const order = {
+        _openid: openid,
+        orderNo,
+        pickupNo: String(seq).padStart(3, '0'),
+        seq, // 当天第几单，后台按它排序
+        day,
+        mode,
+        tableNo: table,
+        items: lines,
+        totalFee: total,
+        vouchers: applied,
+        discountFee: discount,
+        payFee: total - discount,
+        remark: cleanText(remark, 50),
+        payStatus: 'unpaid',
+        payMethod: 'counter', // 第 4 步接入微信支付后会有 wechat
+        status: 'pending',
+        createdAt: db.serverDate(),
+        updatedAt: db.serverDate()
+      }
+      added = await col('coffee_orders').add({ data: order })
+    } catch (e) {
+      await release()
+      throw e
+    }
+    if (claimed.length) await col('vouchers').where({ _id: _.in(claimed), orderNo }).update({ data: { orderId: added._id } })
     return { id: added._id }
+  },
+
+  // 我的赠饮券：今天能用的，和最近用过、过期的
+  async myVouchers(event, openid) {
+    const today = cnDay()
+    try {
+      const res = await col('vouchers').where({ _openid: openid }).orderBy('createdAt', 'desc').limit(50).get()
+      const list = res.data.map((v) => formatVoucher(v, today))
+      return {
+        usable: list.filter((v) => v.status === 'unused'),
+        others: list.filter((v) => v.status !== 'unused')
+      }
+    } catch (e) {
+      if (isMissingCollection(e)) return { usable: [], others: [] }
+      throw e
+    }
   },
 
   async getOrder({ id }, openid) {
@@ -186,10 +269,13 @@ const handlers = {
   },
 
   async cancelOrder({ id }, openid) {
+    const order = await findOne('coffee_orders', { _id: String(id || ''), _openid: openid })
+    if (!order) throw new BizError('订单不存在')
     const res = await col('coffee_orders')
-      .where({ _id: String(id || ''), _openid: openid, status: 'pending', payStatus: 'unpaid' })
+      .where({ _id: order._id, _openid: openid, status: 'pending', payStatus: 'unpaid' })
       .update({ data: { status: 'cancelled', cancelledAt: db.serverDate(), updatedAt: db.serverDate() } })
     if (!res.stats.updated) throw new BizError('订单已经开始处理，不能取消了，请联系店员')
+    await releaseVouchers(order)
     return true
   },
 
@@ -235,6 +321,7 @@ const handlers = {
     // 带上原状态做条件，防止两位店员同时操作
     const res = await col('coffee_orders').where({ _id: order._id, status: order.status }).update({ data })
     if (!res.stats.updated) throw new BizError('订单状态已经变了，请刷新')
+    if (status === 'cancelled') await releaseVouchers(order)
     return true
   },
 

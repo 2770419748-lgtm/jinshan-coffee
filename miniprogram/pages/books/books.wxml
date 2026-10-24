@@ -1,0 +1,36 @@
+<view class="page">
+  <view class="active card" wx:if="{{active}}" bindtap="openActive" hover-class="btn-hover">
+    <view class="flex-1">
+      <view class="muted">{{active.status === 'reading' ? '正在看' : '借书号 ' + active.code + '，到吧台付款取书'}}</view>
+      <view class="active-title">《{{active.bookTitle}}》</view>
+    </view>
+    <text class="cell-arrow"></text>
+  </view>
+
+  <view class="card rules" wx:if="{{rules.length}}">
+    <view class="rules-head">借书价格</view>
+    <view wx:for="{{rules}}" wx:key="_id" class="rule-line">
+      <text>{{item.name}}</text>
+      <text class="gold">{{item.summary}}</text>
+    </view>
+    <view class="faint rules-tip">书只在店里看。选好书下单，到吧台付款后取书。</view>
+  </view>
+
+  <scroll-view class="cat-bar" scroll-x enable-flex wx:if="{{categories.length > 1}}">
+    <view class="chip {{current === 'all' ? 'on' : ''}}" data-cat="all" bindtap="pickCat">全部</view>
+    <view wx:for="{{categories}}" wx:key="*this" class="chip {{current === item ? 'on' : ''}}" data-cat="{{item}}" bindtap="pickCat">{{item}}</view>
+  </scroll-view>
+
+  <view class="grid">
+    <view wx:for="{{list}}" wx:key="_id" class="book" data-id="{{item._id}}" bindtap="open" hover-class="btn-hover">
+      <image wx:if="{{item.cover}}" class="cover" src="{{item.cover}}" mode="aspectFill" lazy-load />
+      <view wx:else class="cover cover-text">{{item.title}}</view>
+      <view class="title">{{item.title}}</view>
+      <view class="faint author">{{item.author || ' '}}</view>
+      <text class="tag {{item.available ? 'gold' : ''}}">{{item.available ? '可借 ' + item.available + ' 本' : '都借出了'}}</text>
+    </view>
+  </view>
+
+  <view class="empty" wx:if="{{loading}}">加载中…</view>
+  <view class="empty" wx:elif="{{!list.length}}">书架还在整理中</view>
+</view>

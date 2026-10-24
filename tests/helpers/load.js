@@ -13,6 +13,7 @@ const cloud = require(fakePath)
 const root = path.join(__dirname, '..', '..', 'cloudfunctions')
 const common = require(path.join(root, 'common', 'index.js'))
 const coffee = require(path.join(root, 'coffee', 'index.js'))
+const book = require(path.join(root, 'book', 'index.js'))
 
 // 以某个用户身份调用云函数
 function as(openid) {
@@ -20,7 +21,7 @@ function as(openid) {
     cloud.__state.openid = openid
     return fn.main(Object.assign({ action }, data || {}))
   }
-  return { common: call(common), coffee: call(coffee) }
+  return { common: call(common), coffee: call(coffee), book: call(book) }
 }
 
 // 成功时返回 data，失败时抛出带 code 的错误，方便断言

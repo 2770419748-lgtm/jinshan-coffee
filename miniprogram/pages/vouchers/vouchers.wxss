@@ -1,0 +1,25 @@
+.voucher {
+  display: flex;
+  align-items: center;
+  border-color: var(--gold);
+  background: linear-gradient(135deg, #2a2316, #171615);
+}
+.voucher.off {
+  border-color: var(--line);
+  background: var(--card);
+  opacity: 0.6;
+}
+.v-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--gold);
+}
+.small {
+  font-size: 24rpx;
+  margin-top: 4rpx;
+}
+.tip {
+  text-align: center;
+  font-size: 24rpx;
+  margin-bottom: 24rpx;
+}

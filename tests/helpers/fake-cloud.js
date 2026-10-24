@@ -11,6 +11,9 @@ class Cmd {
 const command = {
   in: (v) => new Cmd('in', v),
   gt: (v) => new Cmd('gt', v),
+  gte: (v) => new Cmd('gte', v),
+  lt: (v) => new Cmd('lt', v),
+  lte: (v) => new Cmd('lte', v),
   neq: (v) => new Cmd('neq', v),
   set: (v) => new Cmd('set', v),
   inc: (v) => new Cmd('inc', v)
@@ -46,6 +49,9 @@ function matches(doc, where) {
     if (cond instanceof Cmd) {
       if (cond.op === 'in') return cond.value.indexOf(val) !== -1
       if (cond.op === 'gt') return val > cond.value
+      if (cond.op === 'gte') return val >= cond.value
+      if (cond.op === 'lt') return val < cond.value
+      if (cond.op === 'lte') return val <= cond.value
       if (cond.op === 'neq') return val !== cond.value
       throw new Error('unsupported query command ' + cond.op)
     }

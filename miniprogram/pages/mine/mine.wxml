@@ -9,7 +9,13 @@
 
   <view class="card list">
     <view class="cell cell-arrow" bindtap="goOrders" hover-class="btn-hover">
-      <text class="flex-1">我的订单</text>
+      <text class="flex-1">咖啡订单</text>
+    </view>
+    <view class="cell cell-arrow" bindtap="goRentals" hover-class="btn-hover">
+      <text class="flex-1">借书记录</text>
+    </view>
+    <view class="cell cell-arrow" bindtap="goVouchers" hover-class="btn-hover">
+      <text class="flex-1">赠饮券</text>
     </view>
     <view class="cell cell-arrow" wx:if="{{user && user.staff}}" bindtap="goAdmin" hover-class="btn-hover">
       <text class="flex-1 gold">管理后台</text>

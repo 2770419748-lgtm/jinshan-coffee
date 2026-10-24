@@ -6,7 +6,11 @@
     "pages/mine/mine",
     "pages/confirm/confirm",
     "pages/order-detail/order-detail",
-    "pages/bind/bind"
+    "pages/bind/bind",
+    "pages/books/books",
+    "pages/book-detail/book-detail",
+    "pages/rental-detail/rental-detail",
+    "pages/vouchers/vouchers"
   ],
   "subPackages": [
     {
@@ -19,7 +23,12 @@
         "pages/product-edit/product-edit",
         "pages/categories/categories",
         "pages/tables/tables",
-        "pages/staff/staff"
+        "pages/staff/staff",
+        "pages/rentals/rentals",
+        "pages/books/books",
+        "pages/book-edit/book-edit",
+        "pages/rules/rules",
+        "pages/rule-edit/rule-edit"
       ]
     }
   ],
@@ -38,6 +47,7 @@
     "list": [
       { "pagePath": "pages/index/index", "text": "首页", "iconPath": "images/tab/home.png", "selectedIconPath": "images/tab/home-on.png" },
       { "pagePath": "pages/menu/menu", "text": "点单", "iconPath": "images/tab/menu.png", "selectedIconPath": "images/tab/menu-on.png" },
+      { "pagePath": "pages/books/books", "text": "书架", "iconPath": "images/tab/books.png", "selectedIconPath": "images/tab/books-on.png" },
       { "pagePath": "pages/orders/orders", "text": "订单", "iconPath": "images/tab/orders.png", "selectedIconPath": "images/tab/orders-on.png" },
       { "pagePath": "pages/mine/mine", "text": "我的", "iconPath": "images/tab/mine.png", "selectedIconPath": "images/tab/mine-on.png" }
     ]

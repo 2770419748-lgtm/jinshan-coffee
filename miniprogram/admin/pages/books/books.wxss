@@ -1,0 +1,64 @@
+.search-bar {
+  padding: 20rpx 24rpx 0;
+}
+.search {
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 40rpx;
+  height: 72rpx;
+  padding: 0 32rpx;
+  color: var(--text);
+}
+.book {
+  display: flex;
+  align-items: center;
+  padding: 20rpx;
+}
+.book.off .cover,
+.book.off .title {
+  opacity: 0.4;
+}
+.cover {
+  width: 104rpx;
+  height: 144rpx;
+  border-radius: 8rpx;
+  margin-right: 20rpx;
+  background: var(--card-2);
+  flex-shrink: 0;
+}
+.cover-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8rpx;
+  font-size: 22rpx;
+  text-align: center;
+  color: var(--gold);
+  overflow: hidden;
+  background: linear-gradient(160deg, #2a2316, #171615);
+}
+.title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.small {
+  font-size: 22rpx;
+  margin: 4rpx 0 12rpx;
+}
+.shelf {
+  transform: scale(0.8);
+}
+.tip {
+  font-size: 24rpx;
+  text-align: center;
+  margin-top: 8rpx;
+}
+.empty-box {
+  padding: 0 60rpx;
+}
+.fab {
+  position: fixed;
+  right: 32rpx;
+  bottom: calc(40rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.5);
+}

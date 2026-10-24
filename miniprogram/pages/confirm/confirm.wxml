@@ -38,6 +38,17 @@
     />
   </view>
 
+  <view class="card" wx:if="{{quote && quote.vouchers}}">
+    <view class="row-between" wx:if="{{quote.applied.length}}">
+      <view>
+        <view>赠饮券 <text class="gold">-¥{{f.yuan(quote.discountFee)}}</text></view>
+        <view class="faint small">用 {{quote.applied.length}} 张，抵扣<text wx:for="{{quote.applied}}" wx:key="id">{{index ? '、' : ''}}{{item.name}}</text></view>
+      </view>
+      <switch checked="{{useVouchers}}" color="#d6b25e" bindchange="toggleVouchers" />
+    </view>
+    <view class="faint" wx:else>你有 {{quote.vouchers}} 张赠饮券，这单的商品用不上</view>
+  </view>
+
   <view class="card pay-card">
     <view class="row-between">
       <text class="muted">付款方式</text>
@@ -52,7 +63,7 @@
 <view class="submit-bar">
   <view class="flex-1">
     <text class="muted">共 {{count}} 件 合计 </text>
-    <text class="price big">{{f.yuan(total)}}</text>
+    <text class="price big">{{f.yuan(payable)}}</text>
   </view>
   <view class="btn-gold {{submitting ? 'disabled' : ''}}" bindtap="submit">{{submitting ? '提交中…' : '提交订单'}}</view>
 </view>

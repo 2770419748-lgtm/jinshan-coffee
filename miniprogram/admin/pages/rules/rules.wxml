@@ -1,0 +1,29 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view wx:if="{{ready}}">
+  <view class="page">
+    <view class="faint intro">顾客借书时从上架的规则里选。改价只影响之后的新单。</view>
+
+    <view wx:for="{{rules}}" wx:key="_id" class="card rule {{item.onShelf ? '' : 'off'}}" data-id="{{item._id}}" bindtap="edit">
+      <view class="row-between">
+        <view class="row">
+          <text class="name">{{item.name}}</text>
+          <text class="tag gold">{{f.ruleType(item.type)}}</text>
+        </view>
+        <view catchtap="noop">
+          <switch class="shelf" checked="{{item.onShelf}}" color="#d6b25e" data-id="{{item._id}}" bindchange="toggleShelf" />
+        </view>
+      </view>
+      <view class="gold summary">{{item.summary}}</view>
+      <view class="faint small" wx:if="{{item.type === 'hourly'}}">可选 {{item.minHours}} 到 {{item.maxHours}} 小时；超时按小时补，宽限 {{item.graceMinutes}} 分钟</view>
+      <view class="faint small" wx:elif="{{item.freeCups}}">赠饮：{{item.freeProducts.length ? '' : '任选饮品'}}<text wx:for="{{item.freeProducts}}" wx:for-item="p" wx:for-index="pi" wx:key="id">{{pi ? '、' : ''}}{{p.name}}</text><text wx:if="{{item.freeMaxFee}}">，每杯最多抵 ¥{{f.yuan(item.freeMaxFee)}}</text></view>
+      <view class="faint small" wx:if="{{item.desc}}">{{item.desc}}</view>
+    </view>
+
+    <view class="empty" wx:if="{{loading}}">加载中…</view>
+    <view class="empty" wx:elif="{{!rules.length}}">还没有计费规则。可以新增，也可以到「书目管理」导入示例。</view>
+    <view class="safe-bottom"></view>
+  </view>
+
+  <view class="fab btn-gold" bindtap="add">+ 新增规则</view>
+</view>

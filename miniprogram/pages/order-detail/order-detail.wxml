@@ -33,8 +33,18 @@
       <text class="faint qty">×{{item.qty}}</text>
       <text class="price">{{f.yuan(item.subtotal)}}</text>
     </view>
+    <block wx:if="{{order.discountFee}}">
+      <view class="row-between sub-row">
+        <text class="muted">商品合计</text>
+        <text>¥{{f.yuan(order.totalFee)}}</text>
+      </view>
+      <view class="row-between sub-row" wx:for="{{order.vouchers}}" wx:key="id">
+        <text class="muted">赠饮券（{{item.name}}）</text>
+        <text class="gold">-¥{{f.yuan(item.discount)}}</text>
+      </view>
+    </block>
     <view class="row-between total-row">
-      <text class="muted">合计</text>
+      <text class="muted">{{order.discountFee ? '实付' : '合计'}}</text>
       <text class="price big">{{f.yuan(order.payFee)}}</text>
     </view>
   </view>
