@@ -1,6 +1,6 @@
-// 咖啡模块：菜单、下单（含预约）、微信支付、订单处理、商品分类桌台管理、代金券。
+// 咖啡模块：菜单、下单（含预约）、微信支付、余额支付、订单处理、商品分类桌台管理、代金券。
 // 读写 coffee_ 开头的集合；vouchers 里是顾客的券：赠饮券（书籍模块包天时发放）和在领券中心领的代金券，下单时核销；
-// 读 settings 里的支付设置和营业时间。
+// 用会员余额付款时通过 wallet.js 扣、退余额；读 settings 里的支付设置、营业时间和会员设置。
 const cloud = require('../platform')
 const {
   COFFEE_ROLES,
@@ -18,6 +18,7 @@ const {
 const { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponDiscount, pickCoupon } = require('./pricing')
 const pay = require('./pay')
 const { readShop, hoursOf, reserveSlots } = require('./shop')
+const wallet = require('./wallet')
 const DEMO_MENU = require('./coffee-demo')
 
 const db = cloud.database()
@@ -128,12 +129,36 @@ function publicCoupon(c, mine) {
   }
 }
 
-// 预约：开通微信支付才能约，时间要是营业时间里还能选的那几档
+// 预约要先在线付款：开通了微信支付，或者开了会员储值（用余额付）才能约
+function reserveOpen(paySettings, walletSettings) {
+  return !!(paySettings.payEnabled || walletSettings.enabled)
+}
+
+// 预约的时间要是营业时间里还能选的那几档
 async function checkReserveAt(reserveAt) {
-  const settings = await pay.getSettings(db)
-  if (!settings.payEnabled) throw new BizError('开通微信支付后才能预约', 'RESERVE_DISABLED')
   const slots = reserveSlots(hoursOf(await readShop(db)))
   if (!slots.some((s) => s.at === reserveAt)) throw new BizError('这个时间约不了了，请重新选一个时间', 'RESERVE_SLOT')
+}
+
+// 余额流水里写的内容，比如「点单 拿铁 等 3 件」
+function linesTitle(lines) {
+  const count = lines.reduce((n, l) => n + l.qty, 0)
+  return '点单 ' + (lines[0] ? lines[0].name : '') + (count > 1 ? ' 等 ' + count + ' 件' : '')
+}
+
+// 余额付的单取消时退回余额；同一单只退一次
+function refundToBalance(order) {
+  return wallet.refund(db, order._openid, order.payFee, {
+    title: '订单取消退回 取餐号 ' + order.pickupNo,
+    refType: 'coffee',
+    refId: order._id,
+    refNo: order.orderNo
+  }, async () => {
+    const res = await col('coffee_orders')
+      .where({ _id: order._id, payStatus: 'paid', payMethod: 'balance' })
+      .update({ data: { payStatus: 'refunded', refundedAt: db.serverDate(), updatedAt: db.serverDate() } })
+    return res.stats.updated > 0
+  })
 }
 
 function payDeadline(order) {
@@ -236,7 +261,19 @@ async function markWechatPaid(order, paid) {
     .where({ _id: order._id, payStatus: 'unpaid' })
     .update({ data: { payStatus: 'paid', payMethod: 'wechat', awaitingPay: false, transactionId: paid.transactionId, paidAt: db.serverDate(), updatedAt: db.serverDate() } })
   if (res.stats.updated && order.status === 'cancelled') await refundOrder(Object.assign({}, order, { payStatus: 'paid', payMethod: 'wechat' }))
+  if (!res.stats.updated) {
+    // 刚好用余额付掉了，微信这笔要退回去。吧台收款的不自动退：可能是店员看了顾客的微信付款记录才点的已收款
+    const now = await findOne('coffee_orders', { _id: order._id })
+    if (now && now.payMethod === 'balance') await refundDuplicate(now, paid)
+  }
   return true
+}
+
+// 同一单已经用余额付过，微信那边又付了一次：把微信这笔原路退回
+async function refundDuplicate(order, paid) {
+  if (!paid || order.dupRefunded) return
+  await pay.refund({ outTradeNo: order.payOutTradeNo || order.orderNo, outRefundNo: 'RD' + order.orderNo, totalFee: paid.totalFee })
+  await col('coffee_orders').doc(order._id).update({ data: { dupRefunded: true, dupTransactionId: paid.transactionId, updatedAt: db.serverDate() } })
 }
 
 async function refundOrder(order) {
@@ -252,8 +289,9 @@ async function refundOrder(order) {
 async function onPayNotify({ outTradeNo }) {
   if (typeof outTradeNo !== 'string' || outTradeNo.indexOf('JS') !== 0) return
   const order = await findOne('coffee_orders', { orderNo: outTradeNo })
-  if (!order || order.payStatus !== 'unpaid') return
-  await markWechatPaid(order, await pay.queryPaid(outTradeNo))
+  if (!order) return
+  if (order.payStatus === 'unpaid') await markWechatPaid(order, await pay.queryPaid(outTradeNo))
+  else if (order.payMethod === 'balance' && order.payOutTradeNo) await refundDuplicate(order, await pay.queryPaid(outTradeNo))
 }
 
 async function deleteFiles(fileIds) {
@@ -302,12 +340,13 @@ const handlers = {
   // 预约时 reserve 传 true，返回能选的时间；reserveAt 是选中的那一档，没选或者选的不能约了就用最早的一档。
   async quote({ items, couponId, reserve, reserveAt, noVouchers }, openid) {
     const { lines, total } = await loadLines(items)
-    const settings = await pay.getSettings(db)
+    const [settings, walletInfo] = await Promise.all([pay.getSettings(db), wallet.walletInfo(db, openid)])
     let reservation = null
     if (reserve) {
-      const slots = settings.payEnabled ? reserveSlots(hoursOf(await readShop(db))) : []
+      const open = reserveOpen(settings, walletInfo)
+      const slots = open ? reserveSlots(hoursOf(await readShop(db))) : []
       const chosen = slots.find((s) => s.at === reserveAt) || slots[0] || null
-      reservation = { enabled: settings.payEnabled, slots, reserveAt: chosen ? chosen.at : null, label: chosen ? chosen.label : '' }
+      reservation = { enabled: open, slots, reserveAt: chosen ? chosen.at : null, label: chosen ? chosen.label : '' }
     }
     // 赠饮券当天有效，预约明天的单用不了
     const vouchers = reservation && reservation.reserveAt && cnDay(reservation.reserveAt) !== cnDay() ? [] : await usableVouchers(openid)
@@ -327,15 +366,22 @@ const handlers = {
       discountFee: discount + couponFee,
       payFee: left - couponFee,
       pay: pay.publicPay(settings),
+      // 会员余额：enabled 是店里开没开储值，余额有钱时没开也能用
+      wallet: { enabled: walletInfo.enabled, balance: walletInfo.balance, memberNo: walletInfo.memberNo },
       reserve: reservation
     }
   },
 
-  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, reserveAt }, openid) {
+  // payBy 传 'balance' 表示用会员余额付，下单时直接扣
+  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, reserveAt, payBy }, openid) {
     if (mode !== 'dine_in' && mode !== 'takeaway') throw new BizError('请选择堂食或外带')
     const { lines, total } = await loadLines(items)
     const reserving = reserveAt !== undefined && reserveAt !== null
-    if (reserving) await checkReserveAt(reserveAt)
+    const paySettings = await pay.getSettings(db)
+    if (reserving) {
+      if (!reserveOpen(paySettings, await wallet.readSettings(db))) throw new BizError('店里暂时没开放预约', 'RESERVE_DISABLED')
+      await checkReserveAt(reserveAt)
+    }
 
     // 预约的人还没到店，不带桌号
     let table = ''
@@ -364,6 +410,14 @@ const handlers = {
     }
     const couponFee = coupon ? coupon.discount : 0
     const payFee = total - discount - couponFee
+    const byBalance = payBy === 'balance' && payFee > 0
+    if (reserving && payFee > 0 && !byBalance && !paySettings.payEnabled) {
+      throw new BizError('店里还没开通微信支付，预约请用会员余额付款', 'RESERVE_DISABLED')
+    }
+    if (byBalance) {
+      const member = await wallet.findMember(db, openid)
+      if (!member || member.balance < payFee) throw new BizError('余额不够了，换个付款方式，或者先充值', 'BALANCE_LOW')
+    }
 
     const orderNo = makeOrderNo()
     const claimed = []
@@ -379,6 +433,18 @@ const handlers = {
         throw new BizError(where.type === 'cash' ? '代金券有变化，请重新确认订单' : '赠饮券有变化，请重新确认订单', 'VOUCHER_CHANGED')
       }
       claimed.push(where._id)
+    }
+
+    // 余额付：先扣钱，下单失败再退回去
+    let charged = false
+    if (byBalance) {
+      try {
+        await wallet.pay(db, openid, payFee, { title: linesTitle(lines), refType: 'coffee', refNo: orderNo })
+        charged = true
+      } catch (e) {
+        await release()
+        throw e
+      }
     }
 
     // 预约单算在约定的那天，取餐号也用那天的
@@ -402,21 +468,23 @@ const handlers = {
         discountFee: discount + couponFee, // 赠饮券和代金券一共抵了多少
         payFee,
         remark: cleanText(remark, 50),
-        // 券全抵了就不用再付钱
-        payStatus: payFee === 0 ? 'paid' : 'unpaid',
-        payMethod: payFee === 0 ? 'voucher' : 'counter', // 微信付款后改成 wechat
+        // 券全抵了就不用再付钱；余额付的下单时就扣了
+        payStatus: payFee === 0 || byBalance ? 'paid' : 'unpaid',
+        payMethod: payFee === 0 ? 'voucher' : (byBalance ? 'balance' : 'counter'), // 微信付款后改成 wechat
         status: 'pending',
         createdAt: db.serverDate(),
         updatedAt: db.serverDate()
       }
+      if (byBalance) order.paidAt = db.serverDate()
       if (reserving) {
         order.reserveAt = new Date(reserveAt)
         // 预约要先在线付款，付完店员才看得到
-        order.awaitingPay = payFee > 0
+        order.awaitingPay = order.payStatus === 'unpaid'
       }
       added = await col('coffee_orders').add({ data: order })
     } catch (e) {
       await release()
+      if (charged) await wallet.refund(db, openid, payFee, { title: '下单没成功，退回', refType: 'coffee', refNo: orderNo })
       throw e
     }
     if (claimed.length) await col('vouchers').where({ _id: _.in(claimed), orderNo }).update({ data: { orderId: added._id } })
@@ -447,6 +515,11 @@ const handlers = {
     const settings = await pay.getSettings(db)
     const out = Object.assign(formatOrder(order), { pay: pay.publicPay(settings) })
     if (order.awaitingPay && order.payStatus === 'unpaid' && order.status === 'pending') out.payDeadline = payDeadline(order)
+    // 自己没付的单：带上余额，详情页可以直接用余额付
+    if (order._openid === openid && order.payStatus === 'unpaid' && order.status !== 'cancelled') {
+      const w = await wallet.walletInfo(db, openid)
+      out.wallet = { enabled: w.enabled, balance: w.balance }
+    }
     return out
   },
 
@@ -474,6 +547,29 @@ const handlers = {
     })
     await col('coffee_orders').doc(order._id).update({ data: { payOutTradeNo: order.orderNo, updatedAt: db.serverDate() } })
     return { payment }
+  },
+
+  // 顾客用会员余额付一个还没付的单（包括等付款的预约单）
+  async payWithBalance({ id }, openid) {
+    const order = await freshOrder(await findOne('coffee_orders', { _id: String(id || ''), _openid: openid }))
+    if (!order) throw new BizError('订单不存在')
+    if (order.status === 'cancelled') throw new BizError('订单已经取消了')
+    if (order.payStatus !== 'unpaid') throw new BizError('这单已经付过了')
+    if (order.awaitingPay && Date.now() >= payDeadline(order)) {
+      throw new BizError('超过 ' + RESERVE_PAY_MINUTES + ' 分钟没付款，这单预约会自动取消，请重新下单', 'RESERVE_EXPIRED')
+    }
+    // 拉起过微信支付的，先查一下是不是其实已经付了
+    if (order.payOutTradeNo && (await markWechatPaid(order, await pay.queryPaid(order.payOutTradeNo)))) return { payStatus: 'paid' }
+    const log = { refType: 'coffee', refId: order._id, refNo: order.orderNo }
+    await wallet.pay(db, openid, order.payFee, Object.assign({ title: '点单 取餐号 ' + order.pickupNo }, log))
+    const res = await col('coffee_orders')
+      .where({ _id: order._id, payStatus: 'unpaid', status: _.neq('cancelled') })
+      .update({ data: { payStatus: 'paid', payMethod: 'balance', awaitingPay: false, paidAt: db.serverDate(), updatedAt: db.serverDate() } })
+    if (!res.stats.updated) {
+      await wallet.refund(db, openid, order.payFee, Object.assign({ title: '订单状态变了，退回' }, log))
+      throw new BizError('订单状态刚刚变了，钱已经退回余额，请刷新看看')
+    }
+    return { payStatus: 'paid' }
   },
 
   // 付完款后顾客端调一下，向微信查单确认（回调慢的时候不用干等）
@@ -561,8 +657,9 @@ const handlers = {
     if (!order) throw new BizError('订单不存在')
     const allowed = NEXT_STATUS[order.status] || []
     if (allowed.indexOf(status) === -1) throw new BizError('订单状态已经变了，请刷新')
-    // 微信付过款的单先原路退款，退款成功才取消
+    // 微信付过款的单先原路退款，退款成功才取消；余额付的退回余额
     if (status === 'cancelled' && order.payStatus === 'paid' && order.payMethod === 'wechat') await refundOrder(order)
+    if (status === 'cancelled' && order.payStatus === 'paid' && order.payMethod === 'balance') await refundToBalance(order)
     const data = { status, updatedAt: db.serverDate() }
     data[STATUS_TIME_FIELD[status]] = db.serverDate()
     // 带上原状态做条件，防止两位店员同时操作
@@ -572,14 +669,14 @@ const handlers = {
     return true
   },
 
-  // 店主看账：每天的单数、收款、赠饮券和代金券抵扣，以及这段时间卖得最多的商品
+  // 店主看账：每天的单数、收款（微信、吧台、会员余额）、赠饮券和代金券抵扣，以及这段时间卖得最多的商品
   async daySummary({ from, to }, openid) {
     await requireRole(db, openid, ['owner'])
     const days = dayRange(from, to)
     const orders = await fetchAll(col('coffee_orders').where({ day: _.in(days) }).orderBy('createdAt', 'asc'))
     const rows = {}
     days.forEach((d) => {
-      rows[d] = { day: d, orders: 0, cancelled: 0, totalFee: 0, discountFee: 0, couponFee: 0, paidFee: 0, unpaidFee: 0, wechatFee: 0, counterFee: 0, vouchersUsed: 0, couponsUsed: 0, cancelledPaidFee: 0 }
+      rows[d] = { day: d, orders: 0, cancelled: 0, totalFee: 0, discountFee: 0, couponFee: 0, paidFee: 0, unpaidFee: 0, wechatFee: 0, counterFee: 0, balanceFee: 0, vouchersUsed: 0, couponsUsed: 0, cancelledPaidFee: 0 }
     })
     const products = {}
     orders.forEach((o) => {
@@ -600,6 +697,7 @@ const handlers = {
       if (o.payStatus === 'paid') {
         r.paidFee += o.payFee
         if (o.payMethod === 'wechat') r.wechatFee += o.payFee
+        else if (o.payMethod === 'balance') r.balanceFee += o.payFee // 充值时已经收过钱了
         else r.counterFee += o.payFee
       } else {
         r.unpaidFee += o.payFee

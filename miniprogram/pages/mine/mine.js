@@ -4,6 +4,7 @@ const session = require('../../utils/session')
 Page({
   data: {
     user: null,
+    member: null,
     loading: true
   },
 
@@ -14,6 +15,12 @@ Page({
       this.setData({ loading: false })
       api.toastError(err)
     })
+    // 首页的会员卡数据：余额、会员到期日
+    api.common('getHome').then((home) => this.setData({ member: home.member })).catch(() => {})
+  },
+
+  goMember() {
+    wx.navigateTo({ url: '/pages/member/member' })
   },
 
   goOrders() {

@@ -74,17 +74,21 @@
   </view>
 
   <view class="card pay-card" wx:if="{{payable > 0}}">
-    <view class="row-between">
+    <view class="row-between" wx:if="{{methods.length < 2}}">
       <text class="muted">付款方式</text>
-      <text wx:if="{{reserving}}">微信支付</text>
-      <view class="row" wx:elif="{{quote && quote.pay.enabled}}">
-        <view class="chip pay-chip {{payMethod === 'wechat' ? 'on' : ''}}" data-method="wechat" bindtap="pickPay">微信支付</view>
-        <view class="chip pay-chip {{payMethod === 'counter' ? 'on' : ''}}" wx:if="{{quote.pay.allowCounter}}" data-method="counter" bindtap="pickPay">到吧台付</view>
-      </view>
-      <text wx:else>到吧台付款</text>
+      <text>{{methods[0].label}}</text>
     </view>
-    <view class="faint pay-note" wx:if="{{reserving}}">预约要先在线付款，提交后直接微信支付；15 分钟内没付款会自动取消。</view>
+    <block wx:else>
+      <view class="muted">付款方式</view>
+      <view class="chips pay-methods">
+        <view wx:for="{{methods}}" wx:key="key" class="chip {{payMethod === item.key ? 'on' : ''}}" data-method="{{item.key}}" bindtap="pickPay">{{item.label}}</view>
+      </view>
+    </block>
+    <view class="faint pay-note" wx:if="{{balanceLow}}">余额不够这单，<text class="gold" bindtap="goMember">去充值 ›</text></view>
+    <view class="faint pay-note" wx:elif="{{payMethod === 'balance'}}">提交后直接从会员余额里扣。</view>
+    <view class="faint pay-note" wx:elif="{{reserving && payMethod === 'wechat'}}">预约要先在线付款，提交后直接微信支付；15 分钟内没付款会自动取消。</view>
     <view class="faint pay-note" wx:elif="{{payMethod === 'wechat'}}">提交后直接微信付款。</view>
+    <view class="faint pay-note" wx:elif="{{reserving}}">预约要先在线付款。</view>
     <view class="faint pay-note" wx:else>下单后到吧台报取餐号付款。</view>
   </view>
 
@@ -97,7 +101,7 @@
     <text class="price big">{{f.yuan(payable)}}</text>
     <text class="faint small" wx:if="{{quote && quote.discountFee}}"> 已省 ¥{{f.yuan(quote.discountFee)}}</text>
   </view>
-  <view class="btn-gold {{submitting ? 'disabled' : ''}}" bindtap="submit">{{submitting ? '提交中…' : ((reserving || payMethod === 'wechat') && payable > 0 ? '提交并付款' : '提交订单')}}</view>
+  <view class="btn-gold {{submitting ? 'disabled' : ''}}" bindtap="submit">{{submitting ? '提交中…' : ((payMethod === 'wechat' || payMethod === 'balance') && payable > 0 ? '提交并付款' : '提交订单')}}</view>
 </view>
 
 <!-- 选代金券 -->

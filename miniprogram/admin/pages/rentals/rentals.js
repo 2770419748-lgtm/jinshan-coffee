@@ -172,7 +172,7 @@ Page({
         if (!res.confirm) return
         this.run('adminCancelRental', rental._id, (r) => {
           if (r.refunded) {
-            wx.showModal({ title: '已取消', content: '租金 ¥' + rental.fee / 100 + ' 已原路退回顾客的微信。', showCancel: false })
+            wx.showModal({ title: '已取消', content: '租金 ¥' + rental.fee / 100 + (rental.payMethod === 'balance' ? ' 已退回顾客的会员余额。' : ' 已原路退回顾客的微信。'), showCancel: false })
             return
           }
           if (!r.paid) return

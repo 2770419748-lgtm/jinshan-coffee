@@ -124,6 +124,7 @@ module.exports = {
   common: (action, data) => call('common', action, data),
   coffee: (action, data) => call('coffee', action, data),
   book: (action, data) => call('book', action, data),
+  member: (action, data) => call('member', action, data),
   upload,
   base,
   errorText,

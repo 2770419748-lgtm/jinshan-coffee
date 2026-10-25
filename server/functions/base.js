@@ -12,7 +12,8 @@ const COFFEE_ROLES = ['owner', 'barista']
 const BOOK_ROLES = ['owner', 'book_manager']
 
 // 咖啡模块用 coffee_ 开头的集合，书籍模块用 book_ 开头的集合；
-// vouchers 是顾客手里的券：包天送的赠饮券（书籍模块发放）和领到的代金券（type 为 cash，模板在 coffee_coupons），咖啡下单时核销
+// vouchers 是顾客手里的券：包天送的赠饮券（书籍模块发放）和领到的代金券（type 为 cash，模板在 coffee_coupons），咖啡下单时核销；
+// members、member_logs 是会员的余额和流水（见 wallet.js），咖啡和书籍模块付款时也会改
 const COLLECTIONS = [
   'staff',
   'staff_invites',
@@ -30,7 +31,11 @@ const COLLECTIONS = [
   'mp_sessions',
   'settings',
   'banners',
-  'coffee_coupons'
+  'coffee_coupons',
+  'members',
+  'member_logs',
+  'member_plans',
+  'member_recharges'
 ]
 
 // 电脑网页后台的登录有效期

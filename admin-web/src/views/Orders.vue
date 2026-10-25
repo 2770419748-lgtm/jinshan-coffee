@@ -38,7 +38,7 @@
           <div v-if="row.discountFee - (row.couponFee || 0)" class="muted small">赠饮券 -¥{{ yuan(row.discountFee - (row.couponFee || 0)) }}</div>
           <div v-if="row.couponFee" class="muted small">代金券 -¥{{ yuan(row.couponFee) }}</div>
           <el-tag size="small" :type="row.payStatus === 'paid' ? 'success' : row.payStatus === 'refunded' ? 'info' : 'danger'">
-            {{ PAY[row.payStatus] }}{{ row.payStatus === 'paid' && row.payMethod === 'wechat' ? '（微信）' : '' }}
+            {{ PAY[row.payStatus] }}{{ METHOD[row.payMethod] && row.payStatus !== 'unpaid' ? '（' + METHOD[row.payMethod] + '）' : '' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -70,6 +70,7 @@ const tabs = [
   { key: 'cancelled', name: '已取消' }
 ]
 const PAY = { unpaid: '未收款', paid: '已收款', refunded: '已退款' }
+const METHOD = { wechat: '微信', balance: '余额', member: '会员免费' }
 
 const status = ref('pending')
 const day = ref(cnDay())
@@ -126,6 +127,7 @@ function cancelText(row) {
   if (row.payStatus !== 'paid') return '确定取消这单？'
   if (row.payMethod === 'wechat') return '这单是微信支付的，取消后钱会原路退回顾客的微信。'
   if (row.payMethod === 'voucher') return '这单用券抵扣，取消后券会退回给顾客。'
+  if (row.payMethod === 'balance') return '这单是会员余额付的，取消后钱会退回顾客的余额。'
   return '这单已在吧台收款，取消后请记得退款给顾客。'
 }
 

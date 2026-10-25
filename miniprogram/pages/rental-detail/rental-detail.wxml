@@ -20,8 +20,10 @@
         <view class="tip" wx:elif="{{rental.pay.enabled}}">还没付款 <text class="price">{{f.yuan(rental.fee)}}</text>，可以微信支付，也可以到吧台报借书号付</view>
         <view class="tip" wx:else>请到吧台报借书号付款 <text class="price">{{f.yuan(rental.fee)}}</text>，付款后取书</view>
         <view class="btn-gold btn-block pay-btn" wx:if="{{rental.pay.enabled}}" bindtap="payNow">微信支付 ¥{{f.yuan(rental.fee)}}</view>
+        <view class="btn-ghost btn-block pay-btn" wx:if="{{rental.wallet && rental.wallet.balance >= rental.fee}}" bindtap="payByBalance">用余额付（余额 ¥{{f.yuan(rental.wallet.balance)}}）</view>
       </block>
-      <view class="tip ok" wx:else>已付款，请到吧台报借书号取书</view>
+      <view class="tip ok" wx:elif="{{rental.member}}">会员免费看，请到吧台报借书号取书</view>
+      <view class="tip ok" wx:else>已付款{{f.payMethod(rental.payMethod)}}，请到吧台报借书号取书</view>
     </block>
     <block wx:elif="{{rental.status === 'reading'}}">
       <view class="tip" wx:if="{{rental.ruleType === 'day'}}">今天打烊前还书就行</view>
@@ -30,11 +32,12 @@
         <view class="faint">{{f.clock(rental.dueAtMs)}} 到期，看完把书还到吧台<text wx:if="{{rental.dueAtMs < now}}">，还书时按 ¥{{f.yuan(rental.unitPrice)}}/小时补超时费</text></view>
       </view>
     </block>
-    <view class="tip ok" wx:elif="{{rental.payStatus === 'refunded'}}">租金已原路退回</view>
+    <view class="tip ok" wx:elif="{{rental.payStatus === 'refunded'}}">{{rental.payMethod === 'balance' ? '租金已退回会员余额' : '租金已原路退回'}}</view>
     <block wx:elif="{{rental.status === 'returned' && rental.overtimeFee}}">
       <block wx:if="{{rental.overtimePayStatus === 'unpaid'}}">
         <view class="tip warn">超时 {{f.minutes(rental.overtimeMinutes)}}，要补 <text class="price">{{f.yuan(rental.overtimeFee)}}</text>{{rental.pay.enabled ? '' : '，请到吧台付'}}</view>
         <view class="btn-gold btn-block pay-btn" wx:if="{{rental.pay.enabled}}" bindtap="payOvertime">微信支付超时费 ¥{{f.yuan(rental.overtimeFee)}}</view>
+        <view class="btn-ghost btn-block pay-btn" wx:if="{{rental.wallet && rental.wallet.balance >= rental.overtimeFee}}" bindtap="overtimeByBalance">用余额付超时费（余额 ¥{{f.yuan(rental.wallet.balance)}}）</view>
       </block>
       <view class="tip ok" wx:else>超时费 ¥{{f.yuan(rental.overtimeFee)}} 已付</view>
     </block>
@@ -52,7 +55,7 @@
   <view class="card">
     <view class="cell"><text class="muted">书</text><text>《{{rental.bookTitle}}》</text></view>
     <view class="cell"><text class="muted">计费</text><text>{{f.rentalBrief(rental)}}</text></view>
-    <view class="cell"><text class="muted">租金</text><text class="price">{{f.yuan(rental.fee)}}</text></view>
+    <view class="cell"><text class="muted">租金</text><text class="price" wx:if="{{rental.fee}}">{{f.yuan(rental.fee)}}</text><text class="gold" wx:else>{{rental.member ? '会员免费' : '免费'}}</text></view>
     <view class="cell" wx:if="{{rental.startAt}}"><text class="muted">取书时间</text><text>{{f.time(rental.startAt)}}</text></view>
     <view class="cell" wx:if="{{rental.returnedAt}}"><text class="muted">还书时间</text><text>{{f.time(rental.returnedAt)}}</text></view>
     <view class="cell" wx:if="{{rental.remark}}"><text class="muted">备注</text><text>{{rental.remark}}</text></view>

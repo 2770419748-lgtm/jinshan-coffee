@@ -45,9 +45,11 @@
 .small {
   font-size: 24rpx;
 }
-.pay-chip {
-  margin: 0 0 0 16rpx;
-  padding: 8rpx 20rpx;
+.pay-methods {
+  margin-top: 16rpx;
+}
+.pay-methods .chip {
+  margin-bottom: 0;
 }
 .reserve-card {
   border-color: var(--gold);

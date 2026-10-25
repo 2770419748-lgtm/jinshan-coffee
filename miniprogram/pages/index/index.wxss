@@ -139,6 +139,47 @@
   margin-top: 4rpx;
 }
 
+/* 会员卡：比领券卡更深一点，像一张黑金卡 */
+.member-card {
+  display: flex;
+  align-items: center;
+  padding: 28rpx;
+  margin-bottom: 24rpx;
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(214, 178, 94, 0.6);
+  background: linear-gradient(135deg, #3a2f1a 0%, #1b1813 50%, #0f0e0c 100%);
+}
+.member-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 4rpx;
+}
+.member-badge {
+  margin-left: 12rpx;
+  padding: 2rpx 12rpx;
+  border-radius: 6rpx;
+  background: var(--gold);
+  color: #1a1408;
+  font-size: 20rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+  vertical-align: middle;
+}
+.member-sub {
+  margin-top: 2rpx;
+  color: var(--text-2);
+  font-size: 24rpx;
+}
+.member-balance {
+  text-align: right;
+  font-size: 34rpx;
+}
+.member-label {
+  font-size: 22rpx;
+  color: var(--text-3);
+}
+
 .coupon-card {
   display: flex;
   align-items: center;

@@ -23,6 +23,10 @@
         <view class="tile-title">桌台和桌码</view>
         <view class="tile-sub">添加桌号，生成二维码</view>
       </view>
+      <view class="tile" data-url="/admin/pages/members/members" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">会员储值</view>
+        <view class="tile-sub">按会员号给顾客充值</view>
+      </view>
     </view>
   </block>
 
@@ -61,6 +65,10 @@
     <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/coupons/coupons" bindtap="go" hover-class="btn-hover">
       <view class="tile-title">代金券</view>
       <view class="tile-sub">满减券，顾客自己领</view>
+    </view>
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/member-settings/member-settings" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">储值设置</view>
+      <view class="tile-sub">充值档位、会员免费看的书</view>
     </view>
     <view class="tile" bindtap="scanLogin" hover-class="btn-hover">
       <view class="tile-title">扫码登录电脑</view>

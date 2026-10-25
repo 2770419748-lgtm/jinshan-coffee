@@ -32,7 +32,7 @@
         <template #default="{ row }">
           <div class="gold">¥{{ yuan(row.fee) }}</div>
           <el-tag size="small" :type="row.payStatus === 'paid' ? 'success' : row.payStatus === 'refunded' ? 'info' : 'danger'">
-            {{ PAY[row.payStatus] }}{{ row.payStatus === 'paid' && row.payMethod === 'wechat' ? '（微信）' : '' }}
+            {{ PAY[row.payStatus] }}{{ METHOD[row.payMethod] && row.payStatus !== 'unpaid' ? '（' + METHOD[row.payMethod] + '）' : '' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -77,6 +77,7 @@ const tabs = [
   { key: 'cancelled', name: '已取消' }
 ]
 const PAY = { unpaid: '未收款', paid: '已收款', refunded: '已退款' }
+const METHOD = { wechat: '微信', balance: '余额', member: '会员免费' }
 
 const status = ref('pending')
 const day = ref(cnDay())
@@ -132,6 +133,7 @@ function reload() {
 function cancelPayText(r) {
   if (r.payStatus !== 'paid' || !r.fee) return '。'
   if (r.payMethod === 'wechat') return '，租金 ¥' + yuan(r.fee) + ' 会原路退回顾客的微信。'
+  if (r.payMethod === 'balance') return '，租金 ¥' + yuan(r.fee) + ' 会退回顾客的会员余额。'
   return '，这单已收款 ¥' + yuan(r.fee) + '，记得退给顾客。'
 }
 
@@ -153,7 +155,7 @@ async function act(row, action) {
   try {
     const res = await api.book(action, { id: row._id })
     if (action === 'markRentalPaid' && res.voucherCount) ElMessage.success('已收款，送了 ' + res.voucherCount + ' 张赠饮券')
-    if (action === 'adminCancelRental' && res.refunded) ElMessage.success('已取消，租金原路退回顾客微信')
+    if (action === 'adminCancelRental' && res.refunded) ElMessage.success(row.payMethod === 'balance' ? '已取消，租金退回顾客的会员余额' : '已取消，租金原路退回顾客微信')
     if (action === 'returnBook' && res.overtimeFee) {
       ElMessageBox.alert('超时 ' + res.overtimeMinutes + ' 分钟，按 ' + res.overtimeHours + ' 小时算，要补 ¥' + yuan(res.overtimeFee) + '。收到后在「已归还」里点「超时费已收」。', '要收超时费')
     }

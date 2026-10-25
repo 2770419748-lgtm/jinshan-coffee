@@ -10,6 +10,8 @@ Page({
     hours: null,
     reserveEnabled: false,
     claimable: 0,
+    member: null, // 会员卡：{ enabled, balance, isMember, memberUntil, freeCategories, promo }，没开储值又没余额时是 null
+    memberText: '',
     activeOrder: null,
     activeText: '',
     activeRental: null
@@ -27,15 +29,21 @@ Page({
       .then(() => wx.stopPullDownRefresh())
   },
 
-  // 轮播、营业时间、能不能预约、还有几种券可以领
+  // 轮播、营业时间、能不能预约、还有几种券可以领、会员卡
   loadHome() {
     return api.common('getHome').then((home) => {
+      const m = home.member
+      let memberText = ''
+      if (m && m.isMember) memberText = m.memberUntil + ' 到期' + (m.freeCategories.length ? '，' + m.freeCategories.join('、') + '免费看' : '')
+      else if (m) memberText = m.promo || '储值点单、借书都能用'
       this.setData({
         banners: home.banners,
         current: 0,
         hours: home.hours,
         reserveEnabled: home.reserveEnabled,
-        claimable: home.claimableCoupons
+        claimable: home.claimableCoupons,
+        member: m,
+        memberText
       })
     }).catch(() => {})
   },
@@ -103,12 +111,12 @@ Page({
     })
   },
 
-  // 预约：要先在线付款，店里开通微信支付以后才能用
+  // 预约：要先在线付款（微信支付或会员余额），店里开通以后才能用
   reserve() {
     if (!this.data.reserveEnabled) {
       wx.showModal({
         title: '预约暂未开放',
-        content: '店里开通微信支付以后就能预约了。现在可以直接点单，做好到吧台取。',
+        content: '预约要先在线付款，店里开通以后就能用了。现在可以直接点单，做好到吧台取。',
         showCancel: false,
         confirmText: '知道了'
       })
@@ -121,6 +129,10 @@ Page({
 
   goCoupons() {
     wx.navigateTo({ url: '/pages/coupons/coupons' })
+  },
+
+  goMember() {
+    wx.navigateTo({ url: '/pages/member/member' })
   },
 
   goVouchers() {

@@ -1,4 +1,4 @@
-// 预览用的假数据：店主、员工、示例菜单和书、轮播、代金券、几张订单和借书单
+// 预览用的假数据：店主、员工、示例菜单和书、轮播、代金券、会员储值、几张订单和借书单
 module.exports = async function seed(as, db) {
   const ok = async (p) => {
     const res = await p
@@ -45,4 +45,15 @@ module.exports = async function seed(as, db) {
   const r2 = await ok(customers[3].book('createRental', { bookId: shelf.books[2]._id, ruleId: day._id }))
   await ok(owner.book('markRentalPaid', { id: r2.id }))
   await ok(customers[1].book('createRental', { bookId: shelf.books[0]._id, ruleId: hourly._id, hours: 1, remark: '靠窗位' }))
+
+  // 会员储值：两个档位，C1 在吧台充了 300 送 100，用余额点了一单；C4 是没充过钱的
+  const p300 = await ok(owner.member('savePlan', { plan: { price: 30000, bonus: 10000, memberDays: 365, desc: '送一年会员' } }))
+  await ok(owner.member('savePlan', { plan: { price: 50000, bonus: 20000, memberDays: 365, desc: '最划算' } }))
+  await ok(owner.member('saveMemberSettings', { enabled: true, freeCategories: ['漫画'], notice: '储值金额（含赠送）只能在店里点单、借书时使用，不能提现。' }))
+  await ok(owner.book('saveBook', { book: { title: '海贼王 1', author: '尾田荣一郎', category: '漫画', copies: 2 } }))
+  const m1 = await ok(customers[0].member('getMember'))
+  await ok(customers[3].member('getMember'))
+  await ok(as('BARISTA').member('counterRecharge', { memberNo: m1.member.memberNo, planId: p300.id }))
+  await ok(as('BARISTA').member('setMemberRemark', { memberNo: m1.member.memberNo, remark: '张女士 尾号 6688' }))
+  await ok(customers[0].coffee('createOrder', { mode: 'takeaway', payBy: 'balance', items: [{ productId: byName('美式')._id, qty: 1, specs: [{ name: '杯型', option: '中杯' }, { name: '温度', option: '冰' }] }] }))
 }

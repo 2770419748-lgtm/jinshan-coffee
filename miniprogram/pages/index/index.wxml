@@ -76,6 +76,19 @@
       <text class="cell-arrow"></text>
     </view>
 
+    <!-- 会员卡：余额、会员到期日；没充过时显示充值活动 -->
+    <view class="member-card" wx:if="{{member}}" bindtap="goMember" hover-class="btn-hover">
+      <view class="flex-1">
+        <view class="member-title">进山会员<text class="member-badge" wx:if="{{member.isMember}}">VIP</text></view>
+        <view class="member-sub">{{memberText}}</view>
+      </view>
+      <view class="member-balance" wx:if="{{member.balance}}">
+        <view class="member-label">余额</view>
+        <text class="price">{{f.yuan(member.balance)}}</text>
+      </view>
+      <view class="btn-ghost btn-small" wx:elif="{{member.enabled}}">去充值</view>
+    </view>
+
     <!-- 领券中心 -->
     <view class="coupon-card" bindtap="goCoupons" hover-class="btn-hover">
       <image class="coupon-icon" src="/images/home/coupon.png" />

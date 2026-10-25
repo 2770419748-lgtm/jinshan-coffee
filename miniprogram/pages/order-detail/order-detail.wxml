@@ -22,9 +22,10 @@
       <view class="pay-tip" wx:elif="{{order.pay.enabled}}">还没付款 <text class="price">{{f.yuan(order.payFee)}}</text>，可以微信支付，也可以到吧台报取餐号付</view>
       <view class="pay-tip" wx:else>请到吧台报取餐号付款 <text class="price">{{f.yuan(order.payFee)}}</text></view>
       <view class="btn-gold btn-block pay-btn" wx:if="{{order.pay.enabled}}" bindtap="payNow">微信支付 ¥{{f.yuan(order.payFee)}}</view>
+      <view class="btn-ghost btn-block pay-btn" wx:if="{{order.wallet && order.wallet.balance >= order.payFee}}" bindtap="payByBalance">用余额付（余额 ¥{{f.yuan(order.wallet.balance)}}）</view>
     </block>
-    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'paid'}}">已付款{{order.payMethod === 'wechat' ? '（微信支付）' : order.payMethod === 'voucher' ? '（券抵扣）' : ''}}</view>
-    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'refunded'}}">已原路退款</view>
+    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'paid'}}">已付款{{f.payMethod(order.payMethod)}}</view>
+    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'refunded'}}">{{order.payMethod === 'balance' ? '钱已退回会员余额' : '已原路退款'}}</view>
   </view>
 
   <view class="card">

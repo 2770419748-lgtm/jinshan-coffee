@@ -1,5 +1,6 @@
-// 公共模块：登录、店主绑定、员工邀请和权限管理、店铺设置、电脑网页后台登录、顾客首页（轮播、营业时间、可领的券）。
-// 首页轮播存在 banners 集合；首页要展示商品、书和代金券，所以这里会只读 coffee_products、book_books、coffee_coupons。
+// 公共模块：登录、店主绑定、员工邀请和权限管理、店铺设置、电脑网页后台登录、顾客首页（轮播、营业时间、可领的券、会员）。
+// 首页轮播存在 banners 集合；首页要展示商品、书、代金券和会员储值，所以这里会只读 coffee_products、book_books、coffee_coupons、
+// member_plans 和自己的 members 记录。
 const crypto = require('crypto')
 const { promisify } = require('util')
 const cloud = require('../platform')
@@ -17,6 +18,7 @@ const {
   createMain
 } = require('./base')
 const { readShop, hoursOf, checkHours } = require('./shop')
+const wallet = require('./wallet')
 
 const db = cloud.database()
 const _ = db.command
@@ -128,6 +130,21 @@ async function deleteUploads(list) {
     await cloud.deleteFile({ fileList: files })
   } catch (e) {
     console.warn('deleteFile failed', e)
+  }
+}
+
+// 首页的会员卡：没开储值又没余额就不显示；promo 是第一个充值档位，比如「充 300 送 100」
+async function homeMember(settings, member) {
+  const info = wallet.publicMember(member)
+  if (!settings.enabled && !(info && (info.balance || info.isMember))) return null
+  const plans = settings.enabled ? await safeGet(db.collection('member_plans').where({ enabled: true }).orderBy('sort', 'asc').limit(1)) : []
+  return {
+    enabled: settings.enabled,
+    balance: info ? info.balance : 0,
+    isMember: info ? info.isMember : false,
+    memberUntil: info ? info.memberUntil : '',
+    freeCategories: settings.freeCategories,
+    promo: plans[0] ? plans[0].title + (plans[0].memberDays ? '，送 ' + plans[0].memberDays + ' 天会员' : '') : ''
   }
 }
 
@@ -296,7 +313,7 @@ const handlers = {
   // ---------- 顾客首页 ----------
 
   async getHome(event, openid) {
-    const saved = await readShop(db)
+    const [saved, memberSettings, member] = await Promise.all([readShop(db), wallet.readSettings(db), wallet.findMember(db, openid)])
     const configured = await safeGet(db.collection('banners').where({ enabled: true }).orderBy('sort', 'asc').limit(MAX_BANNERS))
     let banners
     if (configured.length) {
@@ -308,9 +325,10 @@ const handlers = {
     return {
       banners,
       hours: hoursOf(saved),
-      // 预约必须先在线付款，开通微信支付后才能用
-      reserveEnabled: !!saved.payEnabled && cloud.pay.ready(),
-      claimableCoupons: await claimableCoupons(openid)
+      // 预约必须先在线付款：开通微信支付，或者开了会员储值（用余额付）才能用
+      reserveEnabled: (!!saved.payEnabled && cloud.pay.ready()) || memberSettings.enabled,
+      claimableCoupons: await claimableCoupons(openid),
+      member: await homeMember(memberSettings, member)
     }
   },
 

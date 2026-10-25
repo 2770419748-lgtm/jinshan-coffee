@@ -18,11 +18,11 @@
       <el-button @click="exportCsv" :disabled="!coffee">导出表格</el-button>
     </div>
 
-    <div class="cards" v-if="coffee && book">
+    <div class="cards" v-if="coffee && book && member">
       <div class="stat primary">
         <div class="label">合计实收</div>
         <div class="value">¥{{ yuan(totalPaid) }}</div>
-        <div class="sub">咖啡 ¥{{ yuan(coffee.totals.paidFee) }} · 借书 ¥{{ yuan(book.totals.paidFee + book.totals.overtimePaid) }}</div>
+        <div class="sub">咖啡 ¥{{ yuan(coffeeCash) }} · 借书 ¥{{ yuan(bookCash) }} · 充值 ¥{{ yuan(rechargeCash) }}</div>
       </div>
       <div class="stat">
         <div class="label">咖啡订单</div>
@@ -50,9 +50,14 @@
         <div class="sub">抵扣 ¥{{ yuan(coffee.totals.couponFee || 0) }}</div>
       </div>
       <div class="stat">
-        <div class="label">收款方式</div>
-        <div class="value small">吧台 ¥{{ yuan(coffee.totals.counterFee + book.totals.counterFee) }}</div>
-        <div class="sub">微信支付 ¥{{ yuan(coffee.totals.wechatFee + book.totals.wechatFee) }}</div>
+        <div class="label">收款方式（含充值）</div>
+        <div class="value small">吧台 ¥{{ yuan(coffee.totals.counterFee + book.totals.counterFee + member.totals.counterFee) }}</div>
+        <div class="sub">微信支付 ¥{{ yuan(coffee.totals.wechatFee + book.totals.wechatFee + member.totals.onlineFee) }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">会员储值</div>
+        <div class="value small">充 ¥{{ yuan(rechargeCash) }} · 送 ¥{{ yuan(member.totals.bonusFee) }}</div>
+        <div class="sub">余额消费 ¥{{ yuan(balanceSpent) }} · 顾客余额合计 ¥{{ yuan(member.balanceTotal) }}</div>
       </div>
     </div>
 
@@ -76,6 +81,8 @@
         <el-table-column label="借书次数" prop="rentals" />
         <el-table-column label="租金实收"><template #default="{ row }">¥{{ yuan(row.bookPaid) }}</template></el-table-column>
         <el-table-column label="超时费"><template #default="{ row }">¥{{ yuan(row.overtime) }}</template></el-table-column>
+        <el-table-column label="充值"><template #default="{ row }">¥{{ yuan(row.recharge) }}</template></el-table-column>
+        <el-table-column label="余额消费"><template #default="{ row }">¥{{ yuan(row.balance) }}</template></el-table-column>
         <el-table-column label="合计实收"><template #default="{ row }"><span class="gold">¥{{ yuan(row.total) }}</span></template></el-table-column>
       </el-table>
     </el-card>
@@ -100,7 +107,7 @@
       </el-card>
     </div>
 
-    <div class="tip">金额按下单日期统计；“实收”只算已经收款的单，取消的单不算。</div>
+    <div class="tip">金额按下单日期统计；“实收”只算已经收款的单，取消的单不算。用会员余额付的单不算进实收，钱在顾客充值那天已经算过了（充值只算本金，送的不算）。</div>
   </div>
 </template>
 
@@ -114,6 +121,7 @@ const today = cnDay()
 const range = ref([today, today])
 const coffee = ref(null)
 const book = ref(null)
+const member = ref(null)
 const loading = ref(false)
 
 const monthStart = today.slice(0, 8) + '01'
@@ -125,23 +133,35 @@ const shortcuts = [
   { text: '最近 30 天', value: () => [addDays(today, -29), today] }
 ]
 
-const totalPaid = computed(() => coffee.value.totals.paidFee + book.value.totals.paidFee + book.value.totals.overtimePaid)
+// 实收：微信和吧台收的钱，加上充值本金；余额付的不重复算
+const coffeeCash = computed(() => coffee.value.totals.paidFee - (coffee.value.totals.balanceFee || 0))
+const bookCash = computed(() => book.value.totals.paidFee - (book.value.totals.balanceFee || 0) + book.value.totals.overtimePaid - (book.value.totals.overtimeBalance || 0))
+const rechargeCash = computed(() => member.value.totals.onlineFee + member.value.totals.counterFee)
+const balanceSpent = computed(() => (coffee.value.totals.balanceFee || 0) + (book.value.totals.balanceFee || 0) + (book.value.totals.overtimeBalance || 0))
+const totalPaid = computed(() => coffeeCash.value + bookCash.value + rechargeCash.value)
 const totalUnpaid = computed(() => coffee.value.totals.unpaidFee + book.value.totals.unpaidFee + book.value.totals.overtimeUnpaid)
 
 const rows = computed(() => {
-  if (!coffee.value || !book.value) return []
+  if (!coffee.value || !book.value || !member.value) return []
   return coffee.value.days.map((c, i) => {
     const b = book.value.days[i]
+    const m = member.value.days[i]
+    const coffeePaid = c.paidFee - (c.balanceFee || 0)
+    const bookPaid = b.paidFee - (b.balanceFee || 0)
+    const overtime = b.overtimePaid - (b.overtimeBalance || 0)
+    const recharge = m.onlineFee + m.counterFee
     return {
       day: c.day,
       orders: c.orders,
-      coffeePaid: c.paidFee,
+      coffeePaid,
       discount: c.discountFee - (c.couponFee || 0),
       coupon: c.couponFee || 0,
       rentals: b.rentals,
-      bookPaid: b.paidFee,
-      overtime: b.overtimePaid,
-      total: c.paidFee + b.paidFee + b.overtimePaid
+      bookPaid,
+      overtime,
+      recharge,
+      balance: (c.balanceFee || 0) + (b.balanceFee || 0) + (b.overtimeBalance || 0),
+      total: coffeePaid + bookPaid + overtime + recharge
     }
   })
 })
@@ -150,9 +170,14 @@ async function load() {
   loading.value = true
   try {
     const [from, to] = range.value
-    const [c, b] = await Promise.all([api.coffee('daySummary', { from, to }), api.book('daySummary', { from, to })])
+    const [c, b, m] = await Promise.all([
+      api.coffee('daySummary', { from, to }),
+      api.book('daySummary', { from, to }),
+      api.member('memberSummary', { from, to })
+    ])
     coffee.value = c
     book.value = b
+    member.value = m
   } catch (e) {
     ElMessage.error(e.message)
   } finally {
@@ -161,8 +186,8 @@ async function load() {
 }
 
 function exportCsv() {
-  const header = ['日期', '咖啡单数', '咖啡实收(元)', '赠饮抵扣(元)', '代金券抵扣(元)', '借书次数', '租金实收(元)', '超时费(元)', '合计实收(元)']
-  const body = rows.value.map((r) => [r.day, r.orders, yuan(r.coffeePaid), yuan(r.discount), yuan(r.coupon), r.rentals, yuan(r.bookPaid), yuan(r.overtime), yuan(r.total)])
+  const header = ['日期', '咖啡单数', '咖啡实收(元)', '赠饮抵扣(元)', '代金券抵扣(元)', '借书次数', '租金实收(元)', '超时费(元)', '充值(元)', '余额消费(元)', '合计实收(元)']
+  const body = rows.value.map((r) => [r.day, r.orders, yuan(r.coffeePaid), yuan(r.discount), yuan(r.coupon), r.rentals, yuan(r.bookPaid), yuan(r.overtime), yuan(r.recharge), yuan(r.balance), yuan(r.total)])
   const products = coffee.value.products.map((p) => [p.name, p.qty, yuan(p.amount)])
   downloadCsv('进山汇总_' + range.value[0] + '_' + range.value[1] + '.csv', [header].concat(body, [[], ['商品', '杯数', '金额(元)']], products))
 }

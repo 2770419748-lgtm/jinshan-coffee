@@ -26,6 +26,13 @@ export const MENU = [
     ]
   },
   {
+    group: '会员',
+    items: [
+      { path: '/members', title: '会员储值', roles: COFFEE },
+      { path: '/member-settings', title: '储值设置', roles: OWNER }
+    ]
+  },
+  {
     group: '店铺',
     items: [
       { path: '/staff', title: '员工管理', roles: OWNER },
@@ -48,7 +55,9 @@ const views = {
   '/staff': () => import('./views/Staff.vue'),
   '/settings': () => import('./views/Settings.vue'),
   '/banners': () => import('./views/Banners.vue'),
-  '/coupons': () => import('./views/Coupons.vue')
+  '/coupons': () => import('./views/Coupons.vue'),
+  '/members': () => import('./views/Members.vue'),
+  '/member-settings': () => import('./views/MemberSettings.vue')
 }
 
 const routes = [{ path: '/login', component: () => import('./views/Login.vue'), meta: { public: true } }]

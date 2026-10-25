@@ -91,6 +91,20 @@ Page({
     })
   },
 
+  payByBalance() {
+    pay.rentalByBalance(this.id, this.data.rental.fee).then((paid) => {
+      if (paid) wx.showToast({ title: '付款成功，到吧台取书', icon: 'none' })
+      this.load()
+    })
+  },
+
+  overtimeByBalance() {
+    pay.overtimeByBalance(this.id, this.data.rental.overtimeFee).then((paid) => {
+      if (paid) wx.showToast({ title: '超时费已付', icon: 'success' })
+      this.load()
+    })
+  },
+
   goMenu() {
     wx.switchTab({ url: '/pages/menu/menu' })
   },

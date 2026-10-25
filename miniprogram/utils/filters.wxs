@@ -108,10 +108,32 @@ function payTag(status, method) {
   if (status !== 'paid') return '未收款'
   if (method === 'wechat') return '微信已付'
   if (method === 'voucher') return '券抵扣'
+  if (method === 'balance') return '余额已付'
+  if (method === 'member') return '会员免费'
   return '已收款'
 }
 
+// 顾客看的付款方式，比如「（会员余额）」
+var PAY_METHOD = { wechat: '微信支付', voucher: '券抵扣', balance: '会员余额', member: '会员免费', free: '免费' }
+function payMethod(method) {
+  return PAY_METHOD[method] ? '（' + PAY_METHOD[method] + '）' : ''
+}
+
+// 数组里有没有这一项（WXML 里不能直接调数组方法）
+function indexOf(list, item) {
+  for (var i = 0; i < (list || []).length; i++) if (list[i] === item) return i
+  return -1
+}
+
+// 余额变动：+400 / -32
+function signed(fen) {
+  return (fen > 0 ? '+' : (fen < 0 ? '-' : '')) + yuan(Math.abs(fen || 0))
+}
+
 module.exports = {
+  payMethod: payMethod,
+  signed: signed,
+  indexOf: indexOf,
   bannerTag: bannerTag,
   couponRule: couponRule,
   shortDay: shortDay,

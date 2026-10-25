@@ -2,9 +2,9 @@
 // 启动：node app.js（读同目录的 config.json，照着 config.example.json 填；也可以用环境变量 JINSHAN_CONFIG 指定别的路径）
 //
 //   POST /api/login                 小程序 wx.login 的 code 换登录状态
-//   POST /api/common|coffee|book    调业务模块，body 是 { action, ...参数 }
+//   POST /api/common|coffee|book|member  调业务模块，body 是 { action, ...参数 }
 //   POST /api/upload                员工上传图片
-//   POST /pay/notify/coffee|book    微信支付通知
+//   POST /pay/notify/coffee|book|member  微信支付通知
 //   GET  /uploads/...               图片
 //   GET  /admin/                    电脑网页后台
 const http = require('http')
@@ -23,8 +23,8 @@ const MAX_IMAGE = 5 * 1024 * 1024
 const MAX_NOTIFY = 64 * 1024
 // 小程序登录状态 30 天，过期了小程序会自动重新登录
 const MP_SESSION_TTL = 30 * 24 * 3600 * 1000
-const MODULES = ['common', 'coffee', 'book']
-const PAY_MODULES = ['coffee', 'book']
+const MODULES = ['common', 'coffee', 'book', 'member']
+const PAY_MODULES = ['coffee', 'book', 'member']
 const BACKUP_KEEP_DAYS = 14
 
 const hash = (s) => crypto.createHash('sha256').update(String(s)).digest('hex')

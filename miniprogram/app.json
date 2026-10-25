@@ -11,7 +11,9 @@
     "pages/book-detail/book-detail",
     "pages/rental-detail/rental-detail",
     "pages/vouchers/vouchers",
-    "pages/coupons/coupons"
+    "pages/coupons/coupons",
+    "pages/member/member",
+    "pages/member-logs/member-logs"
   ],
   "subPackages": [
     {
@@ -36,7 +38,11 @@
         "pages/banners/banners",
         "pages/banner-edit/banner-edit",
         "pages/coupons/coupons",
-        "pages/coupon-edit/coupon-edit"
+        "pages/coupon-edit/coupon-edit",
+        "pages/members/members",
+        "pages/member-detail/member-detail",
+        "pages/member-settings/member-settings",
+        "pages/plan-edit/plan-edit"
       ]
     }
   ],

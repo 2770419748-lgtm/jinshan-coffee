@@ -1,0 +1,93 @@
+.small {
+  font-size: 22rpx;
+}
+.head {
+  border-color: rgba(214, 178, 94, 0.6);
+  background: linear-gradient(135deg, #3a2f1a 0%, #1b1813 50%, #0f0e0c 100%);
+}
+.no {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 4rpx;
+}
+.balance {
+  text-align: right;
+  font-size: 44rpx;
+}
+.status {
+  margin-top: 16rpx;
+}
+.remark {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+}
+.edit {
+  margin-left: 12rpx;
+}
+.totals {
+  margin-top: 12rpx;
+}
+.actions {
+  display: flex;
+  margin-bottom: 24rpx;
+}
+.adjust-btn {
+  margin-left: 20rpx;
+}
+.list {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.log {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+.log:last-child {
+  border-bottom: none;
+}
+.log-right {
+  margin-left: 20rpx;
+  text-align: right;
+}
+.amount {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.amount.plus {
+  color: var(--gold);
+}
+.sheet-tip {
+  margin: -12rpx 0 20rpx;
+  line-height: 1.6;
+}
+.plan {
+  display: flex;
+  align-items: center;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  border-radius: 16rpx;
+  border: 1rpx solid var(--line);
+  background: var(--card-2);
+}
+.plan-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--gold);
+}
+.chip.mini {
+  margin: 0 12rpx 0 0;
+  padding: 8rpx 20rpx;
+}
+.wrap {
+  flex-wrap: wrap;
+}
+.amount-input {
+  color: var(--text);
+  margin-left: 8rpx;
+}
+.submit {
+  margin-top: 28rpx;
+}

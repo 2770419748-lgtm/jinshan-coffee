@@ -1,3 +1,5 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
 <view class="page">
   <view class="profile">
     <image class="avatar" src="/images/logo.jpg" mode="aspectFill" />
@@ -8,6 +10,10 @@
   </view>
 
   <view class="card list">
+    <view class="cell cell-arrow" wx:if="{{member}}" bindtap="goMember" hover-class="btn-hover">
+      <text class="flex-1 gold">会员中心</text>
+      <text class="muted">{{member.balance ? '余额 ¥' + f.yuan(member.balance) : (member.isMember ? '会员' : '充值')}}</text>
+    </view>
     <view class="cell cell-arrow" bindtap="goOrders" hover-class="btn-hover">
       <text class="flex-1">咖啡订单</text>
     </view>

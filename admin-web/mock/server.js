@@ -46,7 +46,7 @@ const { server, modules } = createApp({
 
 function as(openid) {
   const call = (fn) => (action, data) => platform.runAs(openid, () => fn.main(Object.assign({ action }, data || {})))
-  return { common: call(modules.common), coffee: call(modules.coffee), book: call(modules.book) }
+  return { common: call(modules.common), coffee: call(modules.coffee), book: call(modules.book), member: call(modules.member) }
 }
 
 seed(as, db).then(() => {

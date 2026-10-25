@@ -77,6 +77,13 @@ Page({
     })
   },
 
+  payByBalance() {
+    pay.orderByBalance(this.id, this.data.order.payFee).then((paid) => {
+      if (paid) wx.showToast({ title: '付款成功', icon: 'success' })
+      this.load()
+    })
+  },
+
   backToMenu() {
     wx.switchTab({ url: '/pages/menu/menu' })
   }

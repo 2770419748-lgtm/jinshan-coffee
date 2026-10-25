@@ -16,6 +16,9 @@ const INDEXES = {
   coffee_products: ['categoryId'],
   book_rentals: ['day', '_openid', 'rentalNo', 'status'],
   vouchers: ['_openid', 'couponId'],
+  members: ['memberNo'],
+  member_logs: ['_openid', 'memberNo', 'day'],
+  member_recharges: ['rechargeNo'],
   staff: ['role', 'webUsername'],
   staff_invites: ['code'],
   web_sessions: ['staffId'],
@@ -190,7 +193,9 @@ class Query {
     if (this.limitN > MAX_LIMIT) throw new Error('limit too large')
     const table = this.db.table(this.name)
     const w = buildWhere(this.cond)
-    const order = this.orders.map(([f, dir]) => valueExpr(f) + ' ' + dir).concat(['rowid ASC']).join(', ')
+    // 同一毫秒写进来的按写入先后排，方向跟着最后一个排序走（倒序列表里后写的在前）
+    const tie = this.orders.length ? this.orders[this.orders.length - 1][1] : 'ASC'
+    const order = this.orders.map(([f, dir]) => valueExpr(f) + ' ' + dir).concat(['rowid ' + tie]).join(', ')
     const rows = this.db.sql
       .prepare('SELECT _id, doc FROM ' + table + w.sql + ' ORDER BY ' + order + ' LIMIT ? OFFSET ?')
       .all(...w.params, this.limitN, this.skipN)

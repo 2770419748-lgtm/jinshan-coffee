@@ -3,6 +3,16 @@ const cart = require('../../utils/cart')
 const table = require('../../utils/table')
 const reserve = require('../../utils/reserve')
 const pay = require('../../utils/pay')
+const { fenToText } = require('../../utils/money')
+
+// 这单能怎么付：微信支付（开通了才有）、会员余额（开了储值或者有余额）、到吧台付（预约不行）
+function payMethods(quote, reserving) {
+  const list = []
+  if (quote.pay.enabled) list.push({ key: 'wechat', label: '微信支付' })
+  if (quote.wallet.enabled || quote.wallet.balance > 0) list.push({ key: 'balance', label: '余额 ¥' + fenToText(quote.wallet.balance) })
+  if (!reserving && quote.pay.allowCounter) list.push({ key: 'counter', label: quote.pay.enabled ? '到吧台付' : '到吧台付款' })
+  return list
+}
 
 Page({
   data: {
@@ -12,17 +22,19 @@ Page({
     tableNo: '',
     mode: 'dine_in',
     remark: '',
-    quote: null, // 服务器算的价 { total, vouchers, applied, voucherFee, coupons, coupon, couponFee, payFee, pay, reserve }
+    quote: null, // 服务器算的价 { total, vouchers, applied, voucherFee, coupons, coupon, couponFee, payFee, pay, wallet, reserve }
     useVouchers: true,
     usableCoupons: 0,
     showCoupons: false,
-    reserving: false, // 预约点单：选取餐时间，必须微信付款
+    reserving: false, // 预约点单：选取餐时间，必须在线付款（微信或会员余额）
     slots: [],
     slotIndex: 0,
     reserveAt: null,
     reserveLabel: '',
     payable: 0,
-    payMethod: 'counter', // 开通微信支付后默认 wechat
+    methods: [], // 能选的付款方式 [{ key: wechat|balance|counter, label }]
+    payMethod: 'counter',
+    balanceLow: false, // 选了余额但余额不够
     submitting: false
   },
 
@@ -68,7 +80,7 @@ Page({
       if (reserving && !quote.reserve.enabled) {
         reserve.off()
         this.setData({ reserving: false })
-        wx.showModal({ title: '预约暂未开放', content: '店里还没开通微信支付，这单按普通点单处理。', showCancel: false })
+        wx.showModal({ title: '预约暂未开放', content: '预约要先在线付款，店里还没开通，这单按普通点单处理。', showCancel: false })
         return this.requote()
       }
       if (reserving && !quote.reserve.slots.length) {
@@ -85,10 +97,15 @@ Page({
         data.reserveAt = quote.reserve.reserveAt
         data.reserveLabel = quote.reserve.label
         data.slotIndex = Math.max(0, slots.findIndex((s) => s.at === quote.reserve.reserveAt))
-        data.payMethod = 'wechat'
-      } else if (!this.methodPicked) {
-        data.payMethod = quote.pay.enabled ? 'wechat' : 'counter'
       }
+      data.methods = payMethods(quote, reserving)
+      const keys = data.methods.map((m) => m.key)
+      if (!this.methodPicked || keys.indexOf(this.data.payMethod) === -1) {
+        // 余额够就默认用余额，否则微信，再否则到吧台
+        const enough = quote.wallet.balance >= quote.payFee
+        data.payMethod = keys.indexOf('balance') !== -1 && enough ? 'balance' : keys[0]
+      }
+      data.balanceLow = data.payMethod === 'balance' && quote.wallet.balance < quote.payFee
       this.setData(data)
     }).catch((err) => {
       this.setData({ quote: null, payable: this.data.total })
@@ -97,8 +114,14 @@ Page({
   },
 
   pickPay(e) {
+    const method = e.currentTarget.dataset.method
+    const { quote } = this.data
     this.methodPicked = true
-    this.setData({ payMethod: e.currentTarget.dataset.method })
+    this.setData({ payMethod: method, balanceLow: method === 'balance' && !!quote && quote.wallet.balance < quote.payFee })
+  },
+
+  goMember() {
+    wx.navigateTo({ url: '/pages/member/member' })
   },
 
   toggleVouchers(e) {
@@ -151,6 +174,11 @@ Page({
       wx.showToast({ title: '请选择取餐时间', icon: 'none' })
       return
     }
+    const byBalance = payMethod === 'balance' && payable > 0
+    if (byBalance && quote.wallet.balance < payable) {
+      wx.showModal({ title: '余额不够', content: '余额 ¥' + fenToText(quote.wallet.balance) + '，这单要 ¥' + fenToText(payable) + '。先去充值，或者换个付款方式。', showCancel: false })
+      return
+    }
     const params = {
       items: this.items(),
       mode,
@@ -160,13 +188,14 @@ Page({
       couponId: quote.coupon ? quote.coupon.id : ''
     }
     if (reserving) params.reserveAt = reserveAt
+    if (byBalance) params.payBy = 'balance'
     this.setData({ submitting: true })
     api.coffee('createOrder', params).then(({ id }) => {
       cart.clear()
       if (reserving) reserve.off()
       const go = () => wx.redirectTo({ url: '/pages/order-detail/order-detail?id=' + id })
-      // 选了微信支付（预约必须微信付）就直接拉起支付；没付成也先进订单详情，在那里可以再付
-      if ((reserving || payMethod === 'wechat') && payable > 0) return pay.payOrder(id).then(go)
+      // 选了微信支付就直接拉起支付；没付成也先进订单详情，在那里可以再付。余额付的下单时已经扣了
+      if (payMethod === 'wechat' && payable > 0) return pay.payOrder(id).then(go)
       go()
     }).catch((err) => {
       this.setData({ submitting: false })
@@ -178,7 +207,7 @@ Page({
         reserve.off()
         this.setData({ reserving: false })
       }
-      if (['MENU_CHANGED', 'TABLE_INVALID', 'VOUCHER_CHANGED', 'RESERVE_SLOT', 'RESERVE_DISABLED'].indexOf(err.code) !== -1) {
+      if (['MENU_CHANGED', 'TABLE_INVALID', 'VOUCHER_CHANGED', 'RESERVE_SLOT', 'RESERVE_DISABLED', 'BALANCE_LOW'].indexOf(err.code) !== -1) {
         wx.showModal({ title: '没能下单', content: err.message, showCancel: false })
         if (err.code !== 'MENU_CHANGED' && err.code !== 'TABLE_INVALID') {
           if (err.code === 'VOUCHER_CHANGED') this.couponChoice = undefined

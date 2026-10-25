@@ -6,6 +6,8 @@ Page({
     rules: [],
     categories: [],
     current: 'all',
+    memberFree: [], // 会员免费看的分类
+    memberText: '',
     list: [],
     active: null // 正在借的书
   },
@@ -23,10 +25,11 @@ Page({
   },
 
   load() {
-    const shelf = api.book('getShelf').then(({ books, rules, categories }) => {
-      this.books = books
+    const shelf = api.book('getShelf').then(({ books, rules, categories, memberFree }) => {
+      const free = memberFree || []
+      this.books = books.map((b) => Object.assign({ memberFree: free.indexOf(b.category) !== -1 }, b))
       const current = this.data.current === 'all' || categories.indexOf(this.data.current) !== -1 ? this.data.current : 'all'
-      this.setData({ rules, categories, current, loading: false })
+      this.setData({ rules, categories, current, memberFree: free, memberText: free.join('、'), loading: false })
       this.filter()
     }).catch((err) => {
       this.setData({ loading: false })
@@ -51,6 +54,10 @@ Page({
 
   open(e) {
     wx.navigateTo({ url: '/pages/book-detail/book-detail?id=' + e.currentTarget.dataset.id })
+  },
+
+  goMember() {
+    wx.navigateTo({ url: '/pages/member/member' })
   },
 
   openActive() {

@@ -1,0 +1,101 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{ready && member}}">
+  <view class="card head">
+    <view class="row-between">
+      <view>
+        <view class="faint small">会员号</view>
+        <view class="no">{{member.memberNo}}</view>
+      </view>
+      <view class="balance">
+        <view class="faint small">余额</view>
+        <text class="price">{{f.yuan(member.balance)}}</text>
+      </view>
+    </view>
+    <view class="status">
+      <text class="tag gold" wx:if="{{member.isMember}}">会员至 {{member.memberUntil}}</text>
+      <text class="tag" wx:elif="{{member.memberUntil}}">会员 {{member.memberUntil}} 已到期</text>
+      <text class="tag" wx:else>不是会员</text>
+    </view>
+    <view class="remark" bindtap="editRemark">
+      <text class="muted">备注：</text>
+      <text>{{member.remark || '点这里加备注'}}</text>
+      <text class="gold edit">改</text>
+    </view>
+    <view class="faint small totals">累计充值 ¥{{f.yuan(member.totalRecharge)}} · 送 ¥{{f.yuan(member.totalBonus)}} · 消费 ¥{{f.yuan(member.totalSpent)}}</view>
+  </view>
+
+  <view class="actions">
+    <view class="btn-gold flex-1" bindtap="openRecharge">吧台充值</view>
+    <view class="btn-ghost adjust-btn" wx:if="{{isOwner}}" bindtap="openAdjust">调整</view>
+  </view>
+
+  <view class="section-title">最近 50 笔</view>
+  <view class="card list" wx:if="{{logs.length}}">
+    <view wx:for="{{logs}}" wx:key="_id" class="log">
+      <view class="flex-1">
+        <view>{{item.title || item.typeName}}</view>
+        <view class="faint small">{{item.typeName}} · {{f.time(item.createdAt)}}<text wx:if="{{item.operatorName}}"> · {{item.operatorName}}</text></view>
+        <view class="faint small" wx:if="{{item.reason}}">原因：{{item.reason}}</view>
+      </view>
+      <view class="log-right">
+        <view class="amount {{item.amount > 0 ? 'plus' : ''}}" wx:if="{{item.amount}}">{{f.signed(item.amount)}}</view>
+        <view class="faint small">余额 {{f.yuan(item.balance)}}</view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:else>还没有余额变动</view>
+</view>
+
+<!-- 吧台充值：选档位 -->
+<view class="mask" wx:if="{{showRecharge || showAdjust}}" bindtap="closeSheets"></view>
+<view class="sheet" wx:if="{{showRecharge}}">
+  <view class="sheet-head">
+    <text class="sheet-title">给 {{member.memberNo}} 充值</text>
+    <text class="sheet-close" bindtap="closeSheets">×</text>
+  </view>
+  <view class="faint small sheet-tip">先收顾客的钱（现金或收款码），再点对应的档位。</view>
+  <view wx:for="{{plans}}" wx:key="_id" class="plan" data-index="{{index}}" bindtap="recharge" hover-class="btn-hover">
+    <view class="flex-1">
+      <view class="plan-title">{{item.title}}</view>
+      <view class="faint small">收 ¥{{f.yuan(item.price)}}，到账 ¥{{f.yuan(item.price + item.bonus)}}<text wx:if="{{item.memberDays}}">，送 {{item.memberDays}} 天会员</text></view>
+    </view>
+    <text class="cell-arrow"></text>
+  </view>
+</view>
+
+<!-- 店主调整 -->
+<view class="sheet" wx:if="{{showAdjust}}">
+  <view class="sheet-head">
+    <text class="sheet-title">调整 {{member.memberNo}}</text>
+    <text class="sheet-close" bindtap="closeSheets">×</text>
+  </view>
+  <view class="faint small sheet-tip">线下退款后扣掉余额、补偿顾客、改会员到期日都在这里，每次都要写原因，会记在流水里。</view>
+  <view class="field">
+    <text class="field-label">余额</text>
+    <view class="field-input row">
+      <view class="chip mini {{adjust.sign === -1 ? 'on' : ''}}" data-sign="-1" bindtap="pickSign">扣</view>
+      <view class="chip mini {{adjust.sign === 1 ? 'on' : ''}}" data-sign="1" bindtap="pickSign">加</view>
+      <input class="flex-1 amount-input" type="digit" placeholder="元，不改余额就空着" placeholder-class="placeholder" value="{{adjust.amountText}}" data-field="amountText" bindinput="onAdjust" />
+    </view>
+  </view>
+  <view class="field">
+    <text class="field-label">会员到期</text>
+    <view class="field-input row wrap">
+      <view class="chip mini {{adjust.untilMode === 'keep' ? 'on' : ''}}" data-mode="keep" bindtap="pickUntilMode">不改</view>
+      <view class="chip mini {{adjust.untilMode === 'set' ? 'on' : ''}}" data-mode="set" bindtap="pickUntilMode">改日期</view>
+      <view class="chip mini {{adjust.untilMode === 'clear' ? 'on' : ''}}" data-mode="clear" bindtap="pickUntilMode">取消会员</view>
+    </view>
+  </view>
+  <view class="field" wx:if="{{adjust.untilMode === 'set'}}">
+    <text class="field-label">改到</text>
+    <picker class="field-input" mode="date" value="{{adjust.until}}" data-field="until" bindchange="onAdjust">
+      <text class="gold">{{adjust.until}}</text>
+    </picker>
+  </view>
+  <view class="field">
+    <text class="field-label">原因</text>
+    <input class="field-input" placeholder="比如：线下退款、活动补偿" placeholder-class="placeholder" maxlength="40" value="{{adjust.reason}}" data-field="reason" bindinput="onAdjust" />
+  </view>
+  <view class="btn-gold btn-block submit {{busy ? 'disabled' : ''}}" bindtap="submitAdjust">{{busy ? '保存中…' : '确认调整'}}</view>
+</view>
