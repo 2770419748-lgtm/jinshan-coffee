@@ -1,19 +1,25 @@
-// common、coffee、book 三个模块共用的东西：角色、集合名、出错格式、统一入口。
+// 各模块共用的东西：角色、集合名、出错格式、统一入口。
 const crypto = require('crypto')
 
 const ROLES = {
   owner: '店主',
   barista: '咖啡师',
-  book_manager: '书籍管理员'
+  book_manager: '书籍管理员',
+  carwash_manager: '洗车店长',
+  technician: '洗车技师'
 }
 
 // 能进咖啡后台、书籍后台的角色
 const COFFEE_ROLES = ['owner', 'barista']
 const BOOK_ROLES = ['owner', 'book_manager']
+// 洗车：店长管设置、价格、派单；技师接单、上门、收款
+const CARWASH_ROLES = ['owner', 'carwash_manager']
+const CARWASH_STAFF = ['owner', 'carwash_manager', 'technician']
 
 // 咖啡模块用 coffee_ 开头的集合，书籍模块用 book_ 开头的集合；
 // vouchers 是顾客手里的券：包天送的赠饮券（书籍模块发放）和领到的代金券（type 为 cash，模板在 coffee_coupons），咖啡下单时核销；
-// members、member_logs 是会员的余额和流水（见 wallet.js），咖啡和书籍模块付款时也会改
+// members、member_logs 是会员的余额和流水（见 wallet.js），咖啡和书籍模块付款时也会改；
+// wx_users 记同一个人在两个小程序里的 openid（见 lib/identity.js）；cw_ 开头的是洗车的（见 carwash.js）
 const COLLECTIONS = [
   'staff',
   'staff_invites',
@@ -35,7 +41,20 @@ const COLLECTIONS = [
   'members',
   'member_logs',
   'member_plans',
-  'member_recharges'
+  'member_recharges',
+  'wx_users',
+  'cw_services',
+  'cw_orders',
+  'cw_addresses',
+  'cw_members',
+  'cw_member_logs',
+  'cw_plans',
+  'cw_recharges',
+  'cw_card_types',
+  'cw_cards',
+  'cw_card_logs',
+  'cw_card_orders',
+  'cw_link_rules'
 ]
 
 // 电脑网页后台的登录有效期
@@ -197,6 +216,8 @@ module.exports = {
   ROLES,
   COFFEE_ROLES,
   BOOK_ROLES,
+  CARWASH_ROLES,
+  CARWASH_STAFF,
   COLLECTIONS,
   WEB_SESSION_TTL,
   BizError,

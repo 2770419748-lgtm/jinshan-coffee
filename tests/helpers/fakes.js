@@ -1,4 +1,5 @@
 // 测试用的替身：微信接口（小程序码、登录、订阅消息）、微信支付、图片存储。数据库用真的 SQLite（内存里）。
+// 洗车小程序有自己的一套（carwashWechat、carwashPay），状态在 state.cw 里，和咖啡的分开记
 const state = {
   files: [],
   deleted: [],
@@ -12,7 +13,8 @@ const state = {
   // 订阅消息：公众平台「我的模板」里的模板，发出去的消息，sendError 不为空时发送报这个错误码
   templates: [],
   sent: [],
-  sendError: 0
+  sendError: 0,
+  cw: { payReady: true, payOrders: {}, refunds: [] }
 }
 
 const wechat = {
@@ -51,28 +53,43 @@ const wechat = {
   }
 }
 
-// 测试里用 state.payOrders[outTradeNo].paid = true 假装顾客付了款
-const pay = {
-  get mchId() { return state.payReady ? '1900000109' : '' },
-  ready: () => state.payReady,
-  async jsapi(params) {
-    if (state.payFail) {
-      const e = new Error('wxpay 400 PARAM_ERROR 商户号未开通 JSAPI 支付')
-      e.wxMessage = '商户号未开通 JSAPI 支付'
-      throw e
+// 测试里用 state.payOrders[outTradeNo].paid = true 假装顾客付了款（洗车的是 state.cw.payOrders）
+function makePay(s, mchId) {
+  return {
+    get mchId() { return s.payReady ? mchId : '' },
+    ready: () => s.payReady,
+    async jsapi(params) {
+      if (s.payFail) {
+        const e = new Error('wxpay 400 PARAM_ERROR 商户号未开通 JSAPI 支付')
+        e.wxMessage = '商户号未开通 JSAPI 支付'
+        throw e
+      }
+      const prev = s.payOrders[params.outTradeNo]
+      s.payOrders[params.outTradeNo] = { params, paid: prev ? prev.paid : false }
+      return { timeStamp: '1', nonceStr: 'n', package: 'prepay_id=wx' + params.outTradeNo, signType: 'RSA', paySign: 'sign' }
+    },
+    async query(outTradeNo) {
+      const o = s.payOrders[outTradeNo]
+      if (!o) return null
+      return { tradeState: o.paid ? 'SUCCESS' : 'NOTPAY', transactionId: 'tx' + outTradeNo, total: o.params.total }
+    },
+    async refund(params) {
+      s.refunds.push(params)
+      return { status: 'PROCESSING', refundId: 'rf' + params.outRefundNo }
     }
-    const prev = state.payOrders[params.outTradeNo]
-    state.payOrders[params.outTradeNo] = { params, paid: prev ? prev.paid : false }
-    return { timeStamp: '1', nonceStr: 'n', package: 'prepay_id=wx' + params.outTradeNo, signType: 'RSA', paySign: 'sign' }
-  },
-  async query(outTradeNo) {
-    const o = state.payOrders[outTradeNo]
-    if (!o) return null
-    return { tradeState: o.paid ? 'SUCCESS' : 'NOTPAY', transactionId: 'tx' + outTradeNo, total: o.params.total }
-  },
-  async refund(params) {
-    state.refunds.push(params)
-    return { status: 'PROCESSING', refundId: 'rf' + params.outRefundNo }
+  }
+}
+
+const pay = makePay(state, '1900000109')
+const carwashPay = makePay(state.cw, '1900000209')
+
+// 洗车小程序的登录：code 'U1-xxx' 表示带 unionid U1 的用户，openid 是 'CW_xxx'
+const carwashWechat = {
+  ready: () => true,
+  async code2session(code) {
+    const m = /^(U\w+)-(\w+)$/.exec(code)
+    if (m) return { openid: 'CW_' + m[2], unionid: m[1] }
+    return { openid: 'CW_' + code }
   }
 }
 
@@ -95,4 +112,4 @@ const storage = {
   }
 }
 
-module.exports = { state, wechat, pay, storage }
+module.exports = { state, wechat, pay, storage, carwashPay, carwashWechat }

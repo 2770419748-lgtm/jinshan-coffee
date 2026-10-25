@@ -1,5 +1,5 @@
 // 会员模块：会员中心、充值档位、在线充值（微信支付）、吧台代充、店主调整余额、会员和流水查询。
-// 余额怎么加减见 wallet.js；member_plans 是充值档位，member_recharges 是在线充值单。
+// 余额怎么加减见 wallet.js；member_plans 是充值档位（增删改见 plans.js），member_recharges 是在线充值单。
 // 设置页要列出书的分类（会员免费看哪些），所以会只读 book_books。
 const cloud = require('../platform')
 const {
@@ -16,14 +16,11 @@ const {
 } = require('./base')
 const wallet = require('./wallet')
 const pay = require('./pay')
+const { yuan, publicPlan, createPlanStore } = require('./plans')
 
 const db = cloud.database()
 const _ = db.command
 
-// 充值档位：单笔最多 1 万元，最多 20 档，会员最多送 10 年
-const MAX_PLAN_PRICE = 1000000
-const MAX_PLANS = 20
-const MAX_MEMBER_DAYS = 3650
 // 店主手动调整一次最多 1 万元
 const MAX_ADJUST = 1000000
 // 在线充值单 15 分钟内付款
@@ -31,6 +28,7 @@ const RECHARGE_PAY_MINUTES = 15
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
 
 const col = (name) => db.collection(name)
+const plans = createPlanStore(db, 'member_plans')
 
 async function findOne(name, where) {
   const res = await col(name).where(where).limit(1).get()
@@ -46,32 +44,8 @@ async function safeList(query) {
   }
 }
 
-function yuan(fen) {
-  return (fen / 100).toFixed(2).replace(/\.?0+$/, '')
-}
-
-function toSort(value) {
-  const n = Number(value)
-  return Number.isFinite(n) ? Math.round(n) : 0
-}
-
-function planTitle(price, bonus) {
-  return '充 ' + yuan(price) + (bonus ? ' 送 ' + yuan(bonus) : '')
-}
-
-function publicPlan(p) {
-  return {
-    _id: p._id,
-    title: p.title,
-    price: p.price,
-    bonus: p.bonus || 0,
-    memberDays: p.memberDays || 0,
-    desc: p.desc || ''
-  }
-}
-
 function enabledPlans() {
-  return safeList(col('member_plans').where({ enabled: true }).orderBy('sort', 'asc').limit(MAX_PLANS))
+  return plans.enabled()
 }
 
 function makeRechargeNo() {
@@ -170,8 +144,7 @@ const handlers = {
   async createRecharge({ planId }, openid) {
     const settings = await wallet.readSettings(db)
     if (!settings.enabled) throw new BizError('店里暂时没开放充值', 'MEMBER_DISABLED')
-    const plan = await findOne('member_plans', { _id: String(planId || '') })
-    if (!plan || !plan.enabled) throw new BizError('这个充值档位已经下架了，请重新选择', 'PLAN_GONE')
+    const plan = await plans.usable(planId)
     const paySettings = await pay.getSettings(db)
     if (!paySettings.payEnabled) throw new BizError('店里还没开通微信支付，请到吧台找店员充值', 'PAY_DISABLED')
     const member = await wallet.ensureMember(db, openid)
@@ -253,8 +226,7 @@ const handlers = {
   async counterRecharge({ memberNo, planId }, openid) {
     const staff = await requireRole(db, openid, COFFEE_ROLES)
     const m = await wallet.findByNo(db, memberNo)
-    const plan = await findOne('member_plans', { _id: String(planId || '') })
-    if (!plan || !plan.enabled) throw new BizError('这个充值档位已经下架了，请重新选择', 'PLAN_GONE')
+    const plan = await plans.usable(planId)
     const res = await wallet.change(db, m._id, plan.price + (plan.bonus || 0), {
       type: 'counter',
       title: plan.title,
@@ -349,13 +321,13 @@ const handlers = {
 
   async getMemberSettings(event, openid) {
     await requireRole(db, openid, ['owner'])
-    const [settings, plans, categories, paySettings] = await Promise.all([
+    const [settings, list, categories, paySettings] = await Promise.all([
       wallet.readSettings(db),
-      safeList(col('member_plans').orderBy('sort', 'asc').limit(MAX_PLANS)),
+      plans.list(),
       bookCategories(),
       pay.getSettings(db)
     ])
-    return { settings, plans, categories, payEnabled: paySettings.payEnabled }
+    return { settings, plans: list, categories, payEnabled: paySettings.payEnabled }
   },
 
   async saveMemberSettings({ enabled, freeCategories, notice }, openid) {
@@ -373,59 +345,23 @@ const handlers = {
 
   async savePlan({ plan }, openid) {
     await requireRole(db, openid, ['owner'])
-    const p = plan || {}
-    const price = Number(p.price)
-    if (!Number.isInteger(price) || price <= 0 || price > MAX_PLAN_PRICE) throw new BizError('充值金额请填 0.01 到 ' + yuan(MAX_PLAN_PRICE) + ' 元')
-    const bonus = intOr(p.bonus, 0)
-    if (!Number.isInteger(bonus) || bonus < 0 || bonus > MAX_PLAN_PRICE) throw new BizError('赠送金额不对，不送填 0')
-    const memberDays = intOr(p.memberDays, 0)
-    if (!Number.isInteger(memberDays) || memberDays < 0 || memberDays > MAX_MEMBER_DAYS) throw new BizError('会员天数请填 0 到 ' + MAX_MEMBER_DAYS + '，不送会员填 0')
-    const data = {
-      title: cleanText(p.title, 16) || planTitle(price, bonus),
-      price,
-      bonus,
-      memberDays,
-      desc: cleanText(p.desc, 40),
-      enabled: p.enabled !== false,
-      updatedAt: db.serverDate()
-    }
-    if (p.sort !== undefined) data.sort = toSort(p.sort)
-    if (p._id) {
-      const old = await findOne('member_plans', { _id: String(p._id) })
-      if (!old) throw new BizError('这个档位不存在了')
-      await col('member_plans').doc(old._id).update({ data })
-      return { id: old._id }
-    }
-    const count = await col('member_plans').count()
-    if (count.total >= MAX_PLANS) throw new BizError('充值档位最多 ' + MAX_PLANS + ' 个，先删掉一些不用的')
-    if (data.sort === undefined) data.sort = count.total
-    data.createdAt = db.serverDate()
-    const added = await col('member_plans').add({ data })
-    return { id: added._id }
+    return plans.save(plan)
   },
 
   async setPlanFlags({ id, enabled }, openid) {
     await requireRole(db, openid, ['owner'])
-    if (typeof enabled !== 'boolean') throw new BizError('参数不对')
-    const res = await col('member_plans').where({ _id: String(id || '') }).update({ data: { enabled, updatedAt: db.serverDate() } })
-    if (!res.stats.updated) throw new BizError('这个档位不存在了')
-    return true
+    return plans.setEnabled(id, enabled)
   },
 
   async sortPlans({ ids }, openid) {
     await requireRole(db, openid, ['owner'])
-    if (!Array.isArray(ids) || ids.length > MAX_PLANS) throw new BizError('排序数据不对')
-    await Promise.all(ids.map((id, index) =>
-      col('member_plans').where({ _id: String(id) }).update({ data: { sort: index, updatedAt: db.serverDate() } })
-    ))
-    return true
+    return plans.sort(ids)
   },
 
   // 删掉档位不影响已经充进去的钱
   async deletePlan({ id }, openid) {
     await requireRole(db, openid, ['owner'])
-    await col('member_plans').where({ _id: String(id || '') }).remove()
-    return true
+    return plans.remove(id)
   }
 }
 

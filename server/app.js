@@ -1,10 +1,11 @@
-// 进山咖啡的服务器：小程序和电脑网页后台都调这里。
+// 进山咖啡的服务器：咖啡小程序、洗车小程序和电脑网页后台都调这里。
 // 启动：node app.js（读同目录的 config.json，照着 config.example.json 填；也可以用环境变量 JINSHAN_CONFIG 指定别的路径）
 //
-//   POST /api/login                 小程序 wx.login 的 code 换登录状态
-//   POST /api/common|coffee|book|member  调业务模块，body 是 { action, ...参数 }
+//   POST /api/login                 小程序 wx.login 的 code 换登录状态；body 里 app 是 coffee（默认）或 carwash
+//   POST /api/common|coffee|book|member|carwash  调业务模块，body 是 { action, ...参数 }
 //   POST /api/upload                员工上传图片
-//   POST /pay/notify/coffee|book|member  微信支付通知
+//   POST /pay/notify/coffee|book|member  微信支付通知（咖啡的商户号）
+//   POST /pay/notify/carwash        微信支付通知（洗车的商户号）
 //   GET  /uploads/...               图片
 //   GET  /admin/                    电脑网页后台
 const http = require('http')
@@ -17,14 +18,17 @@ const { createWechat } = require('./lib/wechat')
 const { createWxpay } = require('./lib/wxpay')
 const { createStorage } = require('./lib/storage')
 const { HttpError, readBody, readJson, firstFile, sendJson, sendFile } = require('./lib/http')
+const { APPS, resolveUser } = require('./lib/identity')
 
 const MAX_JSON = 5 * 1024 * 1024
 const MAX_IMAGE = 5 * 1024 * 1024
 const MAX_NOTIFY = 64 * 1024
 // 小程序登录状态 30 天，过期了小程序会自动重新登录
 const MP_SESSION_TTL = 30 * 24 * 3600 * 1000
-const MODULES = ['common', 'coffee', 'book', 'member']
-const PAY_MODULES = ['coffee', 'book', 'member']
+const MODULES = ['common', 'coffee', 'book', 'member', 'carwash']
+const PAY_MODULES = ['coffee', 'book', 'member', 'carwash']
+// 走洗车商户号的模块，其余走咖啡的
+const CARWASH_MODULES = ['carwash']
 const BACKUP_KEEP_DAYS = 14
 
 const hash = (s) => crypto.createHash('sha256').update(String(s)).digest('hex')
@@ -39,7 +43,15 @@ function loadConfig(file) {
   }
   const dir = path.dirname(path.resolve(file))
   const abs = (p, fallback) => path.resolve(dir, p || fallback)
-  const pay = raw.pay || {}
+  const payOf = (pay) => ({
+    mchId: String(pay.mchId || ''),
+    serialNo: String(pay.serialNo || ''),
+    privateKeyFile: pay.privateKeyFile ? abs(pay.privateKeyFile) : '',
+    apiV3Key: String(pay.apiV3Key || ''),
+    publicKeyFile: pay.publicKeyFile ? abs(pay.publicKeyFile) : '',
+    publicKeyId: String(pay.publicKeyId || '')
+  })
+  const carwash = raw.carwash || {}
   return {
     port: Number(raw.port || 3000),
     host: raw.host || '127.0.0.1',
@@ -50,13 +62,12 @@ function loadConfig(file) {
     dataDir: abs(raw.dataDir, 'data'),
     uploadDir: abs(raw.uploadDir, path.join(raw.dataDir || 'data', 'uploads')),
     adminDir: abs(raw.adminDir, '../admin-web/dist'),
-    pay: {
-      mchId: String(pay.mchId || ''),
-      serialNo: String(pay.serialNo || ''),
-      privateKeyFile: pay.privateKeyFile ? abs(pay.privateKeyFile) : '',
-      apiV3Key: String(pay.apiV3Key || ''),
-      publicKeyFile: pay.publicKeyFile ? abs(pay.publicKeyFile) : '',
-      publicKeyId: String(pay.publicKeyId || '')
+    pay: payOf(raw.pay || {}),
+    // 洗车小程序：自己的 AppID 和商户号（和咖啡不是同一个执照）
+    carwash: {
+      appId: String(carwash.appId || ''),
+      appSecret: String(carwash.appSecret || ''),
+      pay: payOf(carwash.pay || {})
     }
   }
 }
@@ -72,54 +83,66 @@ function readKey(file) {
 }
 
 // 装好各部分，返回 http 服务器。extraRoutes(req, res, url) 返回 true 表示已经处理（本地预览用）
-function createApp({ config, db, wechat, pay, storage, extraRoutes }) {
-  platform.configure({ db, wechat, pay, storage })
+// wechat、pay 是咖啡小程序的；carwash: { wechat, pay } 是洗车小程序的，不传就是还没配置
+function createApp({ config, db, wechat, pay, storage, carwash, extraRoutes }) {
+  platform.configure({ db, wechat, pay, storage, carwash: carwash || null })
   if (config.ownerCode) process.env.OWNER_CODE = config.ownerCode
   const modules = {}
   MODULES.forEach((name) => { modules[name] = require('./functions/' + name) })
   const { getStaff, resolveWebToken } = require('./functions/base')
 
-  async function sessionOpenid(token) {
-    if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)) return ''
+  // 小程序的登录状态：openid 是用户 id，app 和 appOpenid 是从哪个小程序登录的
+  async function sessionOf(token) {
+    if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)) return null
     const res = await db.collection('mp_sessions').where({ _id: hash(token) }).limit(1).get()
     const s = res.data[0]
-    return s && s.expiresAt > Date.now() ? s.openid : ''
+    return s && s.expiresAt > Date.now() ? s : null
   }
 
   async function login(req, res) {
-    const { code } = await readJson(req, 4096)
+    const { code, app } = await readJson(req, 4096)
     if (typeof code !== 'string' || !code || code.length > 128) return sendJson(res, 400, { ok: false, msg: '登录参数不对', code: 'BAD_REQUEST' })
-    let openid
+    const appName = app === undefined ? 'coffee' : app
+    if (APPS.indexOf(appName) === -1) return sendJson(res, 400, { ok: false, msg: '登录参数不对', code: 'BAD_REQUEST' })
+    const wx = platform.wechatOf(appName)
+    if (!wx.ready()) return sendJson(res, 200, { ok: false, msg: '服务器上还没配置' + (appName === 'carwash' ? '洗车' : '咖啡') + '小程序的 AppID', code: 'WX_LOGIN_FAILED' })
+    let who
     try {
-      openid = (await wechat.code2session(code)).openid
+      who = await wx.code2session(code)
     } catch (e) {
-      console.error('code2session failed', e.message)
+      console.error('code2session failed', appName, e.message)
       return sendJson(res, 200, { ok: false, msg: '微信登录失败，请稍后再试', code: 'WX_LOGIN_FAILED' })
     }
+    const unionid = who.unionid || ''
+    const openid = await resolveUser(db, appName, who.openid, unionid)
     const now = Date.now()
     await db.collection('mp_sessions').where({ expiresAt: db.command.lt(now) }).remove()
     const token = crypto.randomBytes(32).toString('hex')
     const expiresAt = now + MP_SESSION_TTL
-    await db.collection('mp_sessions').add({ data: { _id: hash(token), openid, expiresAt, createdAt: db.serverDate() } })
+    await db.collection('mp_sessions').add({
+      data: { _id: hash(token), openid, app: appName, appOpenid: who.openid, unionid, expiresAt, createdAt: db.serverDate() }
+    })
     sendJson(res, 200, { ok: true, data: { token, expiresAt } })
   }
 
   async function callModule(name, req, res) {
     const body = await readJson(req, MAX_JSON)
     if (typeof body.action !== 'string' || !body.action) return sendJson(res, 400, { ok: false, msg: '未知操作', code: 'UNKNOWN_ACTION' })
-    let openid = ''
+    let s = null
     if (req.headers['x-session']) {
-      openid = await sessionOpenid(req.headers['x-session'])
-      if (!openid) return sendJson(res, 200, { ok: false, msg: '登录过期了', code: 'NEED_WX_LOGIN' })
+      s = await sessionOf(req.headers['x-session'])
+      if (!s) return sendJson(res, 200, { ok: false, msg: '登录过期了', code: 'NEED_WX_LOGIN' })
     }
-    const result = await platform.runAs(openid, () => modules[name].main(body))
+    // 老的登录状态没有记 app，都是咖啡小程序的
+    const extra = s ? { app: s.app || 'coffee', appOpenid: s.appOpenid || s.openid, unionid: s.unionid || '' } : null
+    const result = await platform.runAs(s ? s.openid : '', () => modules[name].main(body), extra)
     sendJson(res, 200, result)
   }
 
   // 只有员工能传图：小程序里靠登录状态，网页后台靠 webToken
   async function upload(req, res, url) {
     let openid = ''
-    if (req.headers['x-session']) openid = await sessionOpenid(req.headers['x-session'])
+    if (req.headers['x-session']) openid = ((await sessionOf(req.headers['x-session'])) || {}).openid || ''
     else if (req.headers['x-web-token']) openid = await resolveWebToken(db, String(req.headers['x-web-token'])).catch(() => '')
     if (!openid || !(await getStaff(db, openid))) return sendJson(res, 200, { ok: false, msg: '只有店主和员工能上传图片', code: 'FORBIDDEN' })
     let buf
@@ -147,7 +170,7 @@ function createApp({ config, db, wechat, pay, storage, extraRoutes }) {
     const raw = await readBody(req, MAX_NOTIFY)
     let note
     try {
-      note = pay.parseNotify(req.headers, raw)
+      note = platform.payOf(CARWASH_MODULES.indexOf(name) !== -1 ? 'carwash' : 'coffee').parseNotify(req.headers, raw)
     } catch (e) {
       console.error('pay notify rejected', e.message)
       return sendJson(res, 400, { code: 'FAIL', message: 'bad notify' })
@@ -241,29 +264,39 @@ function main() {
   const db = new Database(path.join(config.dataDir, 'jinshan.db'))
   const wechat = createWechat({ appId: config.appId, appSecret: config.appSecret })
   // 还没填商户号时不去读证书，免得日志里报找不到文件
-  const payKey = (file) => (config.pay.mchId ? readKey(file) : '')
-  const pay = createWxpay({
-    appId: config.appId,
-    mchId: config.pay.mchId,
-    serialNo: config.pay.serialNo,
-    privateKey: payKey(config.pay.privateKeyFile),
-    apiV3Key: config.pay.apiV3Key,
-    publicKey: payKey(config.pay.publicKeyFile),
-    publicKeyId: config.pay.publicKeyId,
-    notifyBase: config.publicUrl
-  })
+  const makePay = (appId, p) => {
+    const key = (file) => (p.mchId ? readKey(file) : '')
+    return createWxpay({
+      appId,
+      mchId: p.mchId,
+      serialNo: p.serialNo,
+      privateKey: key(p.privateKeyFile),
+      apiV3Key: p.apiV3Key,
+      publicKey: key(p.publicKeyFile),
+      publicKeyId: p.publicKeyId,
+      notifyBase: config.publicUrl
+    })
+  }
+  const pay = makePay(config.appId, config.pay)
+  const carwash = {
+    wechat: createWechat({ appId: config.carwash.appId, appSecret: config.carwash.appSecret }),
+    pay: makePay(config.carwash.appId, config.carwash.pay)
+  }
   const storage = createStorage({ dir: config.uploadDir })
-  const { server, modules } = createApp({ config, db, wechat, pay, storage })
+  const { server, modules } = createApp({ config, db, wechat, pay, storage, carwash })
   if (!wechat.ready()) console.warn('注意：配置文件里还没填 appId / appSecret，小程序登录和小程序码用不了')
   console.log(pay.ready() ? '微信支付已配置，商户号 ' + config.pay.mchId : '微信支付没配置（商户号下来以后按 README 填配置）')
+  if (!carwash.wechat.ready()) console.warn('注意：配置文件里还没填洗车小程序的 carwash.appId / appSecret，洗车小程序登录不了')
+  console.log(carwash.pay.ready() ? '洗车微信支付已配置，商户号 ' + config.carwash.pay.mchId : '洗车微信支付没配置')
   scheduleBackups(db, config.dataDir)
-  // 每分钟取消一次超时没付款的预约单，提醒一次快到期的借书
+  // 每分钟：取消超时没付款的预约单，提醒一次快到期的借书；洗车单超时没付款的取消、没确认完成的自动完成
   setInterval(() => {
     modules.coffee.expireReservations().catch((e) => console.error('取消超时预约单失败', e))
     modules.book.remindDue().catch((e) => console.error('借书到期提醒失败', e))
+    modules.carwash.runTimers().catch((e) => console.error('洗车定时任务失败', e))
   }, 60 * 1000).unref()
   server.listen(config.port, config.host, () => {
-    console.log('进山咖啡服务器已启动：http://' + config.host + ':' + config.port + '  数据目录 ' + config.dataDir)
+    console.log('进山服务器已启动：http://' + config.host + ':' + config.port + '  数据目录 ' + config.dataDir)
   })
   const stop = () => server.close(() => {
     db.close()
