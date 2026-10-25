@@ -16,18 +16,22 @@ export function addDays(day, n) {
   return new Date(Date.parse(day + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10)
 }
 
+// 时间也按北京时间显示，不管电脑设的是哪个时区
+function cnDate(value) {
+  const ms = new Date(value).getTime()
+  return isNaN(ms) ? null : new Date(ms + 8 * 3600 * 1000)
+}
+
 export function time(value) {
-  if (!value) return ''
-  const d = new Date(value)
-  if (isNaN(d.getTime())) return ''
-  return (d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+  const d = value ? cnDate(value) : null
+  if (!d) return ''
+  return (d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes())
 }
 
 export function clock(value) {
-  if (!value) return ''
-  const d = new Date(value)
-  if (isNaN(d.getTime())) return ''
-  return pad(d.getHours()) + ':' + pad(d.getMinutes())
+  const d = value ? cnDate(value) : null
+  if (!d) return ''
+  return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes())
 }
 
 export function minutes(m) {

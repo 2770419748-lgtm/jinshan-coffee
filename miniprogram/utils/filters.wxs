@@ -23,16 +23,21 @@ function pad(n) {
   return n < 10 ? '0' + n : '' + n
 }
 
+// 店在中国，时间都按北京时间显示，不管手机或电脑设的是哪个时区
+function cn(value) {
+  return getDate(getDate(value).getTime() + 8 * 3600 * 1000)
+}
+
 function time(value) {
   if (!value) return ''
-  var d = getDate(value)
-  return (d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+  var d = cn(value)
+  return (d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes())
 }
 
 function clock(value) {
   if (!value) return ''
-  var d = getDate(value)
-  return pad(d.getHours()) + ':' + pad(d.getMinutes())
+  var d = cn(value)
+  return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes())
 }
 
 function rentalStatus(s) {

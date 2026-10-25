@@ -98,6 +98,27 @@ test('filters.wxs 只用 ES5 写法', () => {
   assert.doesNotMatch(code, /`/)
 })
 
+test('时间按北京时间显示，电脑设成别的时区也一样', async () => {
+  const before = process.env.TZ
+  process.env.TZ = 'America/Los_Angeles'
+  try {
+    const at = '2026-10-25T08:39:06.000Z'
+    const f = wxs.exports
+    assert.equal(f.time(at), '10-25 16:39')
+    assert.equal(f.clock(at), '16:39')
+    assert.equal(f.time('2026-10-25T16:05:00.000Z'), '10-26 00:05', '北京时间过了零点算第二天')
+    assert.equal(f.time(''), '')
+    const web = await import('../admin-web/src/format.js')
+    assert.equal(web.time(at), '10-25 16:39')
+    assert.equal(web.clock(new Date(at)), '16:39')
+    assert.equal(web.time('not a date'), '')
+    assert.equal(web.cnDay(Date.parse('2026-10-25T16:05:00.000Z')), '2026-10-26')
+  } finally {
+    if (before === undefined) delete process.env.TZ
+    else process.env.TZ = before
+  }
+})
+
 test('后台列表的收款状态', () => {
   const f = wxs.exports
   assert.equal(f.payTag('paid', 'wechat'), '微信已付')
