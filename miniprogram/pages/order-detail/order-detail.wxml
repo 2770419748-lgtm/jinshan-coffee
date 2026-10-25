@@ -7,6 +7,7 @@
     <view class="reserve-at" wx:if="{{order.reserveAt}}">预约 {{f.time(order.reserveAt)}} 取</view>
     <view class="status {{order.status}}">{{order.payDeadline ? '待付款' : f.status(order.status)}}</view>
     <view class="faint cancel-reason" wx:if="{{order.status === 'cancelled' && order.cancelReason}}">{{order.cancelReason}}，已自动取消</view>
+    <view class="faint cancel-reason" wx:if="{{order.notifyReady && (order.status === 'pending' || order.status === 'making')}}">做好了会在微信里通知你</view>
 
     <view class="steps" wx:if="{{order.status !== 'cancelled'}}">
       <view class="step {{step >= 1 ? 'on' : ''}}">已下单</view>

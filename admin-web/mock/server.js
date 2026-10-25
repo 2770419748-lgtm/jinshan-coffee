@@ -20,19 +20,42 @@ const wechat = {
   getUnlimited: async (params) => ({
     buffer: await QRCode.toBuffer(params.page + '?scene=' + encodeURIComponent(params.scene), { width: 430, margin: 1 }),
     contentType: 'image/png'
-  })
+  }),
+  getTemplateList: async () => [
+    { priTmplId: 'MOCK_PICKUP', title: '取餐提醒', type: 2, content: '取餐号:{{character_string1.DATA}}\n商品名称:{{thing2.DATA}}\n门店名称:{{thing3.DATA}}\n温馨提示:{{thing4.DATA}}\n' },
+    { priTmplId: 'MOCK_DUE', title: '到期提醒', type: 2, content: '物品名称:{{thing1.DATA}}\n到期时间:{{time2.DATA}}\n温馨提示:{{thing3.DATA}}\n' }
+  ],
+  sendSubscribe: async (params) => {
+    console.log('订阅消息（预览不真发）', JSON.stringify(params))
+    return true
+  }
 }
 const pay = { mchId: '', ready: () => false }
 const db = new Database(':memory:')
 const storage = createStorage({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'jinshan-mock-')) })
 
-// 预览时没有手机，用店主的身份模拟扫码确认
+// 预览时没有手机，用店主的身份模拟扫码确认；/mock/new-order 模拟顾客下一单，看响铃和自动打印
+let guest = 0
 async function extraRoutes(req, res, url) {
-  if (req.method !== 'POST' || url.pathname !== '/mock/confirm-login') return false
-  const { id } = await readJson(req, 4096)
-  const result = await platform.runAs('OWNER', () => modules.common.main({ action: 'confirmWebLogin', id }))
-  sendJson(res, 200, result)
-  return true
+  if (req.method !== 'POST') return false
+  if (url.pathname === '/mock/confirm-login') {
+    const { id } = await readJson(req, 4096)
+    const result = await platform.runAs('OWNER', () => modules.common.main({ action: 'confirmWebLogin', id }))
+    sendJson(res, 200, result)
+    return true
+  }
+  if (url.pathname === '/mock/new-order') {
+    const customer = as('GUEST' + (++guest))
+    const menu = (await customer.coffee('getMenu')).data
+    const items = menu.products.filter((p) => !p.soldOut).slice(0, 2).map((p, i) => ({
+      productId: p._id,
+      qty: i + 1,
+      specs: p.specs.map((g) => ({ name: g.name, option: g.options[g.options.length - 1].name }))
+    }))
+    sendJson(res, 200, await customer.coffee('createOrder', { mode: 'takeaway', remark: '模拟的新订单', items }))
+    return true
+  }
+  return false
 }
 
 const { server, modules } = createApp({

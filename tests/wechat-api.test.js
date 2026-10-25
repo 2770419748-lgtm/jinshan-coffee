@@ -1,4 +1,4 @@
-// 直接对接微信的两部分：微信接口（登录、小程序码）和微信支付 v3（签名、下单、查单、退款、解密通知）
+// 直接对接微信的两部分：微信接口（登录、小程序码、订阅消息）和微信支付 v3（签名、下单、查单、退款、解密通知）
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const crypto = require('crypto')
@@ -40,6 +40,30 @@ test('小程序码：返回图片；access_token 缓存起来，失效时刷新�
   assert.match(fetch.calls[4].url, /access_token=T2$/)
   // 别的错误照原样抛出，业务代码靠 errCode 判断（41030 时改用体验版）
   await assert.rejects(wx.getUnlimited({ scene: 'x', page: 'p' }), (e) => e.errCode === 41030)
+})
+
+test('订阅消息：读我的模板、发消息；token 失效时刷新一次，别的错误带错误码抛出', async () => {
+  const fetch = fakeFetch([
+    { body: { access_token: 'T1', expires_in: 7200 } },
+    { body: { errcode: 0, errmsg: 'ok', data: [{ priTmplId: 'TPL', title: '取餐提醒', content: '取餐号:{{character_string1.DATA}}\n' }] } },
+    { body: { errcode: 42001, errmsg: 'access_token expired' } },
+    { body: { access_token: 'T2', expires_in: 7200 } },
+    { body: { errcode: 0, errmsg: 'ok' } },
+    { body: { errcode: 43101, errmsg: 'user refuse to accept the msg' } }
+  ])
+  const wx = createWechat({ appId: 'wxapp', appSecret: 'secret', fetch })
+  const list = await wx.getTemplateList()
+  assert.equal(list[0].priTmplId, 'TPL')
+  assert.match(fetch.calls[1].url, /\/wxaapi\/newtmpl\/gettemplate\?access_token=T1$/)
+  assert.equal(fetch.calls[1].init.method, 'GET')
+  const msg = { touser: 'o1', templateId: 'TPL', page: 'pages/order-detail/order-detail?id=1', data: { character_string1: { value: '012' } }, miniprogramState: 'trial' }
+  assert.equal(await wx.sendSubscribe(msg), true)
+  assert.match(fetch.calls[4].url, /\/cgi-bin\/message\/subscribe\/send\?access_token=T2$/)
+  assert.deepEqual(JSON.parse(fetch.calls[4].init.body), {
+    touser: 'o1', template_id: 'TPL', page: 'pages/order-detail/order-detail?id=1',
+    data: { character_string1: { value: '012' } }, miniprogram_state: 'trial', lang: 'zh_CN'
+  })
+  await assert.rejects(wx.sendSubscribe(msg), (e) => e.errCode === 43101)
 })
 
 const keys = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })

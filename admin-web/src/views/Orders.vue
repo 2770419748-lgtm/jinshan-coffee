@@ -9,6 +9,7 @@
       <el-date-picker v-model="day" type="date" value-format="YYYY-MM-DD" :clearable="false" @change="reload" style="width: 150px" />
       <span class="spacer"></span>
       <el-switch v-model="autoRefresh" active-text="自动刷新、新单响铃" />
+      <el-button @click="printDialog = true">小票打印<el-tag v-if="print.auto" size="small" type="success" effect="dark" class="print-on">自动</el-tag></el-button>
     </div>
 
     <el-table :data="orders" v-loading="loading" empty-text="暂时没有订单" row-key="_id">
@@ -45,8 +46,9 @@
       <el-table-column label="下单时间" width="100">
         <template #default="{ row }">{{ clock(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="260">
+      <el-table-column label="操作" width="300">
         <template #default="{ row }">
+          <el-button size="small" link @click="printOne(row)">打印</el-button>
           <el-button v-if="row.payStatus === 'unpaid' && row.status !== 'cancelled'" size="small" @click="act(row, 'paid')">已收款</el-button>
           <el-button v-if="row.status === 'pending'" size="small" type="primary" @click="act(row, 'making')">开始制作</el-button>
           <el-button v-if="row.status === 'making'" size="small" type="primary" @click="act(row, 'done')">制作完成</el-button>
@@ -54,6 +56,34 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <el-dialog v-model="printDialog" title="小票打印（这台电脑）" width="480px">
+      <el-form label-width="110px">
+        <el-form-item label="自动打印新单">
+          <el-switch v-model="print.auto" />
+          <span class="muted small sep">{{ print.auto ? '来新单自动打一张' : '没打开，可以在订单后面点「打印」' }}</span>
+        </el-form-item>
+        <el-form-item label="小票纸宽">
+          <el-radio-group v-model="print.width">
+            <el-radio-button :value="58">58mm</el-radio-button>
+            <el-radio-button :value="80">80mm</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="每单打几张">
+          <el-radio-group v-model="print.copies">
+            <el-radio-button :value="1">1 张</el-radio-button>
+            <el-radio-button :value="2">2 张（一张给顾客）</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item>
+          <el-button @click="testPrint">打一张试试</el-button>
+        </el-form-item>
+      </el-form>
+      <div class="tip">
+        只在收银电脑上打开自动打印，别的电脑开着这个页面不会重复打。自动打印要一直开着这个页面和上面的「自动刷新」。<br>
+        不想每次弹出打印框：把小票机设成 Windows 的默认打印机，再用加了 <code>--kiosk-printing</code> 的浏览器快捷方式打开后台，具体步骤见说明文档「收银电脑打小票」。
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -62,6 +92,7 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api'
 import { yuan, clock, cnDay, specText, MODE } from '../format'
+import { loadPrintSettings, savePrintSettings, printOrders } from '../receipt'
 
 const tabs = [
   { key: 'pending', name: '待制作' },
@@ -79,6 +110,8 @@ const counts = ref({})
 const loading = ref(false)
 const autoRefresh = ref(true)
 const audio = new Audio('./new-order.wav')
+const print = ref(loadPrintSettings())
+const printDialog = ref(false)
 let known = null
 let timer = null
 let busy = false
@@ -112,10 +145,44 @@ function checkNew(ids, d) {
       audio.currentTime = 0
       audio.play().catch(() => {})
       ElMessage.success('来了 ' + fresh.length + ' 个新订单')
+      if (print.value.auto) autoPrint(fresh)
     }
   }
   known = known || {}
   ids.forEach((id) => { known[id] = true })
+}
+
+async function autoPrint(ids) {
+  try {
+    printOrders(await api.coffee('ordersForPrint', { ids }), print.value)
+  } catch (e) {
+    ElMessage.error('自动打印没取到订单：' + e.message)
+  }
+}
+
+function printOne(row) {
+  printOrders([row], print.value)
+}
+
+function testPrint() {
+  printOrders([{
+    pickupNo: '001',
+    mode: 'dine_in',
+    tableNo: '5',
+    createdAt: new Date().toISOString(),
+    items: [
+      { name: '拿铁', specs: [{ option: '大杯' }, { option: '燕麦奶' }], qty: 2, subtotal: 6400 },
+      { name: '芝士蛋糕', specs: [], qty: 1, subtotal: 2800 }
+    ],
+    remark: '这是一张测试小票',
+    totalFee: 9200,
+    discountFee: 0,
+    couponFee: 0,
+    payFee: 9200,
+    payStatus: 'paid',
+    payMethod: 'counter',
+    orderNo: 'TEST'
+  }], print.value)
 }
 
 function reload() {
@@ -158,6 +225,7 @@ function stopTimer() {
 }
 
 watch(autoRefresh, startTimer)
+watch(print, savePrintSettings, { deep: true })
 onMounted(() => {
   load()
   startTimer()
@@ -171,4 +239,7 @@ onBeforeUnmount(stopTimer)
   font-size: 12px;
 }
 .small { font-size: 12px; }
+.sep { margin-left: 10px; }
+.print-on { margin-left: 6px; }
+.tip code { font-size: 12px; }
 </style>

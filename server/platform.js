@@ -1,4 +1,4 @@
-// 业务代码（functions/ 里）用到的底层能力都从这里拿：数据库、当前用户是谁、小程序码、微信支付、图片存储。
+// 业务代码（functions/ 里）用到的底层能力都从这里拿：数据库、当前用户是谁、小程序码、订阅消息、微信支付、图片存储。
 // 原来这些由微信云开发提供（wx-server-sdk），现在换成自己服务器上的实现，接口保持一样，业务代码基本不用改。
 // 启动时先 configure() 装好各部分，再加载 functions/ 里的模块。
 const { AsyncLocalStorage } = require('async_hooks')
@@ -36,6 +36,10 @@ module.exports = {
   openapi: {
     wxacode: {
       getUnlimited: (params) => need('wechat').getUnlimited(params)
+    },
+    subscribeMessage: {
+      getTemplateList: () => need('wechat').getTemplateList(),
+      send: (params) => need('wechat').sendSubscribe(params)
     }
   },
 

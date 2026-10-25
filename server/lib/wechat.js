@@ -1,4 +1,4 @@
-// 调微信服务器的接口：小程序登录换 openid、拿 access_token、生成小程序码。
+// 调微信服务器的接口：小程序登录换 openid、拿 access_token、生成小程序码、订阅消息。
 // 需要小程序的 AppID 和 AppSecret（公众平台「开发管理 → 开发设置」里拿），填在服务器配置文件里。
 const API = 'https://api.weixin.qq.com'
 // access_token 失效时微信返回的错误码，遇到就刷新一次再试
@@ -78,7 +78,38 @@ function createWechat({ appId, appSecret, fetch = globalThis.fetch }) {
     return { buffer: Buffer.from(await res.arrayBuffer()), contentType: type || 'image/jpeg' }
   }
 
-  return { ready, accessToken, code2session, getUnlimited }
+  // 带 access_token 调一个返回 JSON 的接口；token 失效时刷新一次再试
+  async function call(method, path, body, retried) {
+    const url = API + path + (path.indexOf('?') === -1 ? '?' : '&') + 'access_token=' + encodeURIComponent(await accessToken(!!retried))
+    const res = await fetch(url, body === undefined
+      ? { method }
+      : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    const data = await json(res)
+    if (data.errcode && TOKEN_ERRORS.indexOf(data.errcode) !== -1 && !retried) return call(method, path, body, true)
+    if (data.errcode) throw wxError(data.errcode, data.errmsg)
+    return data
+  }
+
+  // 公众平台「订阅消息 → 我的模板」里已经选好的模板：[{ priTmplId, title, content, example, type }]
+  async function getTemplateList() {
+    const data = await call('GET', '/wxaapi/newtmpl/gettemplate')
+    return data.data || []
+  }
+
+  // 发一条订阅消息。miniprogramState：formal 正式版、trial 体验版、developer 开发版（点消息打开哪个版本）
+  async function sendSubscribe({ touser, templateId, page, data, miniprogramState }) {
+    await call('POST', '/cgi-bin/message/subscribe/send', {
+      touser,
+      template_id: templateId,
+      page,
+      data,
+      miniprogram_state: miniprogramState || 'formal',
+      lang: 'zh_CN'
+    })
+    return true
+  }
+
+  return { ready, accessToken, code2session, getUnlimited, getTemplateList, sendSubscribe }
 }
 
 module.exports = { createWechat, wxError }

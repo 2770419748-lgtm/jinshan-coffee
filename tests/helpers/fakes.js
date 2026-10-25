@@ -1,4 +1,4 @@
-// 测试用的替身：微信接口（小程序码、登录）、微信支付、图片存储。数据库用真的 SQLite（内存里）。
+// 测试用的替身：微信接口（小程序码、登录、订阅消息）、微信支付、图片存储。数据库用真的 SQLite（内存里）。
 const state = {
   files: [],
   deleted: [],
@@ -8,7 +8,11 @@ const state = {
   payReady: true,
   payFail: false,
   payOrders: {},
-  refunds: []
+  refunds: [],
+  // 订阅消息：公众平台「我的模板」里的模板，发出去的消息，sendError 不为空时发送报这个错误码
+  templates: [],
+  sent: [],
+  sendError: 0
 }
 
 const wechat = {
@@ -32,6 +36,18 @@ const wechat = {
     state.envVersion = params.envVersion
     state.lastCodeParams = params
     return { buffer: Buffer.from('png'), contentType: 'image/png' }
+  },
+  async getTemplateList() {
+    return state.templates
+  },
+  async sendSubscribe(params) {
+    if (state.sendError) {
+      const e = new Error('errCode: ' + state.sendError + ' | errMsg: fail')
+      e.errCode = state.sendError
+      throw e
+    }
+    state.sent.push(params)
+    return true
   }
 }
 

@@ -257,9 +257,10 @@ function main() {
   if (!wechat.ready()) console.warn('注意：配置文件里还没填 appId / appSecret，小程序登录和小程序码用不了')
   console.log(pay.ready() ? '微信支付已配置，商户号 ' + config.pay.mchId : '微信支付没配置（商户号下来以后按 README 填配置）')
   scheduleBackups(db, config.dataDir)
-  // 每分钟取消一次超时没付款的预约单
+  // 每分钟取消一次超时没付款的预约单，提醒一次快到期的借书
   setInterval(() => {
     modules.coffee.expireReservations().catch((e) => console.error('取消超时预约单失败', e))
+    modules.book.remindDue().catch((e) => console.error('借书到期提醒失败', e))
   }, 60 * 1000).unref()
   server.listen(config.port, config.host, () => {
     console.log('进山咖啡服务器已启动：http://' + config.host + ':' + config.port + '  数据目录 ' + config.dataDir)

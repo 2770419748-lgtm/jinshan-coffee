@@ -19,6 +19,7 @@ const { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponDiscou
 const pay = require('./pay')
 const { readShop, hoursOf, reserveSlots } = require('./shop')
 const wallet = require('./wallet')
+const notify = require('./notify')
 const DEMO_MENU = require('./coffee-demo')
 
 const db = cloud.database()
@@ -340,7 +341,7 @@ const handlers = {
   // 预约时 reserve 传 true，返回能选的时间；reserveAt 是选中的那一档，没选或者选的不能约了就用最早的一档。
   async quote({ items, couponId, reserve, reserveAt, noVouchers }, openid) {
     const { lines, total } = await loadLines(items)
-    const [settings, walletInfo] = await Promise.all([pay.getSettings(db), wallet.walletInfo(db, openid)])
+    const [settings, walletInfo, templates] = await Promise.all([pay.getSettings(db), wallet.walletInfo(db, openid), notify.templateIds(db)])
     let reservation = null
     if (reserve) {
       const open = reserveOpen(settings, walletInfo)
@@ -368,12 +369,14 @@ const handlers = {
       pay: pay.publicPay(settings),
       // 会员余额：enabled 是店里开没开储值，余额有钱时没开也能用
       wallet: { enabled: walletInfo.enabled, balance: walletInfo.balance, memberNo: walletInfo.memberNo },
-      reserve: reservation
+      reserve: reservation,
+      // 取餐通知的订阅消息模板：有的话下单时请顾客允许
+      notifyTemplate: templates.orderReady
     }
   },
 
-  // payBy 传 'balance' 表示用会员余额付，下单时直接扣
-  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, reserveAt, payBy }, openid) {
+  // payBy 传 'balance' 表示用会员余额付，下单时直接扣；subscribed 为 true 表示顾客允许了取餐通知
+  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, reserveAt, payBy, subscribed }, openid) {
     if (mode !== 'dine_in' && mode !== 'takeaway') throw new BizError('请选择堂食或外带')
     const { lines, total } = await loadLines(items)
     const reserving = reserveAt !== undefined && reserveAt !== null
@@ -476,6 +479,7 @@ const handlers = {
         updatedAt: db.serverDate()
       }
       if (byBalance) order.paidAt = db.serverDate()
+      if (subscribed === true) order.notifyReady = true
       if (reserving) {
         order.reserveAt = new Date(reserveAt)
         // 预约要先在线付款，付完店员才看得到
@@ -642,6 +646,15 @@ const handlers = {
     }
   },
 
+  // 收银电脑自动打小票：按 id 取新来的单（不管现在停在哪个分页）
+  async ordersForPrint({ ids }, openid) {
+    await requireRole(db, openid, COFFEE_ROLES)
+    const list = (Array.isArray(ids) ? ids : []).filter((id) => typeof id === 'string').slice(0, 20)
+    if (!list.length) return []
+    const res = await col('coffee_orders').where({ _id: _.in(list), awaitingPay: _.neq(true) }).limit(20).get()
+    return res.data.sort((a, b) => a.seq - b.seq).map(formatOrder)
+  },
+
   async markPaid({ id }, openid) {
     await requireRole(db, openid, COFFEE_ROLES)
     const res = await col('coffee_orders')
@@ -666,6 +679,8 @@ const handlers = {
     const res = await col('coffee_orders').where({ _id: order._id, status: order.status }).update({ data })
     if (!res.stats.updated) throw new BizError('订单状态已经变了，请刷新')
     if (status === 'cancelled') await releaseVouchers(order)
+    // 做好了通知顾客取餐；不等微信回复，发不出去也不影响出餐
+    if (status === 'done' && order.notifyReady) notify.orderReady(db, order).catch((e) => console.warn('取餐通知失败', e.message))
     return true
   },
 

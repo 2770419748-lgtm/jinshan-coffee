@@ -19,6 +19,7 @@ const { sanitizeRule, quoteRental, dueAt, overtime, ruleSummary } = require('./b
 const DEMO = require('./book-demo')
 const pay = require('./pay')
 const wallet = require('./wallet')
+const notify = require('./notify')
 
 const db = cloud.database()
 const _ = db.command
@@ -209,6 +210,27 @@ async function markOvertimeWechatPaid(rental, paid) {
 }
 
 // 微信支付通知（服务器收到 /pay/notify/book 后调用）：JB 开头是租金，JO 开头是超时费
+// 服务器每分钟跑一次：按小时借的书到期前 10 分钟提醒顾客（顾客借书时允许了才发）。先标记再发，不会重复提醒
+async function remindDue() {
+  const soon = new Date(Date.now() + notify.DUE_REMIND_MINUTES * 60000)
+  const list = (await col('book_rentals')
+    .where({ status: 'reading', notifyDue: true, dueReminded: _.neq(true), dueAt: _.lte(soon) })
+    .limit(50).get()).data
+  let count = 0
+  for (const rental of list) {
+    if (new Date(rental.dueAt).getTime() <= Date.now()) {
+      // 已经过了到期时间（比如服务器停过一阵），不再提醒
+      await col('book_rentals').where({ _id: rental._id }).update({ data: { dueReminded: true } })
+      continue
+    }
+    const res = await col('book_rentals')
+      .where({ _id: rental._id, status: 'reading', dueReminded: _.neq(true) })
+      .update({ data: { dueReminded: true } })
+    if (res.stats.updated && (await notify.rentalDue(db, rental))) count++
+  }
+  return count
+}
+
 async function onPayNotify({ outTradeNo }) {
   const no = typeof outTradeNo === 'string' ? outTradeNo : ''
   if (no.indexOf('JB') === 0) {
@@ -268,12 +290,16 @@ const handlers = {
   async getBook({ id }, openid) {
     const book = await findOne('book_books', { _id: String(id || '') })
     if (!book || !book.onShelf) throw new BizError('这本书暂时不在书架上了')
-    const [settings, memberSettings, member] = await Promise.all([pay.getSettings(db), wallet.readSettings(db), wallet.findMember(db, openid)])
+    const [settings, memberSettings, member, templates] = await Promise.all([
+      pay.getSettings(db), wallet.readSettings(db), wallet.findMember(db, openid), notify.templateIds(db)
+    ])
     const free = !!book.category && memberSettings.freeCategories.indexOf(book.category) !== -1
     return {
       book: publicBook(book),
       rules: await shelfRules(),
       pay: pay.publicPay(settings),
+      // 到期提醒的订阅消息模板：按小时借的，下单时请顾客允许
+      notifyTemplate: templates.rentalDue,
       member: {
         enabled: memberSettings.enabled,
         free: free && (memberSettings.enabled || wallet.isMember(member)),
@@ -285,8 +311,8 @@ const handlers = {
     }
   },
 
-  // ruleId 传 'member' 是会员免费看；payBy 传 'balance' 用会员余额付租金
-  async createRental({ bookId, ruleId, hours, remark, payBy }, openid) {
+  // ruleId 传 'member' 是会员免费看；payBy 传 'balance' 用会员余额付租金；subscribed 为 true 表示顾客允许了到期提醒
+  async createRental({ bookId, ruleId, hours, remark, payBy, subscribed }, openid) {
     const byMember = ruleId === MEMBER_RULE._id
     const [book, found] = await Promise.all([
       findOne('book_books', { _id: String(bookId || '') }),
@@ -362,6 +388,7 @@ const handlers = {
         updatedAt: db.serverDate()
       }
       if (byBalance) rental.paidAt = db.serverDate()
+      if (subscribed === true && rule.type === 'hourly') rental.notifyDue = true
       const added = await col('book_rentals').add({ data: rental })
       if (rental.payStatus === 'paid') await issueVouchers(Object.assign({ _id: added._id }, rental), '')
       return { id: added._id }
@@ -857,3 +884,4 @@ const handlers = {
 
 exports.main = createMain(cloud, handlers)
 exports.onPayNotify = onPayNotify
+exports.remindDue = remindDue

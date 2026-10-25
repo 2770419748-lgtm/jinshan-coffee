@@ -29,7 +29,7 @@
       <view class="tip" wx:if="{{rental.ruleType === 'day'}}">今天打烊前还书就行</view>
       <view class="tip {{rental.dueAtMs < now ? 'warn' : ''}}" wx:else>
         <view class="left">{{f.left(rental.dueAtMs, now)}}</view>
-        <view class="faint">{{f.clock(rental.dueAtMs)}} 到期，看完把书还到吧台<text wx:if="{{rental.dueAtMs < now}}">，还书时按 ¥{{f.yuan(rental.unitPrice)}}/小时补超时费</text></view>
+        <view class="faint">{{f.clock(rental.dueAtMs)}} 到期，看完把书还到吧台<text wx:if="{{rental.dueAtMs < now}}">，还书时按 ¥{{f.yuan(rental.unitPrice)}}/小时补超时费</text><text wx:elif="{{rental.notifyDue && !rental.dueReminded}}">，到期前 10 分钟会在微信里提醒你</text></view>
       </view>
     </block>
     <view class="tip ok" wx:elif="{{rental.payStatus === 'refunded'}}">{{rental.payMethod === 'balance' ? '租金已退回会员余额' : '租金已原路退回'}}</view>

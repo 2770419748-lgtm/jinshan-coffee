@@ -1,5 +1,6 @@
 const api = require('../../utils/api')
 const pay = require('../../utils/pay')
+const subscribe = require('../../utils/subscribe')
 const { fenToText } = require('../../utils/money')
 
 // 借书能怎么付：微信支付、会员余额、到吧台付
@@ -22,6 +23,7 @@ Page({
     fee: 0,
     remark: '',
     payInfo: null, // { enabled, allowCounter }
+    notifyTemplate: '', // 到期提醒的模板，按小时借时请顾客允许
     methods: [],
     payMethod: 'counter',
     loading: true,
@@ -38,12 +40,12 @@ Page({
   },
 
   load() {
-    return api.book('getBook', { id: this.id }).then(({ book, rules, pay: payInfo, member }) => {
+    return api.book('getBook', { id: this.id }).then(({ book, rules, pay: payInfo, member, notifyTemplate }) => {
       wx.setNavigationBarTitle({ title: book.title })
       const keep = this.data.rules[this.data.ruleIndex]
       const index = keep ? rules.findIndex((r) => r._id === keep._id) : -1
       const methods = payMethods(payInfo, member)
-      const data = { book, rules, payInfo, member, methods, loading: false }
+      const data = { book, rules, payInfo, member, methods, notifyTemplate: notifyTemplate || '', loading: false }
       if (!this.methodPicked || !methods.some((m) => m.key === this.data.payMethod)) {
         data.payMethod = methods[0] ? methods[0].key : 'counter'
       }
@@ -117,7 +119,12 @@ Page({
     const params = { bookId: book._id, ruleId: useMember ? 'member' : rule._id, hours, remark }
     if (byBalance) params.payBy = 'balance'
     this.setData({ submitting: true })
-    api.book('createRental', params).then(({ id }) => {
+    // 按小时借的先问要不要到期提醒（必须在点按钮时问）；包天和会员畅读打烊前还，不用提醒
+    const remind = !useMember && rule.type === 'hourly' ? this.data.notifyTemplate : ''
+    subscribe.ask(remind).then((subscribed) => {
+      params.subscribed = subscribed
+      return api.book('createRental', params)
+    }).then(({ id }) => {
       const go = () => wx.redirectTo({ url: '/pages/rental-detail/rental-detail?id=' + id })
       if (!useMember && payMethod === 'wechat' && fee > 0) return pay.payRental(id).then(go)
       go()

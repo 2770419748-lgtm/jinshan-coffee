@@ -3,6 +3,7 @@ const cart = require('../../utils/cart')
 const table = require('../../utils/table')
 const reserve = require('../../utils/reserve')
 const pay = require('../../utils/pay')
+const subscribe = require('../../utils/subscribe')
 const { fenToText } = require('../../utils/money')
 
 // 这单能怎么付：微信支付（开通了才有）、会员余额（开了储值或者有余额）、到吧台付（预约不行）
@@ -190,7 +191,11 @@ Page({
     if (reserving) params.reserveAt = reserveAt
     if (byBalance) params.payBy = 'balance'
     this.setData({ submitting: true })
-    api.coffee('createOrder', params).then(({ id }) => {
+    // 先问顾客要不要出餐通知（必须在点按钮时问），不管允不允许都接着下单
+    subscribe.ask(quote.notifyTemplate).then((subscribed) => {
+      params.subscribed = subscribed
+      return api.coffee('createOrder', params)
+    }).then(({ id }) => {
       cart.clear()
       if (reserving) reserve.off()
       const go = () => wx.redirectTo({ url: '/pages/order-detail/order-detail?id=' + id })

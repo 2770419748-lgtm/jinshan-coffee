@@ -1,4 +1,4 @@
-// 公共模块：登录、店主绑定、员工邀请和权限管理、店铺设置、电脑网页后台登录、顾客首页（轮播、营业时间、可领的券、会员）。
+// 公共模块：登录、店主绑定、员工邀请和权限管理、店铺设置、消息通知设置、电脑网页后台登录、顾客首页（轮播、营业时间、可领的券、会员）。
 // 首页轮播存在 banners 集合；首页要展示商品、书、代金券和会员储值，所以这里会只读 coffee_products、book_books、coffee_coupons、
 // member_plans 和自己的 members 记录。
 const crypto = require('crypto')
@@ -19,6 +19,7 @@ const {
 } = require('./base')
 const { readShop, hoursOf, checkHours } = require('./shop')
 const wallet = require('./wallet')
+const notify = require('./notify')
 
 const db = cloud.database()
 const _ = db.command
@@ -308,6 +309,18 @@ const handlers = {
     }
     await db.collection('settings').doc('shop').set({ data })
     return shopSettings(data)
+  },
+
+  // ---------- 消息通知（订阅消息模板，店主） ----------
+
+  async getNotifySettings(event, openid) {
+    await requireRole(db, openid, ['owner'])
+    return notify.getSettings(db)
+  },
+
+  async saveNotifySettings({ orderReady, rentalDue, state }, openid) {
+    await requireRole(db, openid, ['owner'])
+    return notify.saveSettings(db, { orderReady, rentalDue, state }, openid)
   },
 
   // ---------- 顾客首页 ----------
