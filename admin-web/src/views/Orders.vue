@@ -12,8 +12,11 @@
     </div>
 
     <el-table :data="orders" v-loading="loading" empty-text="暂时没有订单" row-key="_id">
-      <el-table-column label="取餐号" width="90">
-        <template #default="{ row }"><span class="big-no">{{ row.pickupNo }}</span></template>
+      <el-table-column label="取餐号" width="110">
+        <template #default="{ row }">
+          <span class="big-no">{{ row.pickupNo }}</span>
+          <div v-if="row.reserveAt"><el-tag size="small" type="warning" effect="dark">预约 {{ clock(row.reserveAt) }}</el-tag></div>
+        </template>
       </el-table-column>
       <el-table-column label="桌号" width="90">
         <template #default="{ row }">
@@ -32,7 +35,8 @@
       <el-table-column label="金额" width="140">
         <template #default="{ row }">
           <div class="gold">¥{{ yuan(row.payFee) }}</div>
-          <div v-if="row.discountFee" class="muted small">赠饮券 -¥{{ yuan(row.discountFee) }}</div>
+          <div v-if="row.discountFee - (row.couponFee || 0)" class="muted small">赠饮券 -¥{{ yuan(row.discountFee - (row.couponFee || 0)) }}</div>
+          <div v-if="row.couponFee" class="muted small">代金券 -¥{{ yuan(row.couponFee) }}</div>
           <el-tag size="small" :type="row.payStatus === 'paid' ? 'success' : row.payStatus === 'refunded' ? 'info' : 'danger'">
             {{ PAY[row.payStatus] }}{{ row.payStatus === 'paid' && row.payMethod === 'wechat' ? '（微信）' : '' }}
           </el-tag>
@@ -121,7 +125,7 @@ function reload() {
 function cancelText(row) {
   if (row.payStatus !== 'paid') return '确定取消这单？'
   if (row.payMethod === 'wechat') return '这单是微信支付的，取消后钱会原路退回顾客的微信。'
-  if (row.payMethod === 'voucher') return '这单用赠饮券抵扣，取消后券会退回给顾客。'
+  if (row.payMethod === 'voucher') return '这单用券抵扣，取消后券会退回给顾客。'
   return '这单已在吧台收款，取消后请记得退款给顾客。'
 }
 

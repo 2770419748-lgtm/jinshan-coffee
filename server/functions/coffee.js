@@ -1,5 +1,6 @@
-// 咖啡模块：菜单、下单、微信支付、订单处理、商品分类桌台管理。
-// 读写 coffee_ 开头的集合；下单时核销 vouchers 里的赠饮券（书籍模块包天时发放）；读 settings 里的支付设置。
+// 咖啡模块：菜单、下单（含预约）、微信支付、订单处理、商品分类桌台管理、代金券。
+// 读写 coffee_ 开头的集合；vouchers 里是顾客的券：赠饮券（书籍模块包天时发放）和在领券中心领的代金券，下单时核销；
+// 读 settings 里的支付设置和营业时间。
 const cloud = require('../platform')
 const {
   COFFEE_ROLES,
@@ -14,8 +15,9 @@ const {
   fetchAll,
   createMain
 } = require('./base')
-const { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers } = require('./pricing')
+const { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponDiscount, pickCoupon } = require('./pricing')
 const pay = require('./pay')
+const { readShop, hoursOf, reserveSlots } = require('./shop')
 const DEMO_MENU = require('./coffee-demo')
 
 const db = cloud.database()
@@ -29,6 +31,17 @@ const NEXT_STATUS = {
 }
 const STATUS_TIME_FIELD = { making: 'makingAt', done: 'doneAt', cancelled: 'cancelledAt' }
 const TABLE_NO_RE = /^[A-Za-z0-9-]{1,8}$/
+const DAY_MS = 24 * 3600 * 1000
+// 预约单下单后 15 分钟内要付款；到点后再等 2 分钟才取消，免得顾客正在付款时被取消
+const RESERVE_PAY_MINUTES = 15
+const RESERVE_EXPIRE_GRACE = 2 * 60000
+// 后台订单列表里，预约单排在约定时间前 10 分钟的位置
+const RESERVE_PREP_MINUTES = 10
+// 代金券：减免最多 200 元，有效期最长一年，每人最多领 10 张
+const MAX_COUPON_AMOUNT = 20000
+const MAX_COUPON_DAYS = 365
+const MAX_COUPON_PER_USER = 10
+const MAX_COUPON_TOTAL = 100000
 
 const col = (name) => db.collection(name)
 
@@ -66,17 +79,100 @@ function toSort(value) {
   return Number.isFinite(n) ? Math.round(n) : 0
 }
 
-// 顾客今天能用的赠饮券；ids 不传时返回全部
-async function usableVouchers(openid, ids) {
-  const where = { _openid: openid, status: 'unused', day: cnDay() }
-  if (ids) where._id = _.in(ids)
+async function safeList(query) {
   try {
-    const res = await col('vouchers').where(where).limit(50).get()
-    return res.data
+    return (await query.get()).data
   } catch (e) {
     if (isMissingCollection(e)) return []
     throw e
   }
+}
+
+// 金额（分）写成元，例如 3000 → 30，1250 → 12.5
+function yuan(fen) {
+  return (fen / 100).toFixed(2).replace(/\.?0+$/, '')
+}
+
+// 顾客今天能用的赠饮券；ids 不传时返回全部。代金券没有 day 字段，不会混进来
+function usableVouchers(openid, ids) {
+  const where = { _openid: openid, status: 'unused', day: cnDay() }
+  if (ids) where._id = _.in(ids)
+  return safeList(col('vouchers').where(where).limit(50))
+}
+
+// 顾客手里没过期、没用掉的代金券；id 不传时返回全部
+function usableCoupons(openid, id) {
+  const where = { _openid: openid, type: 'cash', status: 'unused', expiresDay: _.gte(cnDay()) }
+  if (id) where._id = String(id)
+  return safeList(col('vouchers').where(where).orderBy('expiresDay', 'asc').limit(100))
+}
+
+function couponOption(c, left) {
+  return { id: c._id, title: c.title, amount: c.amount, minSpend: c.minSpend || 0, expiresDay: c.expiresDay, discount: couponDiscount(c, left) }
+}
+
+function publicCoupon(c, mine) {
+  const left = c.total ? Math.max(0, c.total - (c.claimed || 0)) : null
+  const perUser = c.perUser || 1
+  return {
+    _id: c._id,
+    title: c.title,
+    amount: c.amount,
+    minSpend: c.minSpend || 0,
+    validDays: c.validDays,
+    perUser,
+    left, // 还剩几张；null 表示不限量
+    mine, // 自己已经领了几张
+    soldOut: left === 0,
+    canClaim: left !== 0 && mine < perUser
+  }
+}
+
+// 预约：开通微信支付才能约，时间要是营业时间里还能选的那几档
+async function checkReserveAt(reserveAt) {
+  const settings = await pay.getSettings(db)
+  if (!settings.payEnabled) throw new BizError('开通微信支付后才能预约', 'RESERVE_DISABLED')
+  const slots = reserveSlots(hoursOf(await readShop(db)))
+  if (!slots.some((s) => s.at === reserveAt)) throw new BizError('这个时间约不了了，请重新选一个时间', 'RESERVE_SLOT')
+}
+
+function payDeadline(order) {
+  return new Date(order.createdAt).getTime() + RESERVE_PAY_MINUTES * 60000
+}
+
+function isOverdue(order) {
+  return !!order.awaitingPay && order.status === 'pending' && order.payStatus === 'unpaid' &&
+    Date.now() >= payDeadline(order) + RESERVE_EXPIRE_GRACE
+}
+
+// 超时没付的预约单：先向微信查一次，真付了就标成已付；没付就取消，退回用掉的券
+async function expireReservation(order) {
+  if (order.payOutTradeNo && (await markWechatPaid(order, await pay.queryPaid(order.payOutTradeNo)))) return false
+  const res = await col('coffee_orders')
+    .where({ _id: order._id, status: 'pending', payStatus: 'unpaid' })
+    .update({ data: { status: 'cancelled', cancelReason: '超时未付款', cancelledAt: db.serverDate(), updatedAt: db.serverDate() } })
+  if (res.stats.updated) await releaseVouchers(order)
+  return !!res.stats.updated
+}
+
+// 服务器每分钟跑一次，把超时没付的预约单取消掉
+async function expireReservations() {
+  const cutoff = new Date(Date.now() - RESERVE_PAY_MINUTES * 60000 - RESERVE_EXPIRE_GRACE)
+  const list = await safeList(col('coffee_orders')
+    .where({ awaitingPay: true, status: 'pending', payStatus: 'unpaid', createdAt: _.lt(cutoff) })
+    .limit(50))
+  let count = 0
+  for (const order of list) {
+    if (await expireReservation(order)) count++
+  }
+  return count
+}
+
+// 读到单个订单时顺手检查是不是超时了（服务器刚重启、定时任务还没跑的时候）
+async function freshOrder(order) {
+  if (!order || !isOverdue(order)) return order
+  await expireReservation(order)
+  return findOne('coffee_orders', { _id: order._id })
 }
 
 function voucherIdList(value) {
@@ -84,9 +180,10 @@ function voucherIdList(value) {
   return value.filter((id) => typeof id === 'string').slice(0, 20)
 }
 
-// 订单取消时把用掉的赠饮券退回去
+// 订单取消时把用掉的赠饮券和代金券退回去
 async function releaseVouchers(order) {
   const ids = (order.vouchers || []).map((v) => v.id)
+  if (order.coupon) ids.push(order.coupon.id)
   if (!ids.length) return
   await col('vouchers')
     .where({ _id: _.in(ids), status: 'used', orderNo: order.orderNo })
@@ -105,8 +202,21 @@ async function loadLines(items) {
 }
 
 function formatVoucher(v, today) {
+  if (v.type === 'cash') {
+    return {
+      _id: v._id,
+      type: 'cash',
+      title: v.title,
+      amount: v.amount,
+      minSpend: v.minSpend || 0,
+      expiresDay: v.expiresDay,
+      status: v.status === 'unused' && v.expiresDay < today ? 'expired' : v.status,
+      createdAt: v.createdAt
+    }
+  }
   return {
     _id: v._id,
+    type: 'drink',
     title: v.title,
     productNames: v.productNames || [],
     maxFee: v.maxFee || 0,
@@ -124,7 +234,7 @@ async function markWechatPaid(order, paid) {
   }
   const res = await col('coffee_orders')
     .where({ _id: order._id, payStatus: 'unpaid' })
-    .update({ data: { payStatus: 'paid', payMethod: 'wechat', transactionId: paid.transactionId, paidAt: db.serverDate(), updatedAt: db.serverDate() } })
+    .update({ data: { payStatus: 'paid', payMethod: 'wechat', awaitingPay: false, transactionId: paid.transactionId, paidAt: db.serverDate(), updatedAt: db.serverDate() } })
   if (res.stats.updated && order.status === 'cancelled') await refundOrder(Object.assign({}, order, { payStatus: 'paid', payMethod: 'wechat' }))
   return true
 }
@@ -187,21 +297,49 @@ const handlers = {
     }
   },
 
-  // 结算页算价：按数据库价格算总价，并自动用上今天能用的赠饮券
-  async quote({ items }, openid) {
+  // 结算页算价：按数据库价格算总价，自动用上今天能用的赠饮券（noVouchers 为 true 时不用），
+  // 再挑一张代金券（couponId 传 '' 表示不用）。
+  // 预约时 reserve 传 true，返回能选的时间；reserveAt 是选中的那一档，没选或者选的不能约了就用最早的一档。
+  async quote({ items, couponId, reserve, reserveAt, noVouchers }, openid) {
     const { lines, total } = await loadLines(items)
-    const vouchers = await usableVouchers(openid)
-    const { applied, discount } = applyVouchers(lines, vouchers)
     const settings = await pay.getSettings(db)
-    return { total, vouchers: vouchers.length, applied, discountFee: discount, payFee: total - discount, pay: pay.publicPay(settings) }
+    let reservation = null
+    if (reserve) {
+      const slots = settings.payEnabled ? reserveSlots(hoursOf(await readShop(db))) : []
+      const chosen = slots.find((s) => s.at === reserveAt) || slots[0] || null
+      reservation = { enabled: settings.payEnabled, slots, reserveAt: chosen ? chosen.at : null, label: chosen ? chosen.label : '' }
+    }
+    // 赠饮券当天有效，预约明天的单用不了
+    const vouchers = reservation && reservation.reserveAt && cnDay(reservation.reserveAt) !== cnDay() ? [] : await usableVouchers(openid)
+    const { applied, discount } = noVouchers ? { applied: [], discount: 0 } : applyVouchers(lines, vouchers)
+    const left = total - discount
+    const coupons = await usableCoupons(openid)
+    const picked = pickCoupon(coupons, left, couponId)
+    const couponFee = picked.discount
+    return {
+      total,
+      vouchers: vouchers.length,
+      applied,
+      voucherFee: discount,
+      coupons: coupons.map((c) => couponOption(c, left)).sort((a, b) => b.discount - a.discount),
+      coupon: picked.coupon ? { id: picked.coupon._id, title: picked.coupon.title, discount: couponFee } : null,
+      couponFee,
+      discountFee: discount + couponFee,
+      payFee: left - couponFee,
+      pay: pay.publicPay(settings),
+      reserve: reservation
+    }
   },
 
-  async createOrder({ items, mode, tableNo, remark, voucherIds }, openid) {
+  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, reserveAt }, openid) {
     if (mode !== 'dine_in' && mode !== 'takeaway') throw new BizError('请选择堂食或外带')
     const { lines, total } = await loadLines(items)
+    const reserving = reserveAt !== undefined && reserveAt !== null
+    if (reserving) await checkReserveAt(reserveAt)
 
+    // 预约的人还没到店，不带桌号
     let table = ''
-    if (mode === 'dine_in' && tableNo) {
+    if (!reserving && mode === 'dine_in' && tableNo) {
       const t = await findOne('coffee_tables', { tableNo: String(tableNo) })
       if (!t) throw new BizError('这个桌码已失效，请重新扫码，或者不选桌号直接下单', 'TABLE_INVALID')
       table = t.tableNo
@@ -209,26 +347,42 @@ const handlers = {
 
     // 赠饮券：带条件逐张核销，任何一张对不上就全部退回
     const ids = voucherIdList(voucherIds)
+    if (ids.length && reserving && cnDay(reserveAt) !== cnDay()) {
+      throw new BizError('赠饮券当天有效，预约明天的单用不了', 'VOUCHER_CHANGED')
+    }
     const vouchers = ids.length ? await usableVouchers(openid, ids) : []
     if (vouchers.length !== ids.length) throw new BizError('赠饮券有变化，请重新确认订单', 'VOUCHER_CHANGED')
     const { applied, discount } = applyVouchers(lines, vouchers)
+
+    // 代金券：一单最多一张，门槛按用完赠饮券以后的金额算
+    let coupon = null
+    if (couponId) {
+      const found = (await usableCoupons(openid, couponId))[0]
+      const fee = couponDiscount(found, total - discount)
+      if (!fee) throw new BizError('代金券有变化，请重新确认订单', 'VOUCHER_CHANGED')
+      coupon = { id: found._id, title: found.title, discount: fee }
+    }
+    const couponFee = coupon ? coupon.discount : 0
+    const payFee = total - discount - couponFee
+
     const orderNo = makeOrderNo()
     const claimed = []
     const release = () => (claimed.length
       ? col('vouchers').where({ _id: _.in(claimed), orderNo }).update({ data: { status: 'unused', orderNo: '', usedAt: null } })
       : Promise.resolve())
-    for (const a of applied) {
-      const res = await col('vouchers')
-        .where({ _id: a.id, _openid: openid, status: 'unused' })
-        .update({ data: { status: 'used', orderNo, usedAt: db.serverDate() } })
+    const claims = applied.map((a) => ({ _id: a.id, _openid: openid, status: 'unused' }))
+    if (coupon) claims.push({ _id: coupon.id, _openid: openid, type: 'cash', status: 'unused' })
+    for (const where of claims) {
+      const res = await col('vouchers').where(where).update({ data: { status: 'used', orderNo, usedAt: db.serverDate() } })
       if (!res.stats.updated) {
         await release()
-        throw new BizError('赠饮券有变化，请重新确认订单', 'VOUCHER_CHANGED')
+        throw new BizError(where.type === 'cash' ? '代金券有变化，请重新确认订单' : '赠饮券有变化，请重新确认订单', 'VOUCHER_CHANGED')
       }
-      claimed.push(a.id)
+      claimed.push(where._id)
     }
 
-    const day = cnDay()
+    // 预约单算在约定的那天，取餐号也用那天的
+    const day = reserving ? cnDay(reserveAt) : cnDay()
     let added
     try {
       const seq = await nextSeq(db, 'coffee-pickup-' + day)
@@ -243,15 +397,22 @@ const handlers = {
         items: lines,
         totalFee: total,
         vouchers: applied,
-        discountFee: discount,
-        payFee: total - discount,
+        coupon,
+        couponFee,
+        discountFee: discount + couponFee, // 赠饮券和代金券一共抵了多少
+        payFee,
         remark: cleanText(remark, 50),
-        // 赠饮券全抵了就不用再付钱
-        payStatus: total - discount === 0 ? 'paid' : 'unpaid',
-        payMethod: total - discount === 0 ? 'voucher' : 'counter', // 微信付款后改成 wechat
+        // 券全抵了就不用再付钱
+        payStatus: payFee === 0 ? 'paid' : 'unpaid',
+        payMethod: payFee === 0 ? 'voucher' : 'counter', // 微信付款后改成 wechat
         status: 'pending',
         createdAt: db.serverDate(),
         updatedAt: db.serverDate()
+      }
+      if (reserving) {
+        order.reserveAt = new Date(reserveAt)
+        // 预约要先在线付款，付完店员才看得到
+        order.awaitingPay = payFee > 0
       }
       added = await col('coffee_orders').add({ data: order })
     } catch (e) {
@@ -262,11 +423,11 @@ const handlers = {
     return { id: added._id }
   },
 
-  // 我的赠饮券：今天能用的，和最近用过、过期的
+  // 我的券（赠饮券和代金券）：现在能用的，和最近用过、过期的
   async myVouchers(event, openid) {
     const today = cnDay()
     try {
-      const res = await col('vouchers').where({ _openid: openid }).orderBy('createdAt', 'desc').limit(50).get()
+      const res = await col('vouchers').where({ _openid: openid }).orderBy('createdAt', 'desc').limit(100).get()
       const list = res.data.map((v) => formatVoucher(v, today))
       return {
         usable: list.filter((v) => v.status === 'unused'),
@@ -279,26 +440,37 @@ const handlers = {
   },
 
   async getOrder({ id }, openid) {
-    const order = await findOne('coffee_orders', { _id: String(id || '') })
+    let order = await findOne('coffee_orders', { _id: String(id || '') })
     if (!order) throw new BizError('订单不存在')
     if (order._openid !== openid) await requireRole(db, openid, COFFEE_ROLES)
+    order = await freshOrder(order)
     const settings = await pay.getSettings(db)
-    return Object.assign(formatOrder(order), { pay: pay.publicPay(settings) })
+    const out = Object.assign(formatOrder(order), { pay: pay.publicPay(settings) })
+    if (order.awaitingPay && order.payStatus === 'unpaid' && order.status === 'pending') out.payDeadline = payDeadline(order)
+    return out
   },
 
   // 顾客用微信支付：返回 wx.requestPayment 要的参数
   async payOrder({ id }, openid) {
-    const order = await findOne('coffee_orders', { _id: String(id || ''), _openid: openid })
+    const order = await freshOrder(await findOne('coffee_orders', { _id: String(id || ''), _openid: openid }))
     if (!order) throw new BizError('订单不存在')
     if (order.status === 'cancelled') throw new BizError('订单已经取消了')
     if (order.payStatus !== 'unpaid') throw new BizError('这单已经付过了')
+    // 预约单要在 15 分钟内付款；微信那边最多再多给一分多钟，取消前一定已经付不了了
+    let timeExpire
+    if (order.awaitingPay) {
+      const deadline = payDeadline(order)
+      if (Date.now() >= deadline) throw new BizError('超过 ' + RESERVE_PAY_MINUTES + ' 分钟没付款，这单预约会自动取消，请重新下单', 'RESERVE_EXPIRED')
+      timeExpire = Math.max(deadline, Date.now() + 70 * 1000)
+    }
     const settings = await pay.getSettings(db)
     const payment = await pay.unifiedOrder(settings, {
       body: '进山咖啡-取餐号' + order.pickupNo,
       outTradeNo: order.orderNo,
       totalFee: order.payFee,
       openid,
-      notify: 'coffee'
+      notify: 'coffee',
+      timeExpire
     })
     await col('coffee_orders').doc(order._id).update({ data: { payOutTradeNo: order.orderNo, updatedAt: db.serverDate() } })
     return { payment }
@@ -325,7 +497,9 @@ const handlers = {
         .skip(p * size)
         .limit(size)
         .get()
-      return { orders: res.data.map(formatOrder), hasMore: res.data.length === size }
+      const orders = []
+      for (const o of res.data) orders.push(formatOrder(await freshOrder(o)))
+      return { orders, hasMore: res.data.length === size }
     } catch (e) {
       if (isMissingCollection(e)) return { orders: [], hasMore: false }
       throw e
@@ -345,21 +519,28 @@ const handlers = {
 
   // ---------- 咖啡后台：订单 ----------
 
+  // 还没付款的预约单店员看不到；预约单排在约定时间前 10 分钟的位置
   async listOrders({ status, day }, openid) {
     await requireRole(db, openid, COFFEE_ROLES)
     const d = typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : cnDay()
     const st = STATUSES.indexOf(status) === -1 ? 'pending' : status
     const active = st === 'pending' || st === 'making'
+    const visible = (where) => Object.assign({ day: d, awaitingPay: _.neq(true) }, where)
     const [list, counts, pending] = await Promise.all([
-      col('coffee_orders').where({ day: d, status: st }).orderBy('seq', active ? 'asc' : 'desc').limit(100).get(),
-      Promise.all(STATUSES.map((s) => col('coffee_orders').where({ day: d, status: s }).count())),
-      col('coffee_orders').where({ day: d, status: 'pending' }).field({ _id: true }).limit(100).get()
+      col('coffee_orders').where(visible({ status: st })).orderBy('seq', active ? 'asc' : 'desc').limit(100).get(),
+      Promise.all(STATUSES.map((s) => col('coffee_orders').where(visible({ status: s })).count())),
+      col('coffee_orders').where(visible({ status: 'pending' })).field({ _id: true }).limit(100).get()
     ])
     const countMap = {}
     STATUSES.forEach((s, i) => { countMap[s] = counts[i].total })
+    const queueAt = (o) => (o.reserveAt
+      ? new Date(o.reserveAt).getTime() - RESERVE_PREP_MINUTES * 60000
+      : new Date(o.createdAt).getTime())
+    const orders = list.data.slice()
+    if (active) orders.sort((a, b) => queueAt(a) - queueAt(b) || a.seq - b.seq)
     return {
       day: d,
-      orders: list.data.map(formatOrder),
+      orders: orders.map(formatOrder),
       counts: countMap,
       pendingIds: pending.data.map((o) => o._id)
     }
@@ -391,19 +572,20 @@ const handlers = {
     return true
   },
 
-  // 店主看账：每天的单数、收款、赠饮券抵扣，以及这段时间卖得最多的商品
+  // 店主看账：每天的单数、收款、赠饮券和代金券抵扣，以及这段时间卖得最多的商品
   async daySummary({ from, to }, openid) {
     await requireRole(db, openid, ['owner'])
     const days = dayRange(from, to)
     const orders = await fetchAll(col('coffee_orders').where({ day: _.in(days) }).orderBy('createdAt', 'asc'))
     const rows = {}
     days.forEach((d) => {
-      rows[d] = { day: d, orders: 0, cancelled: 0, totalFee: 0, discountFee: 0, paidFee: 0, unpaidFee: 0, wechatFee: 0, counterFee: 0, vouchersUsed: 0, cancelledPaidFee: 0 }
+      rows[d] = { day: d, orders: 0, cancelled: 0, totalFee: 0, discountFee: 0, couponFee: 0, paidFee: 0, unpaidFee: 0, wechatFee: 0, counterFee: 0, vouchersUsed: 0, couponsUsed: 0, cancelledPaidFee: 0 }
     })
     const products = {}
     orders.forEach((o) => {
       const r = rows[o.day]
-      if (!r) return
+      // 没付款的预约单（包括超时取消的）不算
+      if (!r || o.awaitingPay) return
       if (o.status === 'cancelled') {
         r.cancelled++
         if (o.payStatus === 'paid') r.cancelledPaidFee += o.payFee // 收了钱、还没在线退款的
@@ -412,7 +594,9 @@ const handlers = {
       r.orders++
       r.totalFee += o.totalFee
       r.discountFee += o.discountFee || 0
+      r.couponFee += o.couponFee || 0
       r.vouchersUsed += (o.vouchers || []).length
+      if (o.coupon) r.couponsUsed++
       if (o.payStatus === 'paid') {
         r.paidFee += o.payFee
         if (o.payMethod === 'wechat') r.wechatFee += o.payFee
@@ -433,6 +617,128 @@ const handlers = {
     }, {})
     const top = Object.keys(products).map((k) => products[k]).sort((a, b) => b.qty - a.qty || b.amount - a.amount)
     return { days: list, totals, products: top }
+  },
+
+  // ---------- 领券中心（顾客） ----------
+
+  async couponCenter(event, openid) {
+    const [coupons, mine] = await Promise.all([
+      safeList(col('coffee_coupons').where({ enabled: true }).orderBy('sort', 'asc').limit(100)),
+      safeList(col('vouchers').where({ _openid: openid, type: 'cash' }).limit(1000))
+    ])
+    const count = {}
+    mine.forEach((v) => { count[v.couponId] = (count[v.couponId] || 0) + 1 })
+    return { coupons: coupons.map((c) => publicCoupon(c, count[c._id] || 0)) }
+  },
+
+  // 领券：排队执行，不会超发，也不会超过每人限领
+  async claimCoupon({ id }, openid) {
+    const couponId = String(id || '')
+    return db.runTransaction(async () => {
+      const c = await findOne('coffee_coupons', { _id: couponId })
+      if (!c || !c.enabled) throw new BizError('这张券已经下架了', 'COUPON_GONE')
+      if (c.total && (c.claimed || 0) >= c.total) throw new BizError('这张券已经被领完了', 'COUPON_SOLD_OUT')
+      const perUser = c.perUser || 1
+      const mine = await col('vouchers').where({ _openid: openid, type: 'cash', couponId }).count()
+      if (mine.total >= perUser) {
+        throw new BizError(perUser > 1 ? '这张券每人最多领 ' + perUser + ' 张，你已经领满了' : '这张券你已经领过了', 'COUPON_LIMIT')
+      }
+      await col('coffee_coupons').doc(c._id).update({ data: { claimed: _.inc(1) } })
+      const today = cnDay()
+      const voucher = {
+        _openid: openid,
+        type: 'cash',
+        source: 'coupon',
+        couponId: c._id,
+        title: c.title,
+        amount: c.amount,
+        minSpend: c.minSpend || 0,
+        claimDay: today,
+        // 领取当天算第 1 天
+        expiresDay: cnDay(Date.now() + (c.validDays - 1) * DAY_MS),
+        status: 'unused',
+        orderNo: '',
+        orderId: '',
+        createdAt: db.serverDate()
+      }
+      const added = await col('vouchers').add({ data: voucher })
+      return formatVoucher(Object.assign({}, voucher, { _id: added._id, createdAt: new Date() }), today)
+    })
+  },
+
+  // ---------- 代金券设置（店主） ----------
+
+  async adminListCoupons(event, openid) {
+    await requireRole(db, openid, ['owner'])
+    const coupons = await safeList(col('coffee_coupons').orderBy('sort', 'asc').limit(100))
+    const used = await Promise.all(coupons.map((c) => col('vouchers').where({ couponId: c._id, status: 'used' }).count()))
+    return coupons.map((c, i) => Object.assign({}, c, { claimed: c.claimed || 0, used: used[i].total }))
+  },
+
+  async saveCoupon({ coupon }, openid) {
+    await requireRole(db, openid, ['owner'])
+    const c = coupon || {}
+    const amount = Number(c.amount)
+    if (!Number.isInteger(amount) || amount <= 0 || amount > MAX_COUPON_AMOUNT) throw new BizError('减免金额请填 0.01 到 ' + yuan(MAX_COUPON_AMOUNT) + ' 元')
+    const minSpend = c.minSpend === undefined || c.minSpend === '' || c.minSpend === null ? 0 : Number(c.minSpend)
+    if (!isFen(minSpend, MAX_PRICE)) throw new BizError('使用门槛不对，没有门槛填 0')
+    if (minSpend && minSpend < amount) throw new BizError('门槛不能低于减免金额，例如满 30 减 5')
+    const validDays = Number(c.validDays)
+    if (!Number.isInteger(validDays) || validDays < 1 || validDays > MAX_COUPON_DAYS) throw new BizError('有效天数请填 1 到 ' + MAX_COUPON_DAYS)
+    const total = c.total === undefined || c.total === '' || c.total === null ? 0 : Number(c.total)
+    if (!Number.isInteger(total) || total < 0 || total > MAX_COUPON_TOTAL) throw new BizError('发放总数不对，不限量填 0')
+    const perUser = c.perUser === undefined || c.perUser === '' || c.perUser === null ? 1 : Number(c.perUser)
+    if (!Number.isInteger(perUser) || perUser < 1 || perUser > MAX_COUPON_PER_USER) throw new BizError('每人限领请填 1 到 ' + MAX_COUPON_PER_USER + ' 张')
+    const data = {
+      title: cleanText(c.title, 16) || (minSpend ? '满' + yuan(minSpend) + '减' + yuan(amount) : yuan(amount) + '元无门槛券'),
+      amount,
+      minSpend,
+      validDays,
+      total,
+      perUser,
+      enabled: c.enabled !== false,
+      updatedAt: db.serverDate()
+    }
+    if (c.sort !== undefined) data.sort = toSort(c.sort)
+    if (c._id) {
+      const old = await findOne('coffee_coupons', { _id: String(c._id) })
+      if (!old) throw new BizError('这张券不存在了')
+      if (total && total < (old.claimed || 0)) throw new BizError('已经领走 ' + old.claimed + ' 张了，总数不能比这个少')
+      await col('coffee_coupons').doc(old._id).update({ data })
+      return { id: old._id }
+    }
+    const count = await col('coffee_coupons').count()
+    if (count.total >= 100) throw new BizError('代金券最多 100 种，先删掉一些不用的')
+    if (data.sort === undefined) data.sort = count.total
+    data.claimed = 0
+    data.createdAt = db.serverDate()
+    const added = await col('coffee_coupons').add({ data })
+    return { id: added._id }
+  },
+
+  // 停发（enabled=false）后顾客领不到了，已经领的照样能用
+  async setCouponFlags({ id, enabled }, openid) {
+    await requireRole(db, openid, ['owner'])
+    if (typeof enabled !== 'boolean') throw new BizError('参数不对')
+    const res = await col('coffee_coupons').where({ _id: String(id || '') }).update({ data: { enabled, updatedAt: db.serverDate() } })
+    if (!res.stats.updated) throw new BizError('这张券不存在了')
+    return true
+  },
+
+  async sortCoupons({ ids }, openid) {
+    await requireRole(db, openid, ['owner'])
+    if (!Array.isArray(ids) || ids.length > 100) throw new BizError('排序数据不对')
+    await Promise.all(ids.map((id, index) =>
+      col('coffee_coupons').where({ _id: String(id) }).update({ data: { sort: index, updatedAt: db.serverDate() } })
+    ))
+    return true
+  },
+
+  // 删掉券的设置，顾客已经领到手的照样能用
+  async deleteCoupon({ id }, openid) {
+    await requireRole(db, openid, ['owner'])
+    await col('coffee_coupons').where({ _id: String(id || '') }).remove()
+    return true
   },
 
   // ---------- 咖啡后台：商品和分类 ----------
@@ -647,3 +953,4 @@ const handlers = {
 
 exports.main = createMain(cloud, handlers)
 exports.onPayNotify = onPayNotify
+exports.expireReservations = expireReservations

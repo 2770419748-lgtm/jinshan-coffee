@@ -1,11 +1,15 @@
 const api = require('../../utils/api')
 const cart = require('../../utils/cart')
 const table = require('../../utils/table')
+const reserve = require('../../utils/reserve')
 
 Page({
   data: {
     loading: true,
     tableNo: '',
+    reserving: false,
+    scrollTo: '',
+    focusId: '',
     categories: [],
     currentCat: '',
     visible: [],
@@ -25,8 +29,31 @@ Page({
   },
 
   onShow() {
-    this.setData({ tableNo: table.get() })
+    this.setData({ tableNo: table.get(), reserving: reserve.active() })
     this.refreshCart()
+    this.applyFocus()
+  },
+
+  // 首页轮播点了某个商品：切到它的分类并滚过去
+  applyFocus() {
+    const app = getApp()
+    const id = app.globalData.focusProduct
+    if (!id || !this.products.length) return
+    app.globalData.focusProduct = ''
+    const product = this.findProduct(id)
+    if (!product) {
+      wx.showToast({ title: '这个商品暂时没有了', icon: 'none' })
+      return
+    }
+    this.setData({ currentCat: product.categoryId, scrollTo: '', focusId: id })
+    this.filter()
+    wx.nextTick(() => this.setData({ scrollTo: 'p-' + id }))
+    setTimeout(() => this.setData({ focusId: '' }), 1600)
+  },
+
+  stopReserve() {
+    reserve.off()
+    this.setData({ reserving: false })
   },
 
   onPullDownRefresh() {
@@ -43,6 +70,7 @@ Page({
       const synced = cart.syncWithMenu(cart.load(), products)
       if (synced.changed) cart.save(synced.list)
       this.refreshCart()
+      this.applyFocus()
     }).catch((err) => {
       this.setData({ loading: false })
       api.toastError(err)

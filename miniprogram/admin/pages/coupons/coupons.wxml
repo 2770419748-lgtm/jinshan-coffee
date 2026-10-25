@@ -1,0 +1,26 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view wx:if="{{ready}}">
+  <view class="page">
+    <view class="faint intro">顾客在首页「领券中心」自己领，下单时自动抵扣，一单用一张，可以和赠饮券一起用。关掉「发放」后顾客领不到了，已经领的照样能用。</view>
+
+    <view wx:for="{{coupons}}" wx:key="_id" class="card coupon {{item.enabled ? '' : 'off'}}" data-id="{{item._id}}" bindtap="edit">
+      <view class="amount"><text class="yen">¥</text>{{f.yuan(item.amount)}}</view>
+      <view class="flex-1 info">
+        <view class="title">{{item.title}}</view>
+        <view class="muted small">{{f.couponRule(item)}} · 领取后 {{item.validDays}} 天有效 · 每人 {{item.perUser}} 张</view>
+        <view class="faint small">已领 {{item.claimed}}{{item.total ? ' / ' + item.total : '（不限量）'}} · 已用 {{item.used}}</view>
+      </view>
+      <view class="side" catchtap="noop">
+        <switch class="switch" checked="{{item.enabled}}" color="#d6b25e" data-id="{{item._id}}" bindchange="toggle" />
+        <text class="faint small">{{item.enabled ? '发放中' : '已停发'}}</text>
+      </view>
+    </view>
+
+    <view class="empty" wx:if="{{loading}}">加载中…</view>
+    <view class="empty" wx:elif="{{!coupons.length}}">还没有代金券。新增一张，比如「满 30 减 5」。</view>
+    <view class="safe-bottom"></view>
+  </view>
+
+  <view class="fab btn-gold" bindtap="add">+ 新增代金券</view>
+</view>

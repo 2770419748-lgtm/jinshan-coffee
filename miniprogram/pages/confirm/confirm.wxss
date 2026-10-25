@@ -49,3 +49,40 @@
   margin: 0 0 0 16rpx;
   padding: 8rpx 20rpx;
 }
+.reserve-card {
+  border-color: var(--gold);
+}
+.slot-label {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+.reserve-note {
+  margin-top: 12rpx;
+}
+.sheet-tip {
+  margin: -12rpx 0 20rpx;
+}
+.coupon {
+  display: flex;
+  align-items: center;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  border-radius: 16rpx;
+  border: 1rpx solid var(--line);
+  background: var(--card-2);
+}
+.coupon.on {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+}
+.coupon.off { opacity: 0.5; }
+.coupon-amount {
+  width: 140rpx;
+  flex-shrink: 0;
+}
+.coupon-check {
+  font-size: 36rpx;
+}
+.no-coupon {
+  margin-top: 8rpx;
+}

@@ -121,4 +121,29 @@ function applyVouchers(lines, vouchers) {
   return { applied, discount }
 }
 
-module.exports = { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers }
+// 代金券：满 minSpend 减 amount（minSpend 为 0 是无门槛券），最多抵到 0。
+// left 是用完赠饮券以后还要付的钱，门槛按它算。用不上返回 0。
+function couponDiscount(coupon, left) {
+  if (!coupon || !(left > 0)) return 0
+  if (left < (coupon.minSpend || 0)) return 0
+  return Math.min(coupon.amount, left)
+}
+
+// 一单最多用一张代金券。couponId 不传时自动挑抵得最多的（一样多就挑先过期的）；传 '' 表示不用；
+// 传了某张但用不上，也当作不用。返回 { coupon, discount }
+function pickCoupon(coupons, left, couponId) {
+  if (couponId === '') return { coupon: null, discount: 0 }
+  const list = (coupons || []).filter((c) => couponId === undefined || couponId === null || c._id === couponId)
+  let best = null
+  let bestValue = 0
+  list.forEach((c) => {
+    const value = couponDiscount(c, left)
+    if (value > bestValue || (value && value === bestValue && c.expiresDay < best.expiresDay)) {
+      best = c
+      bestValue = value
+    }
+  })
+  return { coupon: best, discount: bestValue }
+}
+
+module.exports = { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponDiscount, pickCoupon }

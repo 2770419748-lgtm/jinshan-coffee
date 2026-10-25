@@ -13,11 +13,13 @@
           <text class="pickup">{{item.pickupNo}}</text>
           <text class="faint mode">{{f.mode(item.mode)}}{{item.tableNo ? ' · ' + item.tableNo + ' 号桌' : ''}}</text>
         </view>
-        <text class="tag {{item.status === 'done' ? 'ok' : item.status === 'cancelled' ? '' : 'gold'}}">{{f.status(item.status)}}</text>
+        <text class="tag danger" wx:if="{{item.awaitingPay && item.payStatus === 'unpaid' && item.status === 'pending'}}">待付款</text>
+        <text class="tag {{item.status === 'done' ? 'ok' : item.status === 'cancelled' ? '' : 'gold'}}" wx:else>{{f.status(item.status)}}</text>
       </view>
       <view class="muted brief">{{f.itemsBrief(item.items)}}</view>
       <view class="row-between">
-        <text class="faint">{{f.time(item.createdAt)}}</text>
+        <text class="gold" wx:if="{{item.reserveAt}}">预约 {{f.time(item.reserveAt)}}</text>
+        <text class="faint" wx:else>{{f.time(item.createdAt)}}</text>
         <text class="price">{{f.yuan(item.payFee)}}</text>
       </view>
     </view>

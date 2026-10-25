@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "进山咖啡"
+  "navigationBarTitleText": "进山咖啡",
+  "enablePullDownRefresh": true
 }

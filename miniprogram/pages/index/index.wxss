@@ -1,17 +1,132 @@
-.hero {
+/* 首页：上面整幅轮播，下面的入口卡片压在轮播底边上 */
+.banner-wrap {
+  position: relative;
+}
+.banner {
+  height: 420rpx;
+}
+.dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 72rpx;
+  display: flex;
+  justify-content: center;
+}
+.dot {
+  width: 12rpx;
+  height: 12rpx;
+  margin: 0 6rpx;
+  border-radius: 6rpx;
+  background: rgba(242, 236, 223, 0.3);
+}
+.dot.on {
+  width: 28rpx;
+  background: var(--gold);
+}
+.slide {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #171615;
+}
+.slide.plain {
+  background: radial-gradient(circle at 78% 30%, #3a2f19 0%, #171615 55%, #0b0b0b 100%);
+}
+.slide-img {
+  width: 100%;
+  height: 100%;
+}
+/* 没有图片时放 logo 当底纹 */
+.slide-logo {
+  position: absolute;
+  right: -40rpx;
+  top: 10rpx;
+  width: 400rpx;
+  height: 400rpx;
+  opacity: 0.35;
+}
+.slide-shade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 70%;
+  background: linear-gradient(180deg, rgba(11, 11, 11, 0) 0%, rgba(11, 11, 11, 0.85) 100%);
+}
+.slide-text {
+  position: absolute;
+  left: 40rpx;
+  right: 40rpx;
+  bottom: 96rpx;
+}
+.slide-tag {
+  display: inline-block;
+  padding: 2rpx 14rpx;
+  border: 1rpx solid var(--gold);
+  border-radius: 6rpx;
+  color: var(--gold);
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+}
+.slide-title {
+  margin-top: 12rpx;
+  font-size: 44rpx;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 2rpx;
+}
+.slide-sub {
+  margin-top: 4rpx;
+  color: var(--text-2);
+}
+
+.body {
+  position: relative;
+  z-index: 2;
+  margin-top: -56rpx;
+  padding: 0 24rpx 48rpx;
+}
+
+.entries {
+  display: flex;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 24rpx;
+  padding: 36rpx 8rpx 32rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 12rpx 40rpx rgba(0, 0, 0, 0.45);
+}
+.entry {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 24rpx 0 40rpx;
+  border-right: 1rpx solid var(--line);
 }
-.logo {
-  width: 420rpx;
-  height: 420rpx;
+.entry:last-child { border-right: none; }
+.entry.off { opacity: 0.45; }
+.entry-icon {
+  width: 72rpx;
+  height: 72rpx;
 }
-.hero-sub {
+.entry-title {
+  margin-top: 14rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--text);
+}
+.entry-sub {
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: var(--text-3);
+}
+
+.table-tip {
+  text-align: center;
   color: var(--text-2);
-  letter-spacing: 4rpx;
-  margin-top: 8rpx;
+  margin-bottom: 24rpx;
 }
 .active {
   display: flex;
@@ -23,29 +138,54 @@
   font-weight: 600;
   margin-top: 4rpx;
 }
-.table-tip {
-  text-align: center;
-  color: var(--text-2);
+
+.coupon-card {
+  display: flex;
+  align-items: center;
+  padding: 28rpx;
   margin-bottom: 24rpx;
-}
-.entry {
-  background: var(--card);
-  border: 1rpx solid var(--line);
   border-radius: 20rpx;
-  padding: 36rpx 32rpx;
-  margin-bottom: 24rpx;
+  border: 1rpx solid var(--gold);
+  background: linear-gradient(120deg, #2a2316 0%, #171615 70%);
 }
-.entry.primary {
-  background: linear-gradient(135deg, #2a2316, #171615);
-  border-color: var(--gold);
+.coupon-icon {
+  width: 64rpx;
+  height: 64rpx;
+  margin-right: 20rpx;
 }
-.entry.disabled { opacity: 0.45; }
-.entry-title {
-  font-size: 36rpx;
+.coupon-title {
+  font-size: 32rpx;
   font-weight: 600;
   color: var(--gold);
 }
-.entry-sub {
+.coupon-sub {
+  margin-top: 2rpx;
   color: var(--text-2);
-  margin-top: 8rpx;
+  font-size: 24rpx;
+}
+
+.links {
+  display: flex;
+}
+.link {
+  flex: 1;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 20rpx;
+  padding: 28rpx;
+  font-size: 24rpx;
+}
+.link:first-child { margin-right: 24rpx; }
+.link-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 4rpx;
+}
+
+.hours {
+  margin-top: 36rpx;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 24rpx;
+  letter-spacing: 2rpx;
 }

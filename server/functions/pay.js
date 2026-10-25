@@ -2,7 +2,8 @@
 // 商户号、API 证书、APIv3 密钥填在服务器的配置文件里（见 README），店主在后台「店铺设置」里只管开关。
 // 支付成功后微信会通知服务器 /pay/notify/<模块名>，通知里再向微信查一次单、核对金额，才标成已付。
 const cloud = require('../platform')
-const { BizError, isMissingCollection } = require('./base')
+const { BizError } = require('./base')
+const { readShop } = require('./shop')
 
 const DEFAULTS = { payEnabled: false, allowCounter: true }
 
@@ -11,14 +12,7 @@ function payReady() {
 }
 
 async function getSettings(db) {
-  let saved = {}
-  try {
-    const res = await db.collection('settings').where({ _id: 'shop' }).limit(1).get()
-    saved = res.data[0] || {}
-  } catch (e) {
-    if (!isMissingCollection(e)) throw e
-  }
-  const s = Object.assign({}, DEFAULTS, saved)
+  const s = Object.assign({}, DEFAULTS, await readShop(db))
   return { payEnabled: !!(s.payEnabled && payReady()), allowCounter: s.allowCounter !== false }
 }
 
@@ -28,7 +22,8 @@ function publicPay(settings) {
 }
 
 // 下单，返回给 wx.requestPayment 用的参数；openid 是付款的顾客
-async function unifiedOrder(settings, { body, outTradeNo, totalFee, openid, notify }) {
+// timeExpire：过了这个时间不能再付（毫秒时间戳，可不传）
+async function unifiedOrder(settings, { body, outTradeNo, totalFee, openid, notify, timeExpire }) {
   if (!settings.payEnabled) throw new BizError('店里还没开通微信支付，请到吧台付款', 'PAY_DISABLED')
   if (!Number.isInteger(totalFee) || totalFee <= 0) throw new BizError('金额不对')
   if (!openid) throw new BizError('请在微信里打开小程序付款')
@@ -38,7 +33,8 @@ async function unifiedOrder(settings, { body, outTradeNo, totalFee, openid, noti
       outTradeNo,
       total: totalFee,
       openid,
-      notifyPath: '/pay/notify/' + notify
+      notifyPath: '/pay/notify/' + notify,
+      timeExpire
     })
   } catch (e) {
     console.error('wxpay jsapi failed', outTradeNo, e)

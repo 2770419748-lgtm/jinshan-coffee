@@ -1,37 +1,102 @@
-<view class="page">
-  <view class="hero">
-    <image class="logo" src="/images/logo.jpg" mode="aspectFill" />
-    <view class="hero-sub">扫桌码点单，店内书架慢慢看</view>
-  </view>
+<wxs src="../../utils/filters.wxs" module="f" />
 
-  <view class="active card" wx:if="{{activeOrder}}" bindtap="openOrder" hover-class="btn-hover">
-    <view class="flex-1">
-      <view class="muted">你的订单{{activeOrder.status === 'making' ? '正在制作' : '已下单'}}</view>
-      <view class="active-no">取餐号 <text class="gold">{{activeOrder.pickupNo}}</text></view>
+<view class="home">
+  <!-- 顶部轮播：新品、新书、领券，后台「首页轮播」里配 -->
+  <view class="banner-wrap" wx:if="{{banners.length}}">
+    <swiper
+      class="banner"
+      autoplay="{{banners.length > 1}}"
+      circular
+      interval="4500"
+      duration="500"
+      current="{{current}}"
+      bindchange="onSlide"
+    >
+      <swiper-item wx:for="{{banners}}" wx:key="_id" data-index="{{index}}" bindtap="openBanner">
+        <view class="slide {{item.image ? '' : 'plain'}}">
+          <image wx:if="{{item.image}}" class="slide-img" src="{{item.image}}" mode="aspectFill" />
+          <image wx:else class="slide-logo" src="/images/logo.jpg" mode="aspectFill" />
+          <view class="slide-shade"></view>
+          <view class="slide-text">
+            <text class="slide-tag">{{f.bannerTag(item.kind)}}</text>
+            <view class="slide-title">{{item.title}}</view>
+            <view class="slide-sub" wx:if="{{item.subtitle}}">{{item.subtitle}}</view>
+          </view>
+        </view>
+      </swiper-item>
+    </swiper>
+    <!-- 自己画指示点：自带的点在最底下，会被入口卡片挡住 -->
+    <view class="dots" wx:if="{{banners.length > 1}}">
+      <view wx:for="{{banners}}" wx:key="_id" class="dot {{index === current ? 'on' : ''}}"></view>
     </view>
-    <text class="cell-arrow"></text>
   </view>
-
-  <view class="active card" wx:if="{{activeRental}}" bindtap="openRental" hover-class="btn-hover">
-    <view class="flex-1">
-      <view class="muted">{{activeRental.status === 'reading' ? '正在看' : '借书号 ' + activeRental.code + '，到吧台付款取书'}}</view>
-      <view class="active-no">《{{activeRental.bookTitle}}》</view>
+  <view class="banner slide plain" wx:else>
+    <image class="slide-logo" src="/images/logo.jpg" mode="aspectFill" />
+    <view class="slide-text">
+      <view class="slide-title">进山咖啡</view>
+      <view class="slide-sub">扫桌码点单，店内书架慢慢看</view>
     </view>
-    <text class="cell-arrow"></text>
   </view>
 
-  <view class="table-tip" wx:if="{{tableNo}}">当前桌号 <text class="gold">{{tableNo}}</text>，点单会自动带上</view>
+  <view class="body">
+    <!-- 三个入口 -->
+    <view class="entries">
+      <view class="entry" bindtap="pickup" hover-class="btn-hover">
+        <image class="entry-icon" src="/images/home/pickup.png" />
+        <view class="entry-title">吧台自取</view>
+        <view class="entry-sub">点好到吧台取</view>
+      </view>
+      <view class="entry" bindtap="scan" hover-class="btn-hover">
+        <image class="entry-icon" src="/images/home/scan.png" />
+        <view class="entry-title">桌面扫码</view>
+        <view class="entry-sub">扫桌码送到桌</view>
+      </view>
+      <view class="entry {{reserveEnabled ? '' : 'off'}}" bindtap="reserve" hover-class="btn-hover">
+        <image class="entry-icon" src="/images/home/reserve.png" />
+        <view class="entry-title">预约</view>
+        <view class="entry-sub">{{reserveEnabled ? '提前点，到点取' : '暂未开放'}}</view>
+      </view>
+    </view>
 
-  <view class="entry primary" bindtap="scan" hover-class="btn-hover">
-    <view class="entry-title">扫桌码点单</view>
-    <view class="entry-sub">扫桌上的二维码，下单自动带桌号</view>
-  </view>
-  <view class="entry" bindtap="goMenu" hover-class="btn-hover">
-    <view class="entry-title">直接点单</view>
-    <view class="entry-sub">堂食或外带，凭取餐号到吧台取</view>
-  </view>
-  <view class="entry" bindtap="goBooks" hover-class="btn-hover">
-    <view class="entry-title">店内书架</view>
-    <view class="entry-sub">按小时或包天借阅，包天送咖啡</view>
+    <view class="table-tip" wx:if="{{tableNo}}">当前 <text class="gold">{{tableNo}}</text> 号桌，点单会自动带上</view>
+
+    <view class="active card" wx:if="{{activeOrder}}" bindtap="openOrder" hover-class="btn-hover">
+      <view class="flex-1">
+        <view class="muted">{{activeText}}</view>
+        <view class="active-no">取餐号 <text class="gold">{{activeOrder.pickupNo}}</text></view>
+      </view>
+      <text class="cell-arrow"></text>
+    </view>
+
+    <view class="active card" wx:if="{{activeRental}}" bindtap="openRental" hover-class="btn-hover">
+      <view class="flex-1">
+        <view class="muted">{{activeRental.status === 'reading' ? '正在看' : '借书号 ' + activeRental.code + '，到吧台付款取书'}}</view>
+        <view class="active-no">《{{activeRental.bookTitle}}》</view>
+      </view>
+      <text class="cell-arrow"></text>
+    </view>
+
+    <!-- 领券中心 -->
+    <view class="coupon-card" bindtap="goCoupons" hover-class="btn-hover">
+      <image class="coupon-icon" src="/images/home/coupon.png" />
+      <view class="flex-1">
+        <view class="coupon-title">领券中心</view>
+        <view class="coupon-sub">{{claimable ? '有 ' + claimable + ' 种代金券可以领' : '领到的券下单时自动抵扣'}}</view>
+      </view>
+      <view class="btn-gold btn-small">{{claimable ? '去领券' : '看看'}}</view>
+    </view>
+
+    <view class="links">
+      <view class="link" bindtap="goBooks" hover-class="btn-hover">
+        <view class="link-title">店内书架</view>
+        <view class="faint">按小时或包天借阅</view>
+      </view>
+      <view class="link" bindtap="goVouchers" hover-class="btn-hover">
+        <view class="link-title">我的券</view>
+        <view class="faint">赠饮券和代金券</view>
+      </view>
+    </view>
+
+    <view class="hours" wx:if="{{hours}}">营业时间 {{hours.open}} – {{hours.close}}</view>
   </view>
 </view>

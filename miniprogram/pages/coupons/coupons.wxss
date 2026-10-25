@@ -1,0 +1,73 @@
+.head {
+  padding: 16rpx 8rpx 32rpx;
+}
+.head-title {
+  font-size: 44rpx;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 4rpx;
+}
+/* 一张券：左边金额，中间说明，右边按钮；中间一条虚线像撕开的票根 */
+.ticket {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 24rpx;
+  border-radius: 20rpx;
+  border: 1rpx solid var(--gold);
+  background: linear-gradient(120deg, #2a2316 0%, #171615 75%);
+  overflow: hidden;
+}
+.ticket.off {
+  border-color: var(--line);
+  background: var(--card);
+}
+.ticket-left {
+  width: 200rpx;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28rpx 0;
+  border-right: 2rpx dashed rgba(214, 178, 94, 0.4);
+}
+.ticket-amount {
+  font-size: 56rpx;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1.1;
+}
+.yen {
+  font-size: 28rpx;
+  margin-right: 4rpx;
+}
+.ticket-rule {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: var(--text-2);
+}
+.ticket.off .ticket-amount { color: var(--text-2); }
+.ticket-body {
+  flex: 1;
+  min-width: 0;
+  padding: 24rpx;
+}
+.ticket-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 6rpx;
+}
+.ticket-action {
+  display: flex;
+  align-items: center;
+  padding-right: 24rpx;
+}
+.small {
+  font-size: 22rpx;
+}
+.actions {
+  margin-top: 40rpx;
+}
+.actions .btn-block {
+  margin-bottom: 20rpx;
+}

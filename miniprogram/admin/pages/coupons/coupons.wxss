@@ -1,0 +1,48 @@
+.intro {
+  font-size: 24rpx;
+  margin: 0 4rpx 20rpx;
+  line-height: 1.6;
+}
+.coupon {
+  display: flex;
+  align-items: center;
+}
+.coupon.off .amount,
+.coupon.off .info {
+  opacity: 0.4;
+}
+.amount {
+  width: 150rpx;
+  flex-shrink: 0;
+  font-size: 48rpx;
+  font-weight: 700;
+  color: var(--gold);
+}
+.yen {
+  font-size: 26rpx;
+  margin-right: 2rpx;
+}
+.info {
+  margin-right: 12rpx;
+}
+.title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.small {
+  font-size: 22rpx;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.switch {
+  transform: scale(0.75);
+}
+.fab {
+  position: fixed;
+  right: 32rpx;
+  bottom: calc(40rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.5);
+}

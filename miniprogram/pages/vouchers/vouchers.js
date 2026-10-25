@@ -26,5 +26,9 @@ Page({
 
   goMenu() {
     wx.switchTab({ url: '/pages/menu/menu' })
+  },
+
+  goCoupons() {
+    wx.navigateTo({ url: '/pages/coupons/coupons' })
   }
 })

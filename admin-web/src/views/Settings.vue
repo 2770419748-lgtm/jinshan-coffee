@@ -1,5 +1,18 @@
 <template>
   <div class="narrow" v-loading="loading">
+    <el-card shadow="never" class="block" v-if="form">
+      <template #header>营业时间</template>
+      <el-form label-width="130px">
+        <el-form-item label="开门">
+          <el-time-select v-model="form.hours.open" start="00:00" step="00:15" end="23:45" :clearable="false" style="width: 140px" />
+        </el-form-item>
+        <el-form-item label="打烊">
+          <el-time-select v-model="form.hours.close" start="00:15" step="00:15" end="23:45" :clearable="false" style="width: 140px" />
+          <span class="muted hint">显示在顾客首页；预约只能约这段时间里的，每 15 分钟一档，最早 30 分钟后</span>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
     <el-card shadow="never" class="block">
       <template #header>收款方式</template>
       <el-form label-width="130px" v-if="form">
@@ -9,7 +22,7 @@
         </el-form-item>
         <el-form-item label="微信支付">
           <el-switch v-model="form.payEnabled" :disabled="!form.payReady && !form.payEnabled" @change="onPay" />
-          <span class="muted hint">{{ form.payEnabled ? '顾客可以在小程序里直接付' : '没打开，顾客到吧台付' }}</span>
+          <span class="muted hint">{{ form.payEnabled ? '顾客可以在小程序里直接付，也能预约' : '没打开，顾客到吧台付，不能预约' }}</span>
         </el-form-item>
         <el-form-item label="也能到吧台付" v-if="form.payEnabled">
           <el-switch v-model="form.allowCounter" />
@@ -60,9 +73,10 @@ function onPay(on) {
 
 async function save() {
   const f = form.value
+  if (f.hours.close <= f.hours.open) return ElMessage.warning('打烊时间要晚于开门时间')
   saving.value = true
   try {
-    form.value = await api.common('saveShopSettings', { payEnabled: f.payEnabled, allowCounter: f.allowCounter })
+    form.value = await api.common('saveShopSettings', { payEnabled: f.payEnabled, allowCounter: f.allowCounter, hours: f.hours })
     ElMessage.success('已保存')
   } catch (e) {
     ElMessage.error(e.message)

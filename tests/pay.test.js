@@ -47,11 +47,11 @@ test('店铺设置：只有店主能改；服务器上没配好微信支付时�
   state.payReady = false
   const res = await fails(owner.common('saveShopSettings', { payEnabled: true }))
   assert.match(res.msg, /服务器上还没配置微信支付/)
-  assert.deepEqual(await ok(owner.common('getShopSettings')), { payEnabled: false, payReady: false, mchId: '', allowCounter: true })
+  assert.deepEqual(await ok(owner.common('getShopSettings')), { payEnabled: false, payReady: false, mchId: '', allowCounter: true, hours: { open: '08:00', close: '22:00' } })
   state.payReady = true
   await fails(owner.common('saveShopSettings', { payEnabled: false, allowCounter: false }))
   await ok(owner.common('saveShopSettings', { payEnabled: true, allowCounter: true }))
-  assert.deepEqual(await ok(owner.common('getShopSettings')), { payEnabled: true, payReady: true, mchId: '1900000109', allowCounter: true })
+  assert.deepEqual(await ok(owner.common('getShopSettings')), { payEnabled: true, payReady: true, mchId: '1900000109', allowCounter: true, hours: { open: '08:00', close: '22:00' } })
 })
 
 test('咖啡：微信支付，回调要查单确认，伪造的回调不算数', async () => {

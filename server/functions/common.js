@@ -1,4 +1,5 @@
-// 公共模块：登录、店主绑定、员工邀请和权限管理、店铺设置、电脑网页后台登录
+// 公共模块：登录、店主绑定、员工邀请和权限管理、店铺设置、电脑网页后台登录、顾客首页（轮播、营业时间、可领的券）。
+// 首页轮播存在 banners 集合；首页要展示商品、书和代金券，所以这里会只读 coffee_products、book_books、coffee_coupons。
 const crypto = require('crypto')
 const { promisify } = require('util')
 const cloud = require('../platform')
@@ -15,6 +16,7 @@ const {
   publicStaff,
   createMain
 } = require('./base')
+const { readShop, hoursOf, checkHours } = require('./shop')
 
 const db = cloud.database()
 const _ = db.command
@@ -31,6 +33,11 @@ const LOGIN_CONFIRM_TTL = 60 * 1000
 const LOGIN_PAGE = 'admin/pages/web-login/web-login'
 const TICKET_RE = /^[A-Za-z0-9]{20}$/
 const BASE62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+// 首页轮播：跳到商品、跳到书、跳到领券中心，或者只放一张图
+const BANNER_KINDS = ['product', 'book', 'coupons', 'none']
+const MAX_BANNERS = 10
+// 后台没配轮播时，自动放最近上架的几样商品和书
+const AUTO_BANNERS = 3
 
 async function hashPassword(password, salt) {
   const key = await scrypt(String(password), salt, 32)
@@ -91,7 +98,91 @@ function ticketStatus(ticket) {
 // payReady：服务器配置文件里有没有填好微信支付；没填好时开关打开也不生效
 function shopSettings(s) {
   const ready = cloud.pay.ready()
-  return { payEnabled: !!s.payEnabled && ready, payReady: ready, mchId: cloud.pay.mchId || '', allowCounter: s.allowCounter !== false }
+  return {
+    payEnabled: !!s.payEnabled && ready,
+    payReady: ready,
+    mchId: cloud.pay.mchId || '',
+    allowCounter: s.allowCounter !== false,
+    hours: hoursOf(s)
+  }
+}
+
+async function safeGet(query) {
+  try {
+    return (await query.get()).data
+  } catch (e) {
+    if (isMissingCollection(e)) return []
+    throw e
+  }
+}
+
+function toSort(value) {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.round(n) : 0
+}
+
+async function deleteUploads(list) {
+  const files = list.filter((id) => typeof id === 'string' && id.indexOf('/uploads/') === 0)
+  if (!files.length) return
+  try {
+    await cloud.deleteFile({ fileList: files })
+  } catch (e) {
+    console.warn('deleteFile failed', e)
+  }
+}
+
+// 轮播指向的商品或书：查出来按 _id 放好
+async function bannerTargets(banners) {
+  const ids = (kind) => banners.filter((b) => b.kind === kind && b.targetId).map((b) => b.targetId)
+  const productIds = ids('product')
+  const bookIds = ids('book')
+  const [products, books] = await Promise.all([
+    productIds.length ? safeGet(db.collection('coffee_products').where({ _id: _.in(productIds) }).limit(100)) : [],
+    bookIds.length ? safeGet(db.collection('book_books').where({ _id: _.in(bookIds) }).limit(100)) : []
+  ])
+  const byId = {}
+  products.forEach((p) => { byId['product:' + p._id] = p })
+  books.forEach((b) => { byId['book:' + b._id] = b })
+  return byId
+}
+
+// 顾客看到的一张轮播：商品下架、书下架或者删掉了就不显示（返回 null）
+function publicBanner(b, target) {
+  const out = { _id: b._id, kind: b.kind, targetId: b.targetId || '', title: b.title || '', subtitle: b.subtitle || '', image: b.image || '' }
+  if (b.kind === 'product') {
+    if (!target || !target.onShelf) return null
+    return Object.assign(out, { title: out.title || target.name, subtitle: out.subtitle || '新品上市', image: out.image || target.image || '' })
+  }
+  if (b.kind === 'book') {
+    if (!target || !target.onShelf) return null
+    return Object.assign(out, { title: out.title || '《' + target.title + '》', subtitle: out.subtitle || '新书上架', image: out.image || target.cover || '' })
+  }
+  if (b.kind === 'coupons') return Object.assign(out, { title: out.title || '领券中心', subtitle: out.subtitle || '代金券限时领取' })
+  return out.image ? out : null
+}
+
+async function autoBanners() {
+  const [products, books] = await Promise.all([
+    safeGet(db.collection('coffee_products').where({ onShelf: true }).orderBy('createdAt', 'desc').limit(AUTO_BANNERS)),
+    safeGet(db.collection('book_books').where({ onShelf: true }).orderBy('createdAt', 'desc').limit(AUTO_BANNERS))
+  ])
+  const out = []
+  for (let i = 0; i < AUTO_BANNERS; i++) {
+    if (products[i]) out.push(publicBanner({ _id: 'auto-p' + i, kind: 'product', targetId: products[i]._id }, products[i]))
+    if (books[i]) out.push(publicBanner({ _id: 'auto-b' + i, kind: 'book', targetId: books[i]._id }, books[i]))
+  }
+  return out
+}
+
+// 顾客还能领几种券：在领取中、没领完、自己还没领到上限的
+async function claimableCoupons(openid) {
+  const [coupons, mine] = await Promise.all([
+    safeGet(db.collection('coffee_coupons').where({ enabled: true }).limit(100)),
+    openid ? safeGet(db.collection('vouchers').where({ _openid: openid, type: 'cash' }).limit(500)) : []
+  ])
+  const claimed = {}
+  mine.forEach((v) => { claimed[v.couponId] = (claimed[v.couponId] || 0) + 1 })
+  return coupons.filter((c) => (!c.total || (c.claimed || 0) < c.total) && (claimed[c._id] || 0) < (c.perUser || 1)).length
 }
 
 async function requireAnyStaff(openid) {
@@ -184,15 +275,138 @@ const handlers = {
     return shopSettings(res.data[0] || {})
   },
 
-  async saveShopSettings({ payEnabled, allowCounter }, openid) {
+  async saveShopSettings({ payEnabled, allowCounter, hours }, openid) {
     await requireRole(db, openid, ['owner'])
     if (payEnabled && !cloud.pay.ready()) {
       throw new BizError('服务器上还没配置微信支付（商户号、API 证书和 APIv3 密钥），按说明配好后再打开')
     }
     if (!payEnabled && allowCounter === false) throw new BizError('没开微信支付时，顾客只能到吧台付款')
-    const data = { payEnabled: !!payEnabled, allowCounter: allowCounter !== false, updatedBy: openid, updatedAt: db.serverDate() }
+    const saved = await readShop(db)
+    const data = {
+      payEnabled: !!payEnabled,
+      allowCounter: allowCounter !== false,
+      hours: hours ? checkHours(hours) : hoursOf(saved),
+      updatedBy: openid,
+      updatedAt: db.serverDate()
+    }
     await db.collection('settings').doc('shop').set({ data })
     return shopSettings(data)
+  },
+
+  // ---------- 顾客首页 ----------
+
+  async getHome(event, openid) {
+    const saved = await readShop(db)
+    const configured = await safeGet(db.collection('banners').where({ enabled: true }).orderBy('sort', 'asc').limit(MAX_BANNERS))
+    let banners
+    if (configured.length) {
+      const targets = await bannerTargets(configured)
+      banners = configured.map((b) => publicBanner(b, targets[b.kind + ':' + b.targetId])).filter(Boolean)
+    } else {
+      banners = await autoBanners()
+    }
+    return {
+      banners,
+      hours: hoursOf(saved),
+      // 预约必须先在线付款，开通微信支付后才能用
+      reserveEnabled: !!saved.payEnabled && cloud.pay.ready(),
+      claimableCoupons: await claimableCoupons(openid)
+    }
+  },
+
+  // ---------- 首页轮播（店主） ----------
+
+  async listBanners(event, openid) {
+    await requireRole(db, openid, ['owner'])
+    const banners = await safeGet(db.collection('banners').orderBy('sort', 'asc').limit(MAX_BANNERS * 2))
+    const targets = await bannerTargets(banners)
+    return banners.map((b) => {
+      const target = targets[b.kind + ':' + b.targetId]
+      const shown = publicBanner(b, target)
+      return Object.assign({}, b, {
+        targetName: target ? (target.name || target.title) : '',
+        preview: shown,
+        // 指向的商品或书已经下架、删掉了，顾客那边不会显示
+        broken: (b.kind === 'product' || b.kind === 'book') && !shown
+      })
+    })
+  },
+
+  // 选轮播指向哪个商品、哪本书
+  async bannerOptions(event, openid) {
+    await requireRole(db, openid, ['owner'])
+    const [products, books] = await Promise.all([
+      safeGet(db.collection('coffee_products').where({ onShelf: true }).orderBy('createdAt', 'desc').limit(500)),
+      safeGet(db.collection('book_books').where({ onShelf: true }).orderBy('createdAt', 'desc').limit(1000))
+    ])
+    return {
+      products: products.map((p) => ({ _id: p._id, name: p.name, image: p.image || '' })),
+      books: books.map((b) => ({ _id: b._id, name: b.title, image: b.cover || '' }))
+    }
+  },
+
+  async saveBanner({ banner }, openid) {
+    await requireRole(db, openid, ['owner'])
+    const b = banner || {}
+    if (BANNER_KINDS.indexOf(b.kind) === -1) throw new BizError('请选择轮播点开后去哪里')
+    const targetId = b.kind === 'product' || b.kind === 'book' ? String(b.targetId || '') : ''
+    if (b.kind === 'product' && !(await safeGet(db.collection('coffee_products').where({ _id: targetId }).limit(1))).length) {
+      throw new BizError('请选择一个商品')
+    }
+    if (b.kind === 'book' && !(await safeGet(db.collection('book_books').where({ _id: targetId }).limit(1))).length) {
+      throw new BizError('请选择一本书')
+    }
+    const image = typeof b.image === 'string' && b.image.indexOf('/uploads/') === 0 ? b.image.slice(0, 500) : ''
+    if (b.kind === 'none' && !image) throw new BizError('只放图片的轮播要上传一张图')
+    const data = {
+      kind: b.kind,
+      targetId,
+      title: cleanText(b.title, 16),
+      subtitle: cleanText(b.subtitle, 24),
+      image,
+      enabled: b.enabled !== false,
+      updatedAt: db.serverDate()
+    }
+    if (b._id) {
+      const old = (await safeGet(db.collection('banners').where({ _id: String(b._id) }).limit(1)))[0]
+      if (!old) throw new BizError('这张轮播不存在了')
+      await db.collection('banners').doc(old._id).update({ data })
+      if (old.image && old.image !== image) await deleteUploads([old.image])
+      return { id: old._id }
+    }
+    const count = (await db.collection('banners').count()).total
+    if (count >= MAX_BANNERS * 2) throw new BizError('轮播最多 ' + MAX_BANNERS * 2 + ' 张，先删掉一些旧的')
+    data.sort = b.sort === undefined ? count : toSort(b.sort)
+    data.createdAt = db.serverDate()
+    const added = await db.collection('banners').add({ data })
+    return { id: added._id }
+  },
+
+  async setBannerFlags({ id, enabled }, openid) {
+    await requireRole(db, openid, ['owner'])
+    if (typeof enabled !== 'boolean') throw new BizError('参数不对')
+    const res = await db.collection('banners').where({ _id: String(id || '') }).update({ data: { enabled, updatedAt: db.serverDate() } })
+    if (!res.stats.updated) throw new BizError('这张轮播不存在了')
+    return true
+  },
+
+  // ids 按新的顺序排好传进来
+  async sortBanners({ ids }, openid) {
+    await requireRole(db, openid, ['owner'])
+    if (!Array.isArray(ids) || ids.length > MAX_BANNERS * 2) throw new BizError('排序数据不对')
+    await Promise.all(ids.map((id, index) =>
+      db.collection('banners').where({ _id: String(id) }).update({ data: { sort: index, updatedAt: db.serverDate() } })
+    ))
+    return true
+  },
+
+  async deleteBanner({ id }, openid) {
+    await requireRole(db, openid, ['owner'])
+    const old = (await safeGet(db.collection('banners').where({ _id: String(id || '') }).limit(1)))[0]
+    if (!old) return true
+    await db.collection('banners').doc(old._id).remove()
+    await deleteUploads([old.image])
+    return true
   },
 
   // ---------- 电脑网页后台账号 ----------

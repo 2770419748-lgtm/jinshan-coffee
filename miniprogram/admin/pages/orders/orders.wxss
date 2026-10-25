@@ -62,3 +62,8 @@
   font-size: 24rpx;
   margin-top: 16rpx;
 }
+
+.tag.reserve {
+  font-weight: 600;
+  border: 1rpx solid var(--gold);
+}

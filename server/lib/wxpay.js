@@ -56,8 +56,9 @@ function createWxpay(options) {
   }
 
   // 小程序下单，返回 wx.requestPayment 要的参数
-  async function jsapi({ description, outTradeNo, total, openid, notifyPath }) {
-    const data = await request('POST', '/v3/pay/transactions/jsapi', {
+  // timeExpire（毫秒时间戳，可不传）：过了这个时间微信就不让付了，预约单用它
+  async function jsapi({ description, outTradeNo, total, openid, notifyPath, timeExpire }) {
+    const body = {
       appid: o.appId,
       mchid: o.mchId,
       description,
@@ -65,7 +66,9 @@ function createWxpay(options) {
       notify_url: o.notifyBase.replace(/\/+$/, '') + notifyPath,
       amount: { total, currency: 'CNY' },
       payer: { openid }
-    })
+    }
+    if (timeExpire) body.time_expire = new Date(timeExpire + 8 * 3600 * 1000).toISOString().slice(0, 19) + '+08:00'
+    const data = await request('POST', '/v3/pay/transactions/jsapi', body)
     const timeStamp = Math.floor(Date.now() / 1000).toString()
     const nonceStr = nonce()
     const pkg = 'prepay_id=' + data.prepay_id

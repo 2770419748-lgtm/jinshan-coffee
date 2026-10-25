@@ -23,3 +23,18 @@
   font-size: 24rpx;
   margin-bottom: 24rpx;
 }
+
+.v-amount {
+  width: 150rpx;
+  flex-shrink: 0;
+  font-size: 48rpx;
+  font-weight: 700;
+  color: var(--gold);
+}
+.yen {
+  font-size: 26rpx;
+  margin-right: 2rpx;
+}
+.center-btn {
+  margin-bottom: 32rpx;
+}

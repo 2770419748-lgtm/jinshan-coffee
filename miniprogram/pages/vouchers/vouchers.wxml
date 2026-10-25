@@ -2,24 +2,37 @@
 
 <view class="page">
   <view wx:for="{{usable}}" wx:key="_id" class="card voucher">
-    <view class="flex-1">
+    <block wx:if="{{item.type === 'cash'}}">
+      <view class="v-amount"><text class="yen">¥</text>{{f.yuan(item.amount)}}</view>
+      <view class="flex-1">
+        <view class="v-title">{{item.title}}</view>
+        <view class="muted">代金券 · {{f.couponRule(item)}}</view>
+        <view class="faint small">{{f.shortDay(item.expiresDay)}} 到期</view>
+      </view>
+    </block>
+    <view class="flex-1" wx:else>
       <view class="v-title">{{item.title}}</view>
       <view class="muted">{{item.productNames.length ? '可换：' : '任选一杯饮品'}}<text wx:for="{{item.productNames}}" wx:for-item="n" wx:for-index="ni" wx:key="*this">{{ni ? '、' : ''}}{{n}}</text></view>
       <view class="faint small">今天有效<text wx:if="{{item.maxFee}}">，每杯最多抵 ¥{{f.yuan(item.maxFee)}}</text></view>
     </view>
     <view class="btn-gold btn-small" bindtap="goMenu">去点单</view>
   </view>
-  <view class="faint tip" wx:if="{{usable.length}}">点单结算时会自动用上，不用出示。</view>
+  <view class="faint tip" wx:if="{{usable.length}}">点单结算时会自动用上，不用出示。代金券一单用一张，可以和赠饮券一起用。</view>
 
   <view class="empty" wx:if="{{loading}}">加载中…</view>
-  <view class="empty" wx:elif="{{!usable.length}}">没有能用的赠饮券。借书选「包天送咖啡」付款后会发到这里。</view>
+  <view class="empty" wx:elif="{{!usable.length}}">
+    <view>没有能用的券。</view>
+    <view>领券中心可以领代金券，借书选「包天送咖啡」会送赠饮券。</view>
+  </view>
+
+  <view class="btn-ghost btn-block center-btn" bindtap="goCoupons">去领券中心</view>
 
   <block wx:if="{{others.length}}">
     <view class="section-title">用过和过期的</view>
     <view wx:for="{{others}}" wx:key="_id" class="card voucher off">
       <view class="flex-1">
         <view>{{item.title}}</view>
-        <view class="faint small">{{item.day}}</view>
+        <view class="faint small">{{item.type === 'cash' ? f.shortDay(item.expiresDay) + ' 到期' : item.day}}</view>
       </view>
       <text class="tag">{{item.status === 'used' ? '已使用' : item.status === 'expired' ? '已过期' : '已作废'}}</text>
     </view>

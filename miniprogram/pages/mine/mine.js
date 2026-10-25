@@ -29,6 +29,10 @@ Page({
     wx.navigateTo({ url: '/pages/vouchers/vouchers' })
   },
 
+  goCoupons() {
+    wx.navigateTo({ url: '/pages/coupons/coupons' })
+  },
+
   goAdmin() {
     wx.navigateTo({ url: '/admin/pages/home/home' })
   },

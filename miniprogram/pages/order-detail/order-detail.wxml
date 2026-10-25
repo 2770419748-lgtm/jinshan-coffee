@@ -4,7 +4,9 @@
   <view class="card pickup-card">
     <view class="muted">取餐号</view>
     <view class="pickup-no">{{order.pickupNo}}</view>
-    <view class="status {{order.status}}">{{f.status(order.status)}}</view>
+    <view class="reserve-at" wx:if="{{order.reserveAt}}">预约 {{f.time(order.reserveAt)}} 取</view>
+    <view class="status {{order.status}}">{{order.payDeadline ? '待付款' : f.status(order.status)}}</view>
+    <view class="faint cancel-reason" wx:if="{{order.status === 'cancelled' && order.cancelReason}}">{{order.cancelReason}}，已自动取消</view>
 
     <view class="steps" wx:if="{{order.status !== 'cancelled'}}">
       <view class="step {{step >= 1 ? 'on' : ''}}">已下单</view>
@@ -15,12 +17,13 @@
     </view>
 
     <block wx:if="{{order.payStatus === 'unpaid' && order.status !== 'cancelled'}}">
-      <view class="pay-tip" wx:if="{{order.pay.enabled && !order.pay.allowCounter}}">还没付款 <text class="price">{{f.yuan(order.payFee)}}</text>，付款后开始制作</view>
+      <view class="pay-tip" wx:if="{{order.payDeadline}}">预约要先付款 <text class="price">{{f.yuan(order.payFee)}}</text>，请在 <text class="gold">{{f.clock(order.payDeadline)}}</text> 前付，过时自动取消</view>
+      <view class="pay-tip" wx:elif="{{order.pay.enabled && !order.pay.allowCounter}}">还没付款 <text class="price">{{f.yuan(order.payFee)}}</text>，付款后开始制作</view>
       <view class="pay-tip" wx:elif="{{order.pay.enabled}}">还没付款 <text class="price">{{f.yuan(order.payFee)}}</text>，可以微信支付，也可以到吧台报取餐号付</view>
       <view class="pay-tip" wx:else>请到吧台报取餐号付款 <text class="price">{{f.yuan(order.payFee)}}</text></view>
       <view class="btn-gold btn-block pay-btn" wx:if="{{order.pay.enabled}}" bindtap="payNow">微信支付 ¥{{f.yuan(order.payFee)}}</view>
     </block>
-    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'paid'}}">已付款{{order.payMethod === 'wechat' ? '（微信支付）' : order.payMethod === 'voucher' ? '（赠饮券抵扣）' : ''}}</view>
+    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'paid'}}">已付款{{order.payMethod === 'wechat' ? '（微信支付）' : order.payMethod === 'voucher' ? '（券抵扣）' : ''}}</view>
     <view class="pay-tip ok" wx:elif="{{order.payStatus === 'refunded'}}">已原路退款</view>
   </view>
 
@@ -45,6 +48,10 @@
       <view class="row-between sub-row" wx:for="{{order.vouchers}}" wx:key="id">
         <text class="muted">赠饮券（{{item.name}}）</text>
         <text class="gold">-¥{{f.yuan(item.discount)}}</text>
+      </view>
+      <view class="row-between sub-row" wx:if="{{order.coupon}}">
+        <text class="muted">代金券（{{order.coupon.title}}）</text>
+        <text class="gold">-¥{{f.yuan(order.coupon.discount)}}</text>
       </view>
     </block>
     <view class="row-between total-row">

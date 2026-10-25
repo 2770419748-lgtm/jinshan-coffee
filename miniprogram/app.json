@@ -10,7 +10,8 @@
     "pages/books/books",
     "pages/book-detail/book-detail",
     "pages/rental-detail/rental-detail",
-    "pages/vouchers/vouchers"
+    "pages/vouchers/vouchers",
+    "pages/coupons/coupons"
   ],
   "subPackages": [
     {
@@ -31,7 +32,11 @@
         "pages/rule-edit/rule-edit",
         "pages/web-account/web-account",
         "pages/shop-settings/shop-settings",
-        "pages/web-login/web-login"
+        "pages/web-login/web-login",
+        "pages/banners/banners",
+        "pages/banner-edit/banner-edit",
+        "pages/coupons/coupons",
+        "pages/coupon-edit/coupon-edit"
       ]
     }
   ],

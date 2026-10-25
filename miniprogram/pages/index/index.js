@@ -1,33 +1,90 @@
 const api = require('../../utils/api')
 const table = require('../../utils/table')
+const reserve = require('../../utils/reserve')
 
 Page({
   data: {
     tableNo: '',
+    banners: [],
+    current: 0,
+    hours: null,
+    reserveEnabled: false,
+    claimable: 0,
     activeOrder: null,
+    activeText: '',
     activeRental: null
   },
 
   onShow() {
     this.setData({ tableNo: table.get() })
+    this.loadHome()
     this.loadActiveOrder()
     this.loadActiveRental()
   },
 
-  // 首页提示今天还没取的订单
+  onPullDownRefresh() {
+    Promise.all([this.loadHome(), this.loadActiveOrder(), this.loadActiveRental()])
+      .then(() => wx.stopPullDownRefresh())
+  },
+
+  // 轮播、营业时间、能不能预约、还有几种券可以领
+  loadHome() {
+    return api.common('getHome').then((home) => {
+      this.setData({
+        banners: home.banners,
+        current: 0,
+        hours: home.hours,
+        reserveEnabled: home.reserveEnabled,
+        claimable: home.claimableCoupons
+      })
+    }).catch(() => {})
+  },
+
+  // 首页提示还没取的订单
   loadActiveOrder() {
-    api.coffee('myOrders', { page: 0 }).then(({ orders }) => {
+    return api.coffee('myOrders', { page: 0 }).then(({ orders }) => {
       const active = orders.find((o) => o.status === 'pending' || o.status === 'making')
-      this.setData({ activeOrder: active || null })
+      let text = ''
+      if (active) {
+        if (active.awaitingPay && active.payStatus === 'unpaid') text = '预约单还没付款，15 分钟内没付会自动取消'
+        else if (active.status === 'making') text = '你的订单正在制作'
+        else if (active.reserveAt) text = '已预约，到点来取'
+        else text = '你的订单已下单'
+      }
+      this.setData({ activeOrder: active || null, activeText: text })
     }).catch(() => {})
   },
 
   // 正在看或者还没取的书
   loadActiveRental() {
-    api.book('myRentals', { page: 0 }).then(({ rentals }) => {
+    return api.book('myRentals', { page: 0 }).then(({ rentals }) => {
       const active = rentals.find((r) => r.status === 'reading') || rentals.find((r) => r.status === 'pending')
       this.setData({ activeRental: active || null })
     }).catch(() => {})
+  },
+
+  onSlide(e) {
+    this.setData({ current: e.detail.current })
+  },
+
+  openBanner(e) {
+    const banner = this.data.banners[e.currentTarget.dataset.index]
+    if (!banner) return
+    if (banner.kind === 'product') {
+      getApp().globalData.focusProduct = banner.targetId
+      wx.switchTab({ url: '/pages/menu/menu' })
+    } else if (banner.kind === 'book') {
+      wx.navigateTo({ url: '/pages/book-detail/book-detail?id=' + banner.targetId })
+    } else if (banner.kind === 'coupons') {
+      this.goCoupons()
+    }
+  },
+
+  // 吧台自取：不带桌号，做好凭取餐号到吧台取
+  pickup() {
+    table.clear()
+    reserve.off()
+    wx.switchTab({ url: '/pages/menu/menu' })
   },
 
   scan() {
@@ -46,8 +103,28 @@ Page({
     })
   },
 
-  goMenu() {
+  // 预约：要先在线付款，店里开通微信支付以后才能用
+  reserve() {
+    if (!this.data.reserveEnabled) {
+      wx.showModal({
+        title: '预约暂未开放',
+        content: '店里开通微信支付以后就能预约了。现在可以直接点单，做好到吧台取。',
+        showCancel: false,
+        confirmText: '知道了'
+      })
+      return
+    }
+    table.clear()
+    reserve.on()
     wx.switchTab({ url: '/pages/menu/menu' })
+  },
+
+  goCoupons() {
+    wx.navigateTo({ url: '/pages/coupons/coupons' })
+  },
+
+  goVouchers() {
+    wx.navigateTo({ url: '/pages/vouchers/vouchers' })
   },
 
   goBooks() {

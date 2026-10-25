@@ -29,7 +29,9 @@ export const MENU = [
     group: '店铺',
     items: [
       { path: '/staff', title: '员工管理', roles: OWNER },
-      { path: '/settings', title: '店铺设置', roles: OWNER }
+      { path: '/settings', title: '店铺设置', roles: OWNER },
+      { path: '/banners', title: '首页轮播', roles: OWNER },
+      { path: '/coupons', title: '代金券', roles: OWNER }
     ]
   }
 ]
@@ -44,7 +46,9 @@ const views = {
   '/books': () => import('./views/Books.vue'),
   '/rules': () => import('./views/Rules.vue'),
   '/staff': () => import('./views/Staff.vue'),
-  '/settings': () => import('./views/Settings.vue')
+  '/settings': () => import('./views/Settings.vue'),
+  '/banners': () => import('./views/Banners.vue'),
+  '/coupons': () => import('./views/Coupons.vue')
 }
 
 const routes = [{ path: '/login', component: () => import('./views/Login.vue'), meta: { public: true } }]

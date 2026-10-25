@@ -1,4 +1,21 @@
 <view class="page" wx:if="{{ready}}">
+  <view class="section-title">营业时间</view>
+  <view class="card">
+    <view class="field">
+      <text class="field-label">开门</text>
+      <picker class="field-input" mode="time" value="{{hours.open}}" data-field="open" bindchange="onHours">
+        <text class="gold">{{hours.open}}</text>
+      </picker>
+    </view>
+    <view class="field">
+      <text class="field-label">打烊</text>
+      <picker class="field-input" mode="time" value="{{hours.close}}" data-field="close" bindchange="onHours">
+        <text class="gold">{{hours.close}}</text>
+      </picker>
+    </view>
+    <view class="faint small hours-note">显示在顾客首页；预约只能约这段时间里的，每 15 分钟一档，最早 30 分钟后。</view>
+  </view>
+
   <view class="section-title">收款方式</view>
   <view class="card">
     <view class="field">
@@ -8,7 +25,7 @@
     <view class="field">
       <text class="field-label">微信支付</text>
       <view class="field-input row-between">
-        <text class="muted small">{{payEnabled ? '顾客可以在小程序里直接付' : '没打开，顾客到吧台付'}}</text>
+        <text class="muted small">{{payEnabled ? '顾客可以在小程序里直接付，也能预约' : '没打开，顾客到吧台付，不能预约'}}</text>
         <switch checked="{{payEnabled}}" color="#d6b25e" bindchange="onPay" />
       </view>
     </view>

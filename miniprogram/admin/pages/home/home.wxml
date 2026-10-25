@@ -52,7 +52,15 @@
     </view>
     <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/shop-settings/shop-settings" bindtap="go" hover-class="btn-hover">
       <view class="tile-title">店铺设置</view>
-      <view class="tile-sub">微信支付开关、商户号</view>
+      <view class="tile-sub">营业时间、微信支付</view>
+    </view>
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/banners/banners" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">首页轮播</view>
+      <view class="tile-sub">新品、新书、领券海报</view>
+    </view>
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/coupons/coupons" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">代金券</view>
+      <view class="tile-sub">满减券，顾客自己领</view>
     </view>
     <view class="tile" bindtap="scanLogin" hover-class="btn-hover">
       <view class="tile-title">扫码登录电脑</view>

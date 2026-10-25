@@ -47,6 +47,12 @@ page {
   border-bottom: 1rpx solid var(--line);
 }
 .goods-item.sold-out { opacity: 0.45; }
+/* 从首页轮播点进来的商品，闪一下 */
+.goods-item.focus {
+  background: var(--gold-soft);
+  border-radius: 16rpx;
+  transition: background 0.6s;
+}
 .goods-img {
   width: 160rpx;
   height: 160rpx;

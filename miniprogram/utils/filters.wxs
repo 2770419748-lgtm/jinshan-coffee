@@ -10,6 +10,7 @@ var STATUS = { pending: '待制作', making: '制作中', done: '已完成', can
 var MODE = { dine_in: '堂食', takeaway: '外带' }
 var RENTAL_STATUS = { pending: '待取书', reading: '阅读中', returned: '已归还', cancelled: '已取消' }
 var RULE_TYPE = { hourly: '按小时', day: '包天' }
+var BANNER_TAG = { product: '新品', book: '新书', coupons: '领券', none: '进山' }
 
 function status(s) {
   return STATUS[s] || s
@@ -65,6 +66,20 @@ function left(dueAtMs, now) {
   return '已超时 ' + minutes(-diff)
 }
 
+function bannerTag(kind) {
+  return BANNER_TAG[kind] || '进山'
+}
+
+// 代金券的使用条件
+function couponRule(c) {
+  return c.minSpend ? '满 ' + yuan(c.minSpend) + ' 元可用' : '无门槛'
+}
+
+// 2026-10-31 → 10-31
+function shortDay(day) {
+  return day ? String(day).substring(5) : ''
+}
+
 function rentalBrief(r) {
   if (r.ruleType === 'hourly') return r.ruleName + ' · ' + r.hours + ' 小时'
   return r.ruleName
@@ -97,6 +112,9 @@ function payTag(status, method) {
 }
 
 module.exports = {
+  bannerTag: bannerTag,
+  couponRule: couponRule,
+  shortDay: shortDay,
   payTag: payTag,
   yuan: yuan,
   status: status,

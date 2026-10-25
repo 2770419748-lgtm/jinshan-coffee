@@ -13,3 +13,7 @@
   flex-shrink: 0;
   font-weight: 600;
 }
+
+.hours-note {
+  padding-top: 16rpx;
+}

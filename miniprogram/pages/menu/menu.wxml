@@ -1,7 +1,11 @@
 <wxs src="../../utils/filters.wxs" module="f" />
 
 <view class="topbar">
-  <block wx:if="{{tableNo}}">
+  <block wx:if="{{reserving}}">
+    <text><text class="gold">预约点单</text>，结算时选取餐时间</text>
+    <text class="topbar-link" bindtap="stopReserve">不预约了</text>
+  </block>
+  <block wx:elif="{{tableNo}}">
     <text><text class="gold">{{tableNo}}</text> 号桌</text>
     <text class="topbar-link" bindtap="clearTable">不是这桌？</text>
   </block>
@@ -19,12 +23,12 @@
     >{{item.name}}</view>
   </scroll-view>
 
-  <scroll-view class="goods" scroll-y>
+  <scroll-view class="goods" scroll-y scroll-into-view="{{scrollTo}}" scroll-with-animation>
     <view wx:if="{{loading}}" class="empty">菜单加载中…</view>
     <view wx:elif="{{!categories.length}}" class="empty">菜单还在准备中</view>
     <view wx:elif="{{!visible.length}}" class="empty">这个分类还没有商品</view>
 
-    <view wx:for="{{visible}}" wx:key="_id" class="goods-item {{item.soldOut ? 'sold-out' : ''}}">
+    <view wx:for="{{visible}}" wx:key="_id" id="p-{{item._id}}" class="goods-item {{item.soldOut ? 'sold-out' : ''}} {{item._id === focusId ? 'focus' : ''}}">
       <image class="goods-img" src="{{item.image || '/images/logo.jpg'}}" mode="aspectFill" lazy-load />
       <view class="goods-info">
         <view class="goods-name">{{item.name}}</view>

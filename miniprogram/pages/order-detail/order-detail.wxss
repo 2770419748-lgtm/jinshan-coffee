@@ -70,3 +70,14 @@
 .pay-btn {
   margin-top: 20rpx;
 }
+
+.reserve-at {
+  color: var(--gold);
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+.cancel-reason {
+  font-size: 24rpx;
+  margin-top: 8rpx;
+}

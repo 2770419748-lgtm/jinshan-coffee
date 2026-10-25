@@ -31,6 +31,19 @@ test('桌号 4 小时后失效', () => {
   assert.equal(table.get(), '')
 })
 
+test('预约点单：2 小时后失效；扫了桌码就不是预约了', () => {
+  const reserve = require('../miniprogram/utils/reserve')
+  reserve.on()
+  assert.equal(reserve.active(), true)
+  table.set('3')
+  assert.equal(reserve.active(), false)
+  reserve.on()
+  storage.jinshan_reserve.at -= 2 * 3600 * 1000 + 1
+  assert.equal(reserve.active(), false)
+  reserve.off()
+  table.clear()
+})
+
 const latte = {
   _id: 'p1',
   name: '拿铁',

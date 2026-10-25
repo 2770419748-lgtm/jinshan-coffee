@@ -42,7 +42,12 @@
       <div class="stat">
         <div class="label">赠饮券</div>
         <div class="value">发 {{ book.totals.vouchersIssued }} · 用 {{ coffee.totals.vouchersUsed }}</div>
-        <div class="sub">抵扣 ¥{{ yuan(coffee.totals.discountFee) }}</div>
+        <div class="sub">抵扣 ¥{{ yuan(coffee.totals.discountFee - (coffee.totals.couponFee || 0)) }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">代金券</div>
+        <div class="value">用 {{ coffee.totals.couponsUsed || 0 }} 张</div>
+        <div class="sub">抵扣 ¥{{ yuan(coffee.totals.couponFee || 0) }}</div>
       </div>
       <div class="stat">
         <div class="label">收款方式</div>
@@ -67,6 +72,7 @@
         <el-table-column label="咖啡单数" prop="orders" />
         <el-table-column label="咖啡实收"><template #default="{ row }">¥{{ yuan(row.coffeePaid) }}</template></el-table-column>
         <el-table-column label="赠饮抵扣"><template #default="{ row }">¥{{ yuan(row.discount) }}</template></el-table-column>
+        <el-table-column label="代金券抵扣"><template #default="{ row }">¥{{ yuan(row.coupon) }}</template></el-table-column>
         <el-table-column label="借书次数" prop="rentals" />
         <el-table-column label="租金实收"><template #default="{ row }">¥{{ yuan(row.bookPaid) }}</template></el-table-column>
         <el-table-column label="超时费"><template #default="{ row }">¥{{ yuan(row.overtime) }}</template></el-table-column>
@@ -130,7 +136,8 @@ const rows = computed(() => {
       day: c.day,
       orders: c.orders,
       coffeePaid: c.paidFee,
-      discount: c.discountFee,
+      discount: c.discountFee - (c.couponFee || 0),
+      coupon: c.couponFee || 0,
       rentals: b.rentals,
       bookPaid: b.paidFee,
       overtime: b.overtimePaid,
@@ -154,8 +161,8 @@ async function load() {
 }
 
 function exportCsv() {
-  const header = ['日期', '咖啡单数', '咖啡实收(元)', '赠饮抵扣(元)', '借书次数', '租金实收(元)', '超时费(元)', '合计实收(元)']
-  const body = rows.value.map((r) => [r.day, r.orders, yuan(r.coffeePaid), yuan(r.discount), r.rentals, yuan(r.bookPaid), yuan(r.overtime), yuan(r.total)])
+  const header = ['日期', '咖啡单数', '咖啡实收(元)', '赠饮抵扣(元)', '代金券抵扣(元)', '借书次数', '租金实收(元)', '超时费(元)', '合计实收(元)']
+  const body = rows.value.map((r) => [r.day, r.orders, yuan(r.coffeePaid), yuan(r.discount), yuan(r.coupon), r.rentals, yuan(r.bookPaid), yuan(r.overtime), yuan(r.total)])
   const products = coffee.value.products.map((p) => [p.name, p.qty, yuan(p.amount)])
   downloadCsv('进山汇总_' + range.value[0] + '_' + range.value[1] + '.csv', [header].concat(body, [[], ['商品', '杯数', '金额(元)']], products))
 }

@@ -15,7 +15,7 @@ const INDEXES = {
   coffee_orders: ['day', '_openid', 'orderNo'],
   coffee_products: ['categoryId'],
   book_rentals: ['day', '_openid', 'rentalNo', 'status'],
-  vouchers: ['_openid'],
+  vouchers: ['_openid', 'couponId'],
   staff: ['role', 'webUsername'],
   staff_invites: ['code'],
   web_sessions: ['staffId'],

@@ -94,6 +94,12 @@ test('下单：请求带商户签名，返回给小程序的参数也签好名',
   assert.ok(crypto.createVerify('RSA-SHA256').update(payMessage).verify(merchantPub, p.paySign, 'base64'))
 })
 
+test('预约单下单时带上最晚付款时间（北京时间）', async () => {
+  const fetch = fakeFetch([{ body: { prepay_id: 'wx1' } }])
+  await payWith(fetch).jsapi({ description: 'x', outTradeNo: 'JS2', total: 100, openid: 'o1', notifyPath: '/pay/notify/coffee', timeExpire: Date.parse('2026-10-25T07:15:30Z') })
+  assert.equal(JSON.parse(fetch.calls[0].init.body).time_expire, '2026-10-25T15:15:30+08:00')
+})
+
 test('查单、退款；查不到的单返回 null，其他错误带上微信的说明', async () => {
   const fetch = fakeFetch([
     { body: { trade_state: 'SUCCESS', transaction_id: 'tx1', amount: { total: 3200, payer_total: 3200 } } },

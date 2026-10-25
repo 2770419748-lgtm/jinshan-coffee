@@ -1,0 +1,33 @@
+<view wx:if="{{ready}}">
+  <view class="page">
+    <view class="faint intro">顾客首页顶部轮流播放，按这里的顺序。一张都没配的时候，自动放最近上架的商品和书。图片建议 750×400，不传图就用商品图或书封面。</view>
+
+    <view wx:for="{{banners}}" wx:key="_id" class="card banner {{item.enabled ? '' : 'off'}}" data-id="{{item._id}}" bindtap="edit">
+      <view class="thumb">
+        <image wx:if="{{item.preview && item.preview.image}}" class="thumb-img" src="{{item.preview.image}}" mode="aspectFill" />
+        <view wx:else class="thumb-img thumb-plain">进山</view>
+      </view>
+      <view class="flex-1 info">
+        <view class="row">
+          <text class="tag gold">{{kinds[item.kind]}}</text>
+          <text class="tag danger warn" wx:if="{{item.broken}}">{{item.kind === 'book' ? '书已下架' : '商品已下架'}}，顾客看不到</text>
+        </view>
+        <view class="title">{{item.preview ? item.preview.title : (item.title || item.targetName || '（未命名）')}}</view>
+        <view class="faint small" wx:if="{{item.preview && item.preview.subtitle}}">{{item.preview.subtitle}}</view>
+      </view>
+      <view class="side" catchtap="noop">
+        <switch class="switch" checked="{{item.enabled}}" color="#d6b25e" data-id="{{item._id}}" bindchange="toggle" />
+        <view class="moves">
+          <text class="move {{index === 0 ? 'faint' : ''}}" data-index="{{index}}" data-delta="-1" bindtap="move">↑</text>
+          <text class="move {{index === banners.length - 1 ? 'faint' : ''}}" data-index="{{index}}" data-delta="1" bindtap="move">↓</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="empty" wx:if="{{loading}}">加载中…</view>
+    <view class="empty" wx:elif="{{!banners.length}}">还没配轮播，现在首页自动放最近上架的商品和书。</view>
+    <view class="safe-bottom"></view>
+  </view>
+
+  <view class="fab btn-gold" bindtap="add">+ 新增轮播</view>
+</view>
