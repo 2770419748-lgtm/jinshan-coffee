@@ -1,0 +1,17 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page">
+  <view class="card order" wx:for="{{orders}}" wx:key="_id" data-id="{{item._id}}" bindtap="open" hover-class="btn-hover">
+    <view class="row-between">
+      <view class="bold">{{item.serviceName}} <text class="tag">{{item.modeText}}</text></view>
+      <text class="tag {{f.statusClass(item.status)}}">{{item.statusText}}</text>
+    </view>
+    <view class="muted small">{{item.slotLabel}}<text wx:if="{{item.plate}}"> · {{item.plate}}</text></view>
+    <view class="row-between foot">
+      <text class="faint small">{{f.payText(item)}}</text>
+      <text class="price">{{f.yuan(item.payFee)}}</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{loaded && !orders.length}}">还没有预约，去首页约一个吧</view>
+  <view class="more faint small" wx:if="{{hasMore}}" bindtap="more">加载更多</view>
+</view>

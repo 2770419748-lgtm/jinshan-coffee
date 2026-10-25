@@ -346,6 +346,11 @@ test('取消：开始前 2 小时以前全额退；之后扣 10 元；设成不�
   await setDoc('cw_orders', denied.id, { slotStart: Date.now() + 30 * 60000 })
   assert.equal((await ok(bob.carwash('getOrder', { id: denied.id }))).cancel.allowed, false)
   await fails(bob.carwash('cancelOrder', { id: denied.id }), 'CANCEL_TOO_LATE')
+  // 到店付、还没付钱的单：临近开始也能取消，不扣钱；详情页的提示和实际一致
+  const later = await ok(bob.carwash('createOrder', { serviceId: wash, mode: 'store', slotStart: slot(2, 6), payBy: 'later' }))
+  await setDoc('cw_orders', later.id, { slotStart: Date.now() + 30 * 60000 })
+  assert.deepEqual((await ok(bob.carwash('getOrder', { id: later.id }))).cancel, { allowed: true, late: false, fee: 0 })
+  assert.deepEqual(await ok(bob.carwash('cancelOrder', { id: later.id })), { fee: 0 })
   // 店长取消照样全额退
   await fails(tech1.carwash('staffCancelOrder', { id: denied.id, reason: '下雨' }), 'FORBIDDEN')
   await fails(manager.carwash('staffCancelOrder', { id: denied.id }))

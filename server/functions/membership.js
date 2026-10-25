@@ -720,7 +720,7 @@ const handlers = {
     }
     const rows = {}
     days.forEach((d) => {
-      rows[d] = { day: d, recharges: 0, onlineFee: 0, counterFee: 0, bonusFee: 0, spentFee: 0, refundFee: 0, adjustFee: 0, cardsSold: 0, cardFee: 0, cardUses: 0 }
+      rows[d] = { day: d, recharges: 0, onlineFee: 0, counterFee: 0, bonusFee: 0, spentFee: 0, refundFee: 0, adjustFee: 0, cardsSold: 0, cardFee: 0, cardOnlineFee: 0, cardCounterFee: 0, cardUses: 0 }
     })
     logs.forEach((l) => {
       const r = rows[l.day]
@@ -746,6 +746,8 @@ const handlers = {
       r.cardsSold++
       // 用余额办的卡，钱已经算在充值里了，这里不重复算
       if (c.source !== 'balance') r.cardFee += c.price
+      if (c.source === 'wechat') r.cardOnlineFee += c.price
+      if (c.source === 'counter') r.cardCounterFee += c.price
     })
     const list = days.map((d) => rows[d])
     const totals = list.reduce((acc, r) => {

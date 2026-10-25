@@ -639,11 +639,12 @@ const handlers = {
     const out = formatOrder(order)
     out.policy = shop.policyText(s)
     out.shop = publicShop(s)
-    // 能不能自己取消、取消要扣多少
+    // 能不能自己取消、取消要扣多少（和 cancelOrder 的算法一样：没付钱也没用次卡的随时能取消）
     out.cancel = null
     if (CUSTOMER_CANCEL.indexOf(order.status) !== -1) {
       try {
-        out.cancel = Object.assign({ allowed: true }, shop.cancelCharge(s, order))
+        const charge = order.payStatus === 'paid' || order.cardId ? shop.cancelCharge(s, order) : { late: false, fee: 0 }
+        out.cancel = Object.assign({ allowed: true }, charge)
       } catch (e) {
         if (!(e instanceof BizError)) throw e
         out.cancel = { allowed: false, reason: e.message }

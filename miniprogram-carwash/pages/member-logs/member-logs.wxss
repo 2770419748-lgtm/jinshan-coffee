@@ -1,0 +1,2 @@
+.right { text-align: right; }
+.more { text-align: center; padding: 24rpx 0; }

@@ -1,0 +1,4 @@
+.tip { margin: 0 4rpx 16rpx; }
+.addr { display: flex; align-items: center; }
+.edit { padding: 12rpx 0 12rpx 24rpx; }
+.privacy { text-align: center; margin-top: 24rpx; }

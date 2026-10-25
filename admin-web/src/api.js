@@ -96,7 +96,8 @@ export const api = {
   common: (action, data) => call('common', action, data),
   coffee: (action, data) => call('coffee', action, data),
   book: (action, data) => call('book', action, data),
-  member: (action, data) => call('member', action, data)
+  member: (action, data) => call('member', action, data),
+  carwash: (action, data) => call('carwash', action, data)
 }
 
 // ---------- 图片：上传到服务器，返回 /uploads/ 开头的地址 ----------

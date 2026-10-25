@@ -1,4 +1,5 @@
-// 预览用的假数据：店主、员工、示例菜单和书、轮播、代金券、会员储值、几张订单和借书单
+// 预览用的假数据：店主、员工、示例菜单和书、轮播、代金券、会员储值、几张订单和借书单；洗车店的设置、项目、次卡、送券规则、技师和几张预约单。
+// 这些数字只是预览用的，真店里的营业时间、名额、价格都由店长在后台自己填
 module.exports = async function seed(as, db) {
   const ok = async (p) => {
     const res = await p
@@ -56,4 +57,36 @@ module.exports = async function seed(as, db) {
   await ok(as('BARISTA').member('counterRecharge', { memberNo: m1.member.memberNo, planId: p300.id }))
   await ok(as('BARISTA').member('setMemberRemark', { memberNo: m1.member.memberNo, remark: '张女士 尾号 6688' }))
   await ok(customers[0].coffee('createOrder', { mode: 'takeaway', payBy: 'balance', items: [{ productId: byName('美式')._id, qty: 1, specs: [{ name: '杯型', option: '中杯' }, { name: '温度', option: '冰' }] }] }))
+
+  // 洗车：设置都填上、开放预约；三个项目、一档充值、一种次卡、充满 500 送咖啡券；一位技师；C1 充值办卡后约了到店，C2 约了上门
+  await ok(owner.carwash('saveSettings', {
+    settings: {
+      shopName: '黑镜车体护理车房', address: '预览地址', phone: '028-12345678', location: { lat: 30.657, lng: 104.066 },
+      notice: '请提前清空车内贵重物品。', bookingEnabled: true, payLater: true,
+      hours: { open: '09:00', close: '19:00' }, slotMinutes: 60, storeCapacity: 2, doorCapacity: 1, bookDays: 7, leadMinutes: 30,
+      doorRadiusKm: 10, doorFee: 2000, outOfRange: 'reject', freeCancelMinutes: 120, lateCancel: 'fee', lateCancelFee: 1000, autoConfirmHours: 24
+    }
+  }))
+  const wash = await ok(owner.carwash('saveService', { service: { name: '标准洗车', desc: '外观泡沫洗 + 轮毂 + 内饰吸尘', price: 4000, memberPrice: 3500, minutes: 40, modes: ['store', 'door'] } }))
+  await ok(owner.carwash('saveService', { service: { name: '精洗', desc: '标准洗车 + 内饰清洁 + 轮胎上光', price: 8800, memberPrice: 7800, minutes: 90, modes: ['store'] } }))
+  await ok(owner.carwash('saveService', { service: { name: '镀晶', price: 68000, minutes: 240, modes: ['store'] } }))
+  await ok(owner.carwash('saveMemberSettings', { enabled: true, notice: '洗车储值只能在本店使用，不能提现，和进山咖啡的余额分开。', refundNotice: '次卡按已用次数原价扣除后退还剩余金额。' }))
+  const cw500 = await ok(owner.carwash('savePlan', { plan: { price: 50000, bonus: 10000, memberDays: 365, desc: '送一年会员价' } }))
+  const card10 = await ok(owner.carwash('saveCardType', { cardType: { name: '标准洗车 10 次卡', price: 35000, times: 10, validDays: 365, serviceIds: [wash.id] } }))
+  await ok(owner.carwash('saveLinkRule', { rule: { trigger: 'recharge', minAmount: 50000, count: 2, amount: 1000, minSpend: 3000, validDays: 30 } }))
+  await ok(owner.carwash('saveLinkRule', { rule: { trigger: 'card', cardTypeId: card10.id, count: 1, amount: 1500, minSpend: 0, validDays: 60 } }))
+  const techInvite = await ok(owner.carwash('createTechInvite', { role: 'technician' }))
+  await ok(as('TECH').common('bindStaff', { name: '小张', code: techInvite.code }))
+  await ok(as('TECH').common('setWebAccount', { username: 'tech', password: 'carwash2026' }))
+  await ok(customers[0].carwash('getMember'))
+  await ok(owner.carwash('counterRecharge', { memberNo: m1.member.memberNo, planId: cw500.id }))
+  const sold = await ok(owner.carwash('counterSellCard', { memberNo: m1.member.memberNo, typeId: card10.id }))
+  await ok(owner.carwash('setMemberRemark', { memberNo: m1.member.memberNo, remark: '张女士 川A·12345' }))
+  const info = await ok(customers[0].carwash('getBookingInfo', { serviceId: wash.id }))
+  const slots = [].concat(...info.days.map((d) => d.slots))
+  await ok(customers[0].carwash('createOrder', { serviceId: wash.id, mode: 'store', slotStart: slots[0].start, cardId: sold.card._id, plate: '川A12345', carModel: '白色 Model 3', contactName: '张女士', contactPhone: '13800000001' }))
+  const addr = await ok(customers[1].carwash('saveAddress', { address: { name: '李先生', phone: '13800000002', place: '预览小区', detail: '3 栋地下车库 B2-018', location: { lat: 30.67, lng: 104.08 } } }))
+  const door = await ok(customers[1].carwash('createOrder', { serviceId: wash.id, mode: 'door', slotStart: slots[1].start, addressId: addr.id, payBy: 'later', plate: '川A88888', carModel: '黑色途观' }))
+  await ok(as('TECH').carwash('acceptOrder', { id: door.id }))
+  await ok(customers[2].carwash('createOrder', { serviceId: wash.id, mode: 'store', slotStart: slots[2].start, payBy: 'later', plate: '川B66666', contactPhone: '13800000003' }))
 }

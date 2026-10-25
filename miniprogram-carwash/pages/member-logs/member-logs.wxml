@@ -1,0 +1,18 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page">
+  <view class="card" wx:if="{{logs.length}}">
+    <view class="cell" wx:for="{{logs}}" wx:key="_id">
+      <view class="flex-1">
+        <view>{{item.title || item.typeName}}</view>
+        <view class="faint small">{{item.typeName}} · {{f.time(item.createdAt)}}</view>
+      </view>
+      <view class="right">
+        <view class="{{item.amount > 0 ? 'accent' : ''}}">{{f.signed(item.amount)}}</view>
+        <view class="faint small">余额 {{f.yuan(item.balance)}}</view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{loaded && !logs.length}}">还没有余额变动</view>
+  <view class="more faint small" wx:if="{{hasMore}}" bindtap="more">加载更多</view>
+</view>

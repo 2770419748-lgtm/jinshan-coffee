@@ -1,0 +1,27 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page">
+  <view class="tip faint small">在洗车店充值、办卡送的咖啡券，到进山咖啡小程序点单时自动抵扣。两个小程序里看到的是同一批券。</view>
+  <view class="card voucher" wx:for="{{usable}}" wx:key="_id">
+    <view class="amount" wx:if="{{item.type === 'cash'}}">¥{{f.yuan(item.amount)}}</view>
+    <view class="amount" wx:else>赠饮</view>
+    <view class="flex-1">
+      <view class="bold">{{item.title}}</view>
+      <view class="muted small" wx:if="{{item.type === 'cash'}}">{{f.couponRule(item)}} · 在{{item.usableAt}}用</view>
+      <view class="faint small">{{item.lastDay}} 前有效</view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{loaded && !usable.length}}">没有能用的券</view>
+
+  <block wx:if="{{others.length}}">
+    <view class="section-title">用过和过期的</view>
+    <view class="card voucher off" wx:for="{{others}}" wx:key="_id">
+      <view class="amount" wx:if="{{item.type === 'cash'}}">¥{{f.yuan(item.amount)}}</view>
+      <view class="amount" wx:else>赠饮</view>
+      <view class="flex-1">
+        <view>{{item.title}}</view>
+        <view class="faint small">{{item.status === 'used' ? '已使用' : (item.status === 'revoked' ? '已撤回' : '已过期')}}</view>
+      </view>
+    </view>
+  </block>
+</view>

@@ -31,6 +31,11 @@ const wechat = {
   }
 }
 const pay = { mchId: '', ready: () => false }
+// 洗车小程序：预览时同样不连微信，没有微信支付
+const carwash = {
+  wechat: Object.assign({}, wechat, { code2session: async (code) => ({ openid: 'MOCK_CW_' + code }) }),
+  pay: { mchId: '', ready: () => false }
+}
 const db = new Database(':memory:')
 const storage = createStorage({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'jinshan-mock-')) })
 
@@ -64,12 +69,13 @@ const { server, modules } = createApp({
   wechat,
   pay,
   storage,
+  carwash,
   extraRoutes
 })
 
 function as(openid) {
   const call = (fn) => (action, data) => platform.runAs(openid, () => fn.main(Object.assign({ action }, data || {})))
-  return { common: call(modules.common), coffee: call(modules.coffee), book: call(modules.book), member: call(modules.member) }
+  return { common: call(modules.common), coffee: call(modules.coffee), book: call(modules.book), member: call(modules.member), carwash: call(modules.carwash) }
 }
 
 seed(as, db).then(() => {

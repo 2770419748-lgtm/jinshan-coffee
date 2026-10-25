@@ -1,0 +1,41 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{staff}}">
+  <view class="entries">
+    <view class="entry" bindtap="goCounter" hover-class="btn-hover">到店收银<view class="faint small">充值、办卡、扣次卡</view></view>
+    <view class="entry" bindtap="goWeb" hover-class="btn-hover">电脑后台<view class="faint small">账号密码、网址</view></view>
+  </view>
+
+  <view class="tabs">
+    <view class="tab {{scope === 'todo' ? 'on' : ''}}" data-scope="todo" bindtap="pickScope">待接单</view>
+    <view class="tab {{scope === 'mine' ? 'on' : ''}}" data-scope="mine" bindtap="pickScope">我的单</view>
+    <view class="tab {{scope === 'all' ? 'on' : ''}}" wx:if="{{staff.isAdmin}}" data-scope="all" bindtap="pickScope">全部</view>
+  </view>
+
+  <view class="row-between days">
+    <view class="row">
+      <view class="chip {{day === today ? 'on' : ''}}" data-day="{{today}}" bindtap="pickDay">今天</view>
+      <view class="chip {{day === tomorrow ? 'on' : ''}}" data-day="{{tomorrow}}" bindtap="pickDay">明天</view>
+    </view>
+    <picker mode="date" value="{{day}}" bindchange="onDay">
+      <view class="chip {{day !== today && day !== tomorrow ? 'on' : ''}}">{{day === today || day === tomorrow ? '选日期' : day}}</view>
+    </picker>
+  </view>
+
+  <view class="card order" wx:for="{{orders}}" wx:key="_id" data-id="{{item._id}}" bindtap="open" hover-class="btn-hover">
+    <view class="row-between">
+      <view><text class="time">{{f.clock(item.slotStart)}}</text> <text class="bold">{{item.serviceName}}</text></view>
+      <text class="tag {{f.statusClass(item.status)}}">{{item.statusText}}</text>
+    </view>
+    <view class="row small">
+      <text class="tag {{item.mode === 'door' ? 'warn' : ''}}">{{item.modeText}}</text>
+      <text class="muted">{{item.plate}} {{item.carModel}}</text>
+    </view>
+    <view class="muted small" wx:if="{{item.address}}">{{item.address.place}} {{item.address.detail}}</view>
+    <view class="row-between foot">
+      <text class="faint small">{{item.techName ? '技师 ' + item.techName : '还没人接'}}</text>
+      <text class="small {{item.payStatus === 'unpaid' && item.status !== 'cancelled' ? 'warn' : 'faint'}}">{{f.payText(item)}} ¥{{f.yuan(item.payFee)}}</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{loaded && !orders.length}}">{{scope === 'todo' ? '这天没有待接的单' : '这天没有单'}}</view>
+</view>

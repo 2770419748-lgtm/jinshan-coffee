@@ -342,5 +342,7 @@ test('会员列表、汇总；店长和店主能看，技师不能', async () =>
   assert.equal(t.bonusFee, 15000)
   assert.equal(t.cardsSold, 3)
   assert.equal(t.cardFee, 80000, '用余额办的那张不重复算')
+  assert.equal(t.cardOnlineFee, 40000)
+  assert.equal(t.cardCounterFee, 40000)
   assert.equal(sum.balanceTotal, 30000 + 20000)
 })

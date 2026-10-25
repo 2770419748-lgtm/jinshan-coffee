@@ -32,7 +32,7 @@
           <div class="tip center demo-account" v-if="isMock">预览账号 boss，密码 jinshan2026</div>
         </el-tab-pane>
       </el-tabs>
-      <div class="tip help">只有店主和员工能登录。第一次用先在小程序里绑定身份；账号密码在小程序「我的 → 管理后台 → 电脑网页后台」里设置。</div>
+      <div class="tip help">只有店主和员工能登录。第一次用先在小程序里绑定身份；账号密码在小程序「我的 → 管理后台 → 电脑网页后台」里设置。洗车店的员工在洗车小程序「我的 → 员工 → 电脑网页后台」里设置，或者用账号密码登录。</div>
     </div>
   </div>
 </template>

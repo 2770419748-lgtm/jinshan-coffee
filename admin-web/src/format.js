@@ -55,8 +55,16 @@ export const MODE = { dine_in: '堂食', takeaway: '外带' }
 export const ROLE_OPTIONS = [
   { value: 'owner', label: '店主（全部权限）' },
   { value: 'barista', label: '咖啡师（只管咖啡）' },
-  { value: 'book_manager', label: '书籍管理员（只管书籍）' }
+  { value: 'book_manager', label: '书籍管理员（只管书籍）' },
+  { value: 'carwash_manager', label: '洗车店长（只管洗车）' },
+  { value: 'technician', label: '洗车技师（接单、到店收银）' }
 ]
+
+// 洗车
+export const CW_STATUS = { pending: '待接单', confirmed: '已接单', departed: '技师已出发', serving: '服务中', done: '待确认完成', finished: '已完成', cancelled: '已取消' }
+export const CW_STATUS_TAG = { pending: 'warning', confirmed: 'primary', departed: 'primary', serving: 'primary', done: 'success', finished: 'info', cancelled: 'info' }
+export const CW_MODE = { store: '到店', door: '上门' }
+export const CW_PAY = { wechat: '微信支付', balance: '余额', counter: '到店收款', card: '次卡抵扣', later: '到店付' }
 
 export function specText(specs) {
   return (specs || []).map((s) => s.option).join(' / ')

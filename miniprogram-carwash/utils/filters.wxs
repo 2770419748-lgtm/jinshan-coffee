@@ -1,0 +1,95 @@
+// WXML 里用的格式化函数（WXS 只支持 ES5 写法）
+function yuan(fen) {
+  var s = ((fen || 0) / 100).toFixed(2)
+  if (s.substring(s.length - 3) === '.00') return s.substring(0, s.length - 3)
+  if (s.substring(s.length - 1) === '0') return s.substring(0, s.length - 1)
+  return s
+}
+
+function pad(n) {
+  return n < 10 ? '0' + n : '' + n
+}
+
+// 店在中国，时间都按北京时间显示，不管手机设的是哪个时区
+function cn(value) {
+  return getDate(getDate(value).getTime() + 8 * 3600 * 1000)
+}
+
+function time(value) {
+  if (!value) return ''
+  var d = cn(value)
+  return (d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes())
+}
+
+function clock(value) {
+  if (!value) return ''
+  var d = cn(value)
+  return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes())
+}
+
+function minutes(m) {
+  var n = Math.max(0, Math.round(m || 0))
+  var h = Math.floor(n / 60)
+  var rest = n % 60
+  if (!h) return rest + ' 分钟'
+  return h + ' 小时' + (rest ? ' ' + rest + ' 分钟' : '')
+}
+
+// 订单状态的标签颜色
+var STATUS_CLASS = { pending: 'warn', confirmed: 'on', departed: 'on', serving: 'on', done: 'ok', finished: '', cancelled: '' }
+function statusClass(s) {
+  return STATUS_CLASS[s] || ''
+}
+
+// 收款状态
+var PAY_METHOD = { wechat: '微信支付', balance: '洗车余额', counter: '到店付款', card: '次卡抵扣', later: '到店付' }
+function payText(order) {
+  if (order.payStatus === 'refunded') return '已退款'
+  if (order.payStatus === 'paid') {
+    if (!order.payFee) return '次卡抵扣'
+    return (PAY_METHOD[order.payMethod] || '已付') + '已付' + (order.refundFee ? '，退回 ¥' + yuan(order.refundFee) : '')
+  }
+  if (order.status === 'cancelled') return '没付款'
+  if (order.awaitingPay) return '待付款'
+  return '到店付款'
+}
+
+function couponRule(c) {
+  return c.minSpend ? '满 ' + yuan(c.minSpend) + ' 元可用' : '无门槛'
+}
+
+// 余额变动：+400 / -32
+function signed(fen) {
+  return (fen > 0 ? '+' : (fen < 0 ? '-' : '')) + yuan(Math.abs(fen || 0))
+}
+
+function indexOf(list, item) {
+  for (var i = 0; i < (list || []).length; i++) if (list[i] === item) return i
+  return -1
+}
+
+// WXML 里不能直接调数组方法
+function join(list, sep) {
+  return (list || []).join(sep)
+}
+
+var MODE = { store: '到店', door: '上门' }
+function modes(list) {
+  var out = []
+  for (var i = 0; i < (list || []).length; i++) out.push(MODE[list[i]] || list[i])
+  return out.join(' · ')
+}
+
+module.exports = {
+  yuan: yuan,
+  time: time,
+  clock: clock,
+  minutes: minutes,
+  statusClass: statusClass,
+  payText: payText,
+  couponRule: couponRule,
+  signed: signed,
+  indexOf: indexOf,
+  join: join,
+  modes: modes
+}

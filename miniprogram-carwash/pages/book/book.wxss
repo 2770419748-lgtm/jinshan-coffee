@@ -1,0 +1,42 @@
+.service-name { font-size: 34rpx; font-weight: 600; }
+.door-tip { margin-top: 16rpx; }
+.days { white-space: nowrap; margin-bottom: 16rpx; }
+.day {
+  display: inline-block;
+  padding: 14rpx 28rpx;
+  margin-right: 16rpx;
+  border-radius: 12rpx;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  color: var(--text-2);
+}
+.day.on { background: var(--accent); color: #000; font-weight: 600; border-color: var(--accent); }
+.slots {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16rpx;
+}
+.slot {
+  text-align: center;
+  padding: 16rpx 0;
+  border-radius: 12rpx;
+  border: 1rpx solid var(--line);
+  background: var(--card-2);
+  font-size: 26rpx;
+}
+.slot-left { font-size: 22rpx; color: var(--text-2); }
+.slot.on { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+.slot.on .slot-left { color: #333; }
+.slot.full { opacity: 0.35; }
+.line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8rpx 0;
+}
+.line.total {
+  margin-top: 12rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid var(--line);
+}
+.policy .notice { margin-top: 12rpx; }

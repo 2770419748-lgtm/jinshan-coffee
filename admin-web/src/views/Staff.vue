@@ -1,7 +1,7 @@
 <template>
   <div class="narrow">
     <div class="toolbar">
-      <span class="tip">咖啡师只能进咖啡后台，书籍管理员只能进书籍后台。员工先要在小程序里用邀请码绑定，才能设网页账号。</span>
+      <span class="tip">咖啡师只能进咖啡后台，书籍管理员只能进书籍后台，洗车店长和技师只能进洗车后台。员工先要在小程序里用邀请码绑定，才能设网页账号。</span>
       <span class="spacer"></span>
       <el-button type="primary" @click="inviteDialog = true">邀请员工</el-button>
     </div>
@@ -36,7 +36,8 @@
       <template v-else>
         <div class="code">{{ invite.code }}</div>
         <div class="center muted">角色：{{ invite.roleName }} · 24 小时内有效，只能用一次</div>
-        <div class="tip center">让员工打开小程序，进入「我的」，点底部的「我是店员，用邀请码绑定」，输入这 6 位数字。</div>
+        <div class="tip center" v-if="invite.role === 'carwash_manager' || invite.role === 'technician'">让员工打开洗车小程序，进入「我的」，点底部的「我是员工，用邀请码绑定」，输入这 6 位数字。</div>
+        <div class="tip center" v-else>让员工打开小程序，进入「我的」，点底部的「我是店员，用邀请码绑定」，输入这 6 位数字。</div>
       </template>
       <template #footer>
         <el-button v-if="!invite" type="primary" @click="createInvite">生成邀请码</el-button>

@@ -1,0 +1,5 @@
+.head { text-align: center; }
+.status { font-size: 40rpx; font-weight: 700; margin-bottom: 8rpx; }
+.big { font-size: 34rpx; }
+.right { text-align: right; max-width: 70%; }
+.center { text-align: center; }

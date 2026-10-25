@@ -1,0 +1,60 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{member}}">
+  <view class="vip">
+    <view class="row-between">
+      <view>
+        <view class="vip-label">洗车余额</view>
+        <view class="vip-balance">¥{{f.yuan(member.balance)}}</view>
+      </view>
+      <view class="right">
+        <view class="vip-label">会员号</view>
+        <view class="vip-no">{{member.memberNo}}</view>
+      </view>
+    </view>
+    <view class="vip-foot">
+      <text wx:if="{{member.isMember}}">会员价有效期到 {{member.memberUntil}}</text>
+      <text wx:elif="{{member.memberUntil}}">会员 {{member.memberUntil}} 已到期</text>
+      <text wx:else>充值送会员，预约时按会员价</text>
+    </view>
+    <view class="vip-tip">到店充值、办卡时报会员号。会员号和进山咖啡通用，洗车余额和咖啡余额分开算。</view>
+  </view>
+
+  <block wx:if="{{settings.enabled && plans.length}}">
+    <view class="section-title">充值</view>
+    <view class="card plan" wx:for="{{plans}}" wx:key="_id" data-id="{{item._id}}" bindtap="recharge" hover-class="btn-hover">
+      <view class="flex-1">
+        <view class="bold">{{item.title}}</view>
+        <view class="muted small">付 ¥{{f.yuan(item.price)}}，到账 ¥{{f.yuan(item.price + item.bonus)}}<text wx:if="{{item.memberDays}}">，送 {{item.memberDays}} 天会员价</text></view>
+        <view class="faint small" wx:if="{{item.desc}}">{{item.desc}}</view>
+      </view>
+      <view class="btn-main btn-small">{{pay.wechat ? '充值' : '到店充'}}</view>
+    </view>
+  </block>
+
+  <block wx:if="{{cardTypes.length}}">
+    <view class="section-title">次卡</view>
+    <view class="card plan" wx:for="{{cardTypes}}" wx:key="_id" data-index="{{index}}" bindtap="buyCard" hover-class="btn-hover">
+      <view class="flex-1">
+        <view class="bold">{{item.name}}</view>
+        <view class="muted small">¥{{f.yuan(item.price)}} · {{item.times}} 次 · {{item.validDays ? item.validDays + ' 天有效' : '不限期'}}</view>
+        <view class="faint small" wx:if="{{item.desc}}">{{item.desc}}</view>
+      </view>
+      <view class="btn-ghost btn-small">办卡</view>
+    </view>
+  </block>
+
+  <view class="card list">
+    <view class="cell cell-arrow" bindtap="goLogs" hover-class="btn-hover">
+      <text class="flex-1">余额明细</text>
+    </view>
+    <view class="cell cell-arrow" bindtap="goCards" hover-class="btn-hover">
+      <text class="flex-1">我的次卡</text>
+      <text class="muted">{{cards.length}} 张</text>
+    </view>
+  </view>
+
+  <view class="notice faint small" wx:if="{{settings.notice}}">{{settings.notice}}</view>
+  <view class="notice faint small" wx:if="{{settings.refundNotice}}">退费须知：{{settings.refundNotice}}</view>
+</view>
+<view class="empty" wx:elif="{{error}}">{{error}}</view>
