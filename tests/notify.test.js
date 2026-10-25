@@ -171,6 +171,18 @@ test('换成「订单完成通知」模板：订单号、状态、时间、备�
   assert.match(msg.data.time3.value, /^\d{4}年\d{1,2}月\d{1,2}日 \d{2}:\d{2}$/)
 })
 
+// 先用洗车小程序的顾客，用户 id 是洗车小程序里的 openid；咖啡的通知要发到咖啡小程序里的 openid
+test('先用洗车后用咖啡的顾客：取餐通知发到咖啡小程序的 openid', async () => {
+  await db.collection('wx_users').add({ data: { _id: 'U_DAVE', uid: 'CW_DAVE', openids: { carwash: 'CW_DAVE', coffee: 'CF_DAVE' } } })
+  const dave = as('CW_DAVE', { app: 'coffee', appOpenid: 'CF_DAVE', unionid: 'U_DAVE' })
+  const { id } = await ok(order(dave, { mode: 'takeaway', subscribed: true }))
+  await ok(barista.coffee('setOrderStatus', { id, status: 'making' }))
+  await ok(barista.coffee('setOrderStatus', { id, status: 'done' }))
+  await flush()
+  assert.equal((await getDoc('coffee_orders', id))._openid, 'CW_DAVE')
+  assert.equal(state.sent[state.sent.length - 1].touser, 'CF_DAVE')
+})
+
 const hourly = () => shelf.rules.find((r) => r.type === 'hourly')
 const dayRule = () => shelf.rules.find((r) => r.type === 'day')
 const book = (title) => shelf.books.find((b) => b.title === title)

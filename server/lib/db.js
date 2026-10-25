@@ -23,6 +23,7 @@ const INDEXES = {
   staff_invites: ['code'],
   web_sessions: ['staffId'],
   mp_sessions: ['openid'],
+  wx_users: ['uid'],
   cw_orders: ['_openid', 'orderNo', 'slotDay', 'slotStart'],
   cw_addresses: ['_openid'],
   cw_members: ['memberNo'],

@@ -32,4 +32,18 @@ async function resolveUser(db, app, openid, unionid) {
   }
 }
 
-module.exports = { APPS, resolveUser }
+// 反过来：用户 id 在某个小程序里的 openid（发订阅消息要用这个小程序的 openid）。
+// 没有 wx_users 记录（没绑开放平台）时，用户 id 就是 openid；有记录但没打开过这个小程序时返回空
+async function appOpenid(db, app, uid) {
+  if (!uid) return ''
+  let found = null
+  try {
+    found = (await db.collection('wx_users').where({ uid }).limit(1).get()).data[0] || null
+  } catch (e) {
+    if (!/DATABASE_COLLECTION_NOT_EXIST|collection not exists?/i.test(String(e && (e.errMsg || e.message)))) throw e
+  }
+  if (!found) return uid
+  return (found.openids && found.openids[app]) || ''
+}
+
+module.exports = { APPS, resolveUser, appOpenid }
