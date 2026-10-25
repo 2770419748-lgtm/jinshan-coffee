@@ -1,7 +1,7 @@
 // 网页后台扫码登录：网页拿登录码，员工在小程序里确认，网页凭 key 换登录状态
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { cloud, as, unwrap } = require('./helpers/load')
+const { db, state, as, unwrap, getDoc, setDoc } = require('./helpers/load')
 
 const owner = as('OWNER')
 const barista = as('BARISTA')
@@ -15,11 +15,9 @@ const fails = async (p, code) => {
   if (code) assert.equal(res.code, code, res.msg)
   return res
 }
-const state = cloud.__state
-const tickets = () => cloud.__db.collections.web_login_tickets
 
 test('准备：店主和咖啡师', async () => {
-  cloud.__db.reset()
+  db.reset()
   await ok(owner.common('bindOwner', { name: '坤总' }))
   const invite = await ok(owner.common('createInvite', { role: 'barista' }))
   await ok(barista.common('bindStaff', { name: '小王', code: invite.code }))
@@ -36,7 +34,7 @@ test('网页拿到小程序码，扫码确认后登录', async () => {
     { scene: 'w=' + t.id, page: 'admin/pages/web-login/web-login', checkPath: true }
   )
   assert.ok(state.lastCodeParams.scene.length <= 32, 'scene 最多 32 个字符')
-  assert.notEqual(tickets()[t.id].keyHash, t.key, '数据库里只存 key 的哈希')
+  assert.notEqual((await getDoc('web_login_tickets', t.id)).keyHash, t.key, '数据库里只存 key 的哈希')
 
   assert.deepEqual(await ok(anon.common('pollWebLogin', { id: t.id, key: t.key })), { status: 'waiting' })
 
@@ -74,7 +72,7 @@ test('手机上取消、过期的码都登录不了', async () => {
   await fails(owner.common('confirmWebLogin', { id: a.id }), 'TICKET_GONE')
 
   const b = await ok(anon.common('createWebLogin'))
-  tickets()[b.id].expiresAt = Date.now() - 1
+  await setDoc('web_login_tickets', b.id, { expiresAt: Date.now() - 1 })
   assert.equal((await ok(owner.common('getWebLogin', { id: b.id }))).status, 'expired')
   await fails(owner.common('confirmWebLogin', { id: b.id }), 'TICKET_GONE')
   assert.deepEqual(await ok(anon.common('pollWebLogin', { id: b.id, key: b.key })), { status: 'expired' })
@@ -82,7 +80,7 @@ test('手机上取消、过期的码都登录不了', async () => {
   // 确认后网页一直没来取，也会过期
   const c = await ok(anon.common('createWebLogin'))
   await ok(owner.common('confirmWebLogin', { id: c.id }))
-  tickets()[c.id].expiresAt = Date.now() - 1
+  await setDoc('web_login_tickets', c.id, { expiresAt: Date.now() - 1 })
   assert.deepEqual(await ok(anon.common('pollWebLogin', { id: c.id, key: c.key })), { status: 'expired' })
 
   await fails(owner.common('getWebLogin', { id: 'nope' }), 'TICKET_GONE')
@@ -110,7 +108,7 @@ test('小程序还没发布时自动改用体验版码', async () => {
 
 test('一小时前的旧登录码会被清掉', async () => {
   const old = await ok(anon.common('createWebLogin'))
-  tickets()[old.id].expiresAt = Date.now() - 2 * 3600 * 1000
+  await setDoc('web_login_tickets', old.id, { expiresAt: Date.now() - 2 * 3600 * 1000 })
   await ok(anon.common('createWebLogin'))
-  assert.ok(!tickets()[old.id])
+  assert.equal(await getDoc('web_login_tickets', old.id), null)
 })

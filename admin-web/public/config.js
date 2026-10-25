@@ -1,5 +1,5 @@
-// 网页后台的配置：把 envId 改成小程序云开发的环境 ID（和 miniprogram/config.js 里的一样）
+// 网页后台的配置。网页和服务器在同一个域名下时不用改；网页单独放别处时，apiBase 填服务器地址，比如 https://你的域名
 window.JINSHAN_CONFIG = {
-  envId: '',
+  apiBase: '',
   shopName: '进山咖啡'
 }

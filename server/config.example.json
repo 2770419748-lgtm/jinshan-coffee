@@ -1,0 +1,17 @@
+{
+  "port": 3000,
+  "host": "127.0.0.1",
+  "publicUrl": "https://你的域名",
+  "appId": "wx8310059ba8f45927",
+  "appSecret": "",
+  "ownerCode": "",
+  "dataDir": "data",
+  "pay": {
+    "mchId": "",
+    "serialNo": "",
+    "privateKeyFile": "cert/apiclient_key.pem",
+    "apiV3Key": "",
+    "publicKeyFile": "",
+    "publicKeyId": ""
+  }
+}

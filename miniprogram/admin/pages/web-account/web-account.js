@@ -6,7 +6,7 @@ Page({
   data: {
     ready: false,
     current: '', // 已经设好的账号
-    webUrl: config.webAdminUrl || '',
+    webUrl: config.webAdminUrl || (api.base() ? api.base() + '/admin/' : ''),
     username: '',
     password: '',
     password2: '',

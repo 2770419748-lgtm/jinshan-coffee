@@ -1,5 +1,5 @@
 // 预览用的假数据：店主、员工、示例菜单和书、几张订单和借书单
-module.exports = async function seed(cloud, as) {
+module.exports = async function seed(as, db) {
   const ok = async (p) => {
     const res = await p
     if (!res.ok) throw new Error(res.msg)
@@ -31,7 +31,8 @@ module.exports = async function seed(cloud, as) {
   const r1 = await ok(customers[0].book('createRental', { bookId: shelf.books[0]._id, ruleId: hourly._id, hours: 2 }))
   await ok(owner.book('markRentalPaid', { id: r1.id }))
   await ok(owner.book('handOut', { id: r1.id }))
-  cloud.__db.collections.book_rentals[r1.id].dueAt = new Date(Date.now() - 25 * 60000)
+  // 让这本书已经超时 25 分钟
+  await db.collection('book_rentals').doc(r1.id).update({ data: { dueAt: new Date(Date.now() - 25 * 60000) } })
   const r2 = await ok(customers[3].book('createRental', { bookId: shelf.books[2]._id, ruleId: day._id }))
   await ok(owner.book('markRentalPaid', { id: r2.id }))
   await ok(customers[1].book('createRental', { bookId: shelf.books[0]._id, ruleId: hourly._id, hours: 1, remark: '靠窗位' }))

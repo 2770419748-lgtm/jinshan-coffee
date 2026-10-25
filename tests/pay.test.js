@@ -1,9 +1,7 @@
-// 第 4 步：微信支付。咖啡订单、借书租金、超时费；回调要向微信查单确认；取消已付的单原路退款
+// 第 4 步：微信支付。咖啡订单、借书租金、超时费；支付通知要向微信查单确认；取消已付的单原路退款
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { cloud, as, unwrap } = require('./helpers/load')
-const coffeeFn = require('../cloudfunctions/coffee/index.js')
-const bookFn = require('../cloudfunctions/book/index.js')
+const { db, state, as, unwrap, setDoc, modules } = require('./helpers/load')
 
 const owner = as('OWNER')
 const alice = as('ALICE')
@@ -16,19 +14,18 @@ const fails = async (p, code) => {
   if (code) assert.equal(res.code, code, res.msg)
   return res
 }
-const state = cloud.__state
 
-// 模拟微信服务器调用支付回调（没有 openid、没有 action）
-async function notify(fn, outTradeNo, totalFee) {
-  state.openid = ''
-  return fn.main({ returnCode: 'SUCCESS', resultCode: 'SUCCESS', outTradeNo, totalFee, transactionId: 'tx' + outTradeNo })
+// 模拟服务器收到微信支付通知（解密之后交给模块的那一步）
+function notify(name, outTradeNo) {
+  return modules[name].onPayNotify({ outTradeNo })
 }
 
 let menu
 let shelf
 
 test('准备：店主、菜单、书', async () => {
-  cloud.__db.reset()
+  db.reset()
+  state.payReady = true
   await ok(owner.common('bindOwner', { name: '坤总' }))
   await ok(owner.coffee('seedDemo'))
   await ok(owner.book('seedDemo'))
@@ -45,13 +42,16 @@ test('没开通时只能到吧台付款', async () => {
   await fails(alice.coffee('payOrder', { id }), 'PAY_DISABLED')
 })
 
-test('店铺设置：只有店主能改；打开前要填商户号', async () => {
-  await fails(alice.common('saveShopSettings', { payEnabled: true, mchId: '1900000109' }), 'FORBIDDEN')
-  await fails(owner.common('saveShopSettings', { payEnabled: true, mchId: '' }))
-  await fails(owner.common('saveShopSettings', { payEnabled: true, mchId: 'abc' }))
+test('店铺设置：只有店主能改；服务器上没配好微信支付时打不开', async () => {
+  await fails(alice.common('saveShopSettings', { payEnabled: true }), 'FORBIDDEN')
+  state.payReady = false
+  const res = await fails(owner.common('saveShopSettings', { payEnabled: true }))
+  assert.match(res.msg, /服务器上还没配置微信支付/)
+  assert.deepEqual(await ok(owner.common('getShopSettings')), { payEnabled: false, payReady: false, mchId: '', allowCounter: true })
+  state.payReady = true
   await fails(owner.common('saveShopSettings', { payEnabled: false, allowCounter: false }))
-  await ok(owner.common('saveShopSettings', { payEnabled: true, mchId: '1900000109', allowCounter: true }))
-  assert.deepEqual(await ok(owner.common('getShopSettings')), { payEnabled: true, mchId: '1900000109', allowCounter: true })
+  await ok(owner.common('saveShopSettings', { payEnabled: true, allowCounter: true }))
+  assert.deepEqual(await ok(owner.common('getShopSettings')), { payEnabled: true, payReady: true, mchId: '1900000109', allowCounter: true })
 })
 
 test('咖啡：微信支付，回调要查单确认，伪造的回调不算数', async () => {
@@ -62,20 +62,21 @@ test('咖啡：微信支付，回调要查单确认，伪造的回调不算数',
   const { payment } = await ok(alice.coffee('payOrder', { id }))
   assert.match(payment.package, /^prepay_id=/)
   const sent = state.payOrders[order.orderNo].params
-  assert.equal(sent.totalFee, 6400)
-  assert.equal(sent.subMchId, '1900000109')
-  assert.equal(sent.functionName, 'coffee')
-  assert.equal(sent.envId, 'env-test')
+  assert.equal(sent.total, 6400)
+  assert.equal(sent.openid, 'ALICE', '付款人是下单的顾客')
+  assert.equal(sent.notifyPath, '/pay/notify/coffee')
+  assert.match(sent.description, /^进山咖啡-取餐号/)
 
-  // 顾客自己伪造一个回调：查单发现没付，不算
-  const fake = await alice.coffee(undefined, { returnCode: 'SUCCESS', resultCode: 'SUCCESS', outTradeNo: order.orderNo, totalFee: 6400 })
-  assert.deepEqual(fake, { errcode: 0, errmsg: '' })
+  // 通知到了但向微信查单发现没付（比如伪造的通知），不算
+  await notify('coffee', order.orderNo)
   assert.equal((await ok(alice.coffee('getOrder', { id }))).payStatus, 'unpaid')
   assert.deepEqual(await ok(alice.coffee('confirmPay', { id })), { payStatus: 'unpaid' })
+  // 通知不再走 api 入口：没有 action 的请求一律拒绝
+  assert.equal((await alice.coffee(undefined, { outTradeNo: order.orderNo })).code, 'UNKNOWN_ACTION')
 
-  // 真付了：回调把订单标成已付
+  // 真付了：通知把订单标成已付
   state.payOrders[order.orderNo].paid = true
-  assert.deepEqual(await notify(coffeeFn, order.orderNo, 6400), { errcode: 0, errmsg: '' })
+  await notify('coffee', order.orderNo)
   const paid = await ok(alice.coffee('getOrder', { id }))
   assert.equal(paid.payStatus, 'paid')
   assert.equal(paid.payMethod, 'wechat')
@@ -88,7 +89,7 @@ test('咖啡：微信支付，回调要查单确认，伪造的回调不算数',
   const refunded = await ok(alice.coffee('getOrder', { id }))
   assert.equal(refunded.status, 'cancelled')
   assert.equal(refunded.payStatus, 'refunded')
-  assert.deepEqual(state.refunds.map((r) => [r.outTradeNo, r.outRefundNo, r.refundFee]), [[order.orderNo, 'R' + order.orderNo, 6400]])
+  assert.deepEqual(state.refunds.map((r) => [r.outTradeNo, r.outRefundNo, r.total, r.refund]), [[order.orderNo, 'R' + order.orderNo, 6400, 6400]])
   const sum = await ok(owner.coffee('daySummary', {}))
   assert.equal(sum.totals.cancelledPaidFee, 0, '已经在线退款的不再提醒')
 })
@@ -109,7 +110,7 @@ test('咖啡：付款途中取消了，钱到了自动退回', async () => {
   const order = await ok(alice.coffee('getOrder', { id }))
   await ok(alice.coffee('cancelOrder', { id }))
   state.payOrders[order.orderNo].paid = true
-  await notify(coffeeFn, order.orderNo, 3200)
+  await notify('coffee', order.orderNo)
   assert.equal((await ok(alice.coffee('getOrder', { id }))).payStatus, 'refunded')
 })
 
@@ -136,16 +137,16 @@ test('借书：微信付租金后发赠饮券，超时费也能微信付', async
   const r1 = await ok(alice.book('getRental', { id: day.id }))
   assert.equal(r1.pay.enabled, true)
   await ok(alice.book('payRental', { id: day.id }))
-  assert.equal(state.payOrders[r1.rentalNo].params.functionName, 'book')
+  assert.equal(state.payOrders[r1.rentalNo].params.notifyPath, '/pay/notify/book')
   state.payOrders[r1.rentalNo].paid = true
-  await notify(bookFn, r1.rentalNo, 3900)
+  await notify('book', r1.rentalNo)
   const paid = await ok(alice.book('getRental', { id: day.id }))
   assert.equal(paid.payStatus, 'paid')
   assert.equal(paid.payMethod, 'wechat')
   assert.equal(paid.voucherCount, 1)
   assert.equal((await ok(alice.coffee('myVouchers'))).usable.length, 1)
-  // 回调重复到达也不会多发券
-  await notify(bookFn, r1.rentalNo, 3900)
+  // 通知重复到达也不会多发券
+  await notify('book', r1.rentalNo)
   assert.equal((await ok(alice.coffee('myVouchers'))).usable.length, 1)
 
   // 店员取消已经微信付款的借阅：原路退款，券作废
@@ -160,20 +161,20 @@ test('借书：微信付租金后发赠饮券，超时费也能微信付', async
   state.payOrders[r2.rentalNo].paid = true
   assert.deepEqual(await ok(alice.book('confirmPay', { id: h.id })), { payStatus: 'paid' })
   await ok(owner.book('handOut', { id: h.id }))
-  cloud.__db.collections.book_rentals[h.id].dueAt = new Date(Date.now() - 90 * 60000)
+  await setDoc('book_rentals', h.id, { dueAt: new Date(Date.now() - 90 * 60000) })
   const ret = await ok(owner.book('returnBook', { id: h.id }))
   assert.equal(ret.overtimeFee, 1600)
   await fails(bob.book('payRental', { id: h.id, kind: 'overtime' }))
   await ok(alice.book('payRental', { id: h.id, kind: 'overtime' }))
   const otNo = 'JO' + r2.rentalNo.slice(2)
-  assert.equal(state.payOrders[otNo].params.totalFee, 1600)
+  assert.equal(state.payOrders[otNo].params.total, 1600)
   // 金额对不上的不算
   state.payOrders[otNo].paid = true
-  state.payOrders[otNo].params.totalFee = 1
-  await notify(bookFn, otNo, 1)
+  state.payOrders[otNo].params.total = 1
+  await notify('book', otNo)
   assert.equal((await ok(alice.book('getRental', { id: h.id }))).overtimePayStatus, 'unpaid')
-  state.payOrders[otNo].params.totalFee = 1600
-  await notify(bookFn, otNo, 1600)
+  state.payOrders[otNo].params.total = 1600
+  await notify('book', otNo)
   const done = await ok(alice.book('getRental', { id: h.id }))
   assert.equal(done.overtimePayStatus, 'paid')
   assert.equal(done.overtimePayMethod, 'wechat')
@@ -183,11 +184,14 @@ test('商户号没配好时给出明白的提示', async () => {
   state.payFail = true
   const { id } = await ok(alice.coffee('createOrder', { mode: 'takeaway', items: [{ productId: pour()._id, qty: 1 }] }))
   const res = await fails(alice.coffee('payOrder', { id }))
-  assert.match(res.msg, /商户号未绑定/)
+  assert.match(res.msg, /商户号未开通 JSAPI 支付/)
   state.payFail = false
 })
 
-test('退款回调直接回复收到', async () => {
-  state.openid = ''
-  assert.deepEqual(await coffeeFn.main({ reqInfo: 'xxx', returnCode: 'SUCCESS' }), { errcode: 0, errmsg: '' })
+test('服务器上的支付配置撤掉后，开关不再生效，顾客只能到吧台付', async () => {
+  state.payReady = false
+  const { id } = await ok(alice.coffee('createOrder', { mode: 'takeaway', items: [{ productId: pour()._id, qty: 1 }] }))
+  assert.deepEqual((await ok(alice.coffee('getOrder', { id }))).pay, { enabled: false, allowCounter: true })
+  await fails(alice.coffee('payOrder', { id }), 'PAY_DISABLED')
+  state.payReady = true
 })

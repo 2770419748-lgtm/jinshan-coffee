@@ -1,10 +1,8 @@
-// 调用云函数：正式环境用云开发 Web SDK（匿名登录 + 员工账号的 webToken），本地预览时走 mock 服务器
-import cloudbase from '@cloudbase/js-sdk'
+// 调自己的服务器：网页后台和接口在同一个域名下（网页在 /admin/，接口在 /api/）。
+// 员工登录后每次调用带上 webToken；本地预览（npm run mock）时连的是用假数据跑的同一套服务器代码。
 import { reactive } from 'vue'
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
-// 在线预览：云函数和内存数据库打包在 demo-backend.js 里，跑在浏览器中
-const DEMO = import.meta.env.VITE_DEMO === '1'
 const TOKEN_KEY = 'jinshan_web_token'
 
 export class ApiError extends Error {
@@ -41,31 +39,9 @@ export function config() {
   return window.JINSHAN_CONFIG || {}
 }
 
-let app = null
-let authReady = null
-
-function cloudApp() {
-  if (!app) {
-    const env = config().envId
-    if (!env) throw new ApiError('还没配置云开发环境 ID：打开网站目录里的 config.js，填上 envId', 'NO_ENV')
-    app = cloudbase.init({ env })
-  }
-  return app
-}
-
-// 云开发要求先登录才能调云函数，这里用匿名登录；员工身份靠 webToken
-function ensureAuth() {
-  if (!authReady) {
-    authReady = (async () => {
-      const auth = cloudApp().auth({ persistence: 'local' })
-      const state = await auth.getLoginState()
-      if (!state) await auth.signInAnonymously()
-    })().catch((e) => {
-      authReady = null
-      throw e
-    })
-  }
-  return authReady
+// 接口地址：默认和网页同一个域名；网页单独放别处时在 config.js 里填 apiBase
+function apiUrl(path) {
+  return String(config().apiBase || '').replace(/\/+$/, '') + path
 }
 
 const needLoginHandlers = []
@@ -73,38 +49,24 @@ export function onNeedLogin(fn) {
   needLoginHandlers.push(fn)
 }
 
-function explain(err) {
-  const raw = String((err && (err.message || err.errMsg)) || '')
-  if (/FUNCTION_NOT_FOUND|FunctionName/i.test(raw)) return '云函数还没部署'
-  if (/anonymous|ANONYMOUS|signIn/i.test(raw)) return '云开发没有开启匿名登录，请按说明文档开启'
-  if (/domain|origin|CORS/i.test(raw)) return '这个网址没加到云开发的安全域名里'
-  return '网络不太好，请稍后再试'
+async function post(path, body, headers) {
+  let res
+  try {
+    res = await fetch(apiUrl(path), { method: 'POST', headers, body })
+  } catch (e) {
+    console.error(e)
+    throw new ApiError('网络不太好，请稍后再试', 'NETWORK')
+  }
+  if (res.status >= 500) throw new ApiError('服务器开小差了，请稍后再试', 'SERVER_ERROR')
+  if (res.status === 404) throw new ApiError('服务器上找不到接口，检查一下服务器有没有启动', 'NOT_FOUND')
+  try {
+    return await res.json()
+  } catch (e) {
+    throw new ApiError('服务器返回的内容看不懂，检查一下网站配置', 'BAD_RESPONSE')
+  }
 }
 
-export async function call(name, action, data) {
-  const payload = Object.assign({ action }, data || {})
-  if (session.token) payload.webToken = session.token
-  let result
-  try {
-    if (DEMO) {
-      result = await window.JinshanDemo.call(name, payload)
-    } else if (MOCK) {
-      const res = await fetch('./mock/call', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, data: payload })
-      })
-      result = await res.json()
-    } else {
-      await ensureAuth()
-      const res = await cloudApp().callFunction({ name, data: payload })
-      result = res.result || {}
-    }
-  } catch (e) {
-    if (e instanceof ApiError) throw e
-    console.error(e)
-    throw new ApiError(explain(e), 'NETWORK')
-  }
+function check(result, action) {
   if (!result.ok) {
     if (result.code === 'NEED_LOGIN' && action !== 'webLogin') {
       setToken('')
@@ -116,17 +78,18 @@ export async function call(name, action, data) {
   return result.data
 }
 
+export async function call(name, action, data) {
+  const payload = Object.assign({ action }, data || {})
+  if (session.token) payload.webToken = session.token
+  const result = await post('/api/' + name, JSON.stringify(payload), { 'content-type': 'application/json' })
+  return check(result, action)
+}
+
 // 本地预览没有手机：用店主身份模拟扫码确认
-export const isMock = MOCK || DEMO
+export const isMock = MOCK
 export async function mockConfirmLogin(id) {
-  if (DEMO) {
-    const result = await window.JinshanDemo.confirmLogin(id)
-    if (!result.ok) throw new ApiError(result.msg || '操作失败', result.code)
-    return
-  }
-  const res = await fetch('./mock/confirm-login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) })
-  const result = await res.json()
-  if (!result.ok) throw new ApiError(result.msg || '操作失败', result.code)
+  const result = await post('/mock/confirm-login', JSON.stringify({ id }), { 'content-type': 'application/json' })
+  check(result, 'mockConfirmLogin')
 }
 
 export const api = {
@@ -135,32 +98,17 @@ export const api = {
   book: (action, data) => call('book', action, data)
 }
 
-// ---------- 云存储：上传图片、把 cloud:// 换成能在网页里显示的地址 ----------
+// ---------- 图片：上传到服务器，返回 /uploads/ 开头的地址 ----------
 
-const mockFiles = {}
-const urlCache = {}
-
-export async function uploadImage(file, dir) {
-  const ext = (file.name.match(/\.(\w+)$/) || [])[1] || 'jpg'
-  const cloudPath = dir + '/' + Date.now() + '-' + Math.floor(Math.random() * 1e6) + '.' + ext.toLowerCase()
-  if (MOCK || DEMO) {
-    const id = 'cloud://mock/' + cloudPath
-    mockFiles[id] = URL.createObjectURL(file)
-    return id
-  }
-  await ensureAuth()
-  const res = await cloudApp().uploadFile({ cloudPath, filePath: file })
-  return res.fileID
+export async function uploadImage(file, folder) {
+  const form = new FormData()
+  form.append('file', file)
+  const result = await post('/api/upload?folder=' + encodeURIComponent(folder), form, { 'x-web-token': session.token })
+  return check(result, 'upload').fileID
 }
 
-export async function tempUrl(fileID) {
+// 图片地址：/uploads/ 开头的是自己服务器上的，网页单独放别处时补上接口地址
+export function imageUrl(fileID) {
   if (!fileID) return ''
-  if (!fileID.startsWith('cloud://')) return fileID
-  if (MOCK || DEMO) return mockFiles[fileID] || ''
-  if (urlCache[fileID]) return urlCache[fileID]
-  await ensureAuth()
-  const res = await cloudApp().getTempFileURL({ fileList: [fileID] })
-  const url = (res.fileList && res.fileList[0] && res.fileList[0].tempFileURL) || ''
-  if (url) urlCache[fileID] = url
-  return url
+  return fileID.startsWith('/uploads/') ? apiUrl(fileID) : fileID
 }

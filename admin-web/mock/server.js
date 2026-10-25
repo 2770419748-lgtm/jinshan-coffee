@@ -1,70 +1,56 @@
-// 本地预览网页后台用：用内存数据库跑真正的云函数代码，不连云开发。
-// 用法：npm run mock，然后打开 http://localhost:8787 ，账号 boss，密码 jinshan2026
-const http = require('http')
+// 本地预览网页后台用：用内存数据库和假的微信接口跑真正的服务器代码，不连微信、不存任何东西。
+// 用法：npm run mock，然后打开 http://localhost:8787/admin/ ，账号 boss，密码 jinshan2026
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const QRCode = require('qrcode')
-const { cloud, as } = require('../../tests/helpers/load')
+const { createApp } = require('../../server/app')
+const platform = require('../../server/platform')
+const { Database } = require('../../server/lib/db')
+const { createStorage } = require('../../server/lib/storage')
+const { readJson, sendJson } = require('../../server/lib/http')
 const seed = require('./seed')
 
-// 预览时没有真的小程序码，画一个普通二维码代替
-cloud.openapi.wxacode.getUnlimited = async (params) => ({
-  buffer: await QRCode.toBuffer(params.page + '?scene=' + encodeURIComponent(params.scene), { width: 430, margin: 1 }),
-  contentType: 'image/png'
-})
-
 const PORT = Number(process.env.PORT || 8787)
-const ROOT = path.join(__dirname, '..', process.argv[2] || 'dist-mock')
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.jpg': 'image/jpeg', '.png': 'image/png', '.wav': 'audio/wav', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf' }
 
-function send(res, status, type, body) {
-  res.writeHead(status, { 'content-type': type })
-  res.end(body)
-}
-
-function readJson(req) {
-  return new Promise((resolve, reject) => {
-    let body = ''
-    req.on('data', (c) => { body += c })
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(body))
-      } catch (e) {
-        reject(e)
-      }
-    })
+// 预览时没有真的小程序码，画一个普通二维码代替
+const wechat = {
+  ready: () => true,
+  code2session: async (code) => ({ openid: 'MOCK_' + code }),
+  getUnlimited: async (params) => ({
+    buffer: await QRCode.toBuffer(params.page + '?scene=' + encodeURIComponent(params.scene), { width: 430, margin: 1 }),
+    contentType: 'image/png'
   })
 }
+const pay = { mchId: '', ready: () => false }
+const db = new Database(':memory:')
+const storage = createStorage({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'jinshan-mock-')) })
 
-async function handle(req, res, run) {
-  try {
-    const result = await run(await readJson(req))
-    send(res, 200, 'application/json', JSON.stringify(result))
-  } catch (e) {
-    send(res, 500, 'application/json', JSON.stringify({ ok: false, msg: e.message }))
-  }
+// 预览时没有手机，用店主的身份模拟扫码确认
+async function extraRoutes(req, res, url) {
+  if (req.method !== 'POST' || url.pathname !== '/mock/confirm-login') return false
+  const { id } = await readJson(req, 4096)
+  const result = await platform.runAs('OWNER', () => modules.common.main({ action: 'confirmWebLogin', id }))
+  sendJson(res, 200, result)
+  return true
 }
 
-const server = http.createServer((req, res) => {
-  if (req.method === 'POST' && req.url.endsWith('/mock/call')) {
-    return handle(req, res, async ({ name, data }) => {
-      const fn = as('')[name]
-      if (!fn) return { ok: false, msg: '没有这个云函数' }
-      return fn(data.action, data)
-    })
-  }
-  // 预览时没有手机，用店主的身份模拟扫码确认
-  if (req.method === 'POST' && req.url.endsWith('/mock/confirm-login')) {
-    return handle(req, res, ({ id }) => as('OWNER').common('confirmWebLogin', { id }))
-  }
-  const url = decodeURIComponent(req.url.split('?')[0])
-  const file = path.join(ROOT, url === '/' ? 'index.html' : url)
-  if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(res, 404, 'text/plain', 'not found')
-  send(res, 200, TYPES[path.extname(file)] || 'application/octet-stream', fs.readFileSync(file))
+const { server, modules } = createApp({
+  config: { adminDir: path.join(__dirname, '..', process.argv[2] || 'dist-mock'), ownerCode: '' },
+  db,
+  wechat,
+  pay,
+  storage,
+  extraRoutes
 })
 
-seed(cloud, as).then(() => {
-  server.listen(PORT, () => console.log('网页后台预览：http://localhost:' + PORT + '  账号 boss  密码 jinshan2026'))
+function as(openid) {
+  const call = (fn) => (action, data) => platform.runAs(openid, () => fn.main(Object.assign({ action }, data || {})))
+  return { common: call(modules.common), coffee: call(modules.coffee), book: call(modules.book) }
+}
+
+seed(as, db).then(() => {
+  server.listen(PORT, () => console.log('网页后台预览：http://localhost:' + PORT + '/admin/  账号 boss  密码 jinshan2026'))
 }).catch((e) => {
   console.error(e)
   process.exit(1)

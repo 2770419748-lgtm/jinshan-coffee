@@ -4,8 +4,9 @@ const guard = require('../../../utils/guard')
 Page({
   data: {
     ready: false,
-    payEnabled: false,
+    payReady: false, // 服务器配置文件里有没有填好微信支付
     mchId: '',
+    payEnabled: false,
     allowCounter: true,
     saving: false
   },
@@ -19,12 +20,13 @@ Page({
     })
   },
 
-  onMchId(e) {
-    this.setData({ mchId: e.detail.value.trim() })
-  },
-
   onPay(e) {
     const on = e.detail.value
+    if (on && !this.data.payReady) {
+      wx.showModal({ title: '还不能打开', content: '服务器上还没配置微信支付（商户号、API 证书和 APIv3 密钥），配置方法见下面的说明。', showCancel: false })
+      this.setData({ payEnabled: false })
+      return
+    }
     // 关掉微信支付时只能到吧台付款
     this.setData(on ? { payEnabled: true } : { payEnabled: false, allowCounter: true })
   },
@@ -34,18 +36,10 @@ Page({
   },
 
   save() {
-    const { payEnabled, mchId, allowCounter, saving } = this.data
+    const { payEnabled, allowCounter, saving } = this.data
     if (saving) return
-    if (mchId && !/^\d{8,12}$/.test(mchId)) {
-      wx.showToast({ title: '商户号是 8 到 12 位数字', icon: 'none' })
-      return
-    }
-    if (payEnabled && !mchId) {
-      wx.showToast({ title: '打开微信支付前先填商户号', icon: 'none' })
-      return
-    }
     this.setData({ saving: true })
-    api.common('saveShopSettings', { payEnabled, mchId, allowCounter }).then((s) => {
+    api.common('saveShopSettings', { payEnabled, allowCounter }).then((s) => {
       this.setData(Object.assign({ saving: false }, s))
       wx.showToast({ title: '已保存', icon: 'success' })
     }).catch((err) => {

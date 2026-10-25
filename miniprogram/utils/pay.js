@@ -1,4 +1,4 @@
-// 微信支付：先让云函数下单拿到支付参数，再拉起微信支付；付完向云端确认一次
+// 微信支付：先让服务器下单拿到支付参数，再拉起微信支付；付完向服务器确认一次
 const api = require('./api')
 
 function requestPayment(payment) {

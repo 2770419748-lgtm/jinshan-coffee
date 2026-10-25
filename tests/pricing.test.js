@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { buildLines, sanitizeSpecs } = require('../cloudfunctions/coffee/lib/pricing')
-const { cnDay, cleanText } = require('../cloudfunctions/coffee/lib/base')
+const { buildLines, sanitizeSpecs } = require('../server/functions/pricing')
+const { cnDay, cleanText } = require('../server/functions/base')
 
 const latte = {
   _id: 'p1',

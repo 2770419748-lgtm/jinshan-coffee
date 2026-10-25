@@ -1,0 +1,12 @@
+{
+  "name": "jinshan-server",
+  "private": true,
+  "description": "进山咖啡小程序的服务器，不用装任何依赖，Node.js 22.13 以上直接跑",
+  "main": "app.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning app.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

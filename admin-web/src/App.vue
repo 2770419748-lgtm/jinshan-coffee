@@ -19,7 +19,7 @@
     <el-container>
       <el-header class="header">
         <span class="title">{{ route.meta.title }}</span>
-        <el-tag v-if="isMock" type="warning" size="small" class="preview">预览 · 假数据，刷新页面会重置</el-tag>
+        <el-tag v-if="isMock" type="warning" size="small" class="preview">预览 · 假数据，重新运行预览会重置</el-tag>
         <span class="spacer"></span>
         <template v-if="session.staff">
           <span>{{ session.staff.name }}</span>

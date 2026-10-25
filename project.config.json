@@ -4,7 +4,6 @@
   "appid": "wx8310059ba8f45927",
   "compileType": "miniprogram",
   "miniprogramRoot": "miniprogram/",
-  "cloudfunctionRoot": "cloudfunctions/",
   "libVersion": "3.5.0",
   "setting": {
     "urlCheck": true,

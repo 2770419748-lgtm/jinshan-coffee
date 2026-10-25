@@ -1,26 +1,20 @@
-// 让云函数里的 require('wx-server-sdk') 指向测试替身，然后加载云函数
-const Module = require('module')
+// 测试环境：内存里的 SQLite 数据库 + 微信接口替身，加载真正的业务模块
 const path = require('path')
+const platform = require('../../server/platform')
+const { Database } = require('../../server/lib/db')
+const fakes = require('./fakes')
 
-const fakePath = path.join(__dirname, 'fake-cloud.js')
-const originalResolve = Module._resolveFilename
-Module._resolveFilename = function (request, ...rest) {
-  if (request === 'wx-server-sdk') return fakePath
-  return originalResolve.call(this, request, ...rest)
-}
+const db = new Database(':memory:')
+platform.configure({ db, wechat: fakes.wechat, pay: fakes.pay, storage: fakes.storage })
 
-const cloud = require(fakePath)
-const root = path.join(__dirname, '..', '..', 'cloudfunctions')
-const common = require(path.join(root, 'common', 'index.js'))
-const coffee = require(path.join(root, 'coffee', 'index.js'))
-const book = require(path.join(root, 'book', 'index.js'))
+const root = path.join(__dirname, '..', '..', 'server', 'functions')
+const common = require(path.join(root, 'common.js'))
+const coffee = require(path.join(root, 'coffee.js'))
+const book = require(path.join(root, 'book.js'))
 
-// 以某个用户身份调用云函数
+// 以某个用户身份调用业务模块；openid 为空相当于电脑网页后台或没登录
 function as(openid) {
-  const call = (fn) => async (action, data) => {
-    cloud.__state.openid = openid
-    return fn.main(Object.assign({ action }, data || {}))
-  }
+  const call = (fn) => (action, data) => platform.runAs(openid, () => fn.main(Object.assign({ action }, data || {})))
   return { common: call(common), coffee: call(coffee), book: call(book) }
 }
 
@@ -36,4 +30,16 @@ function unwrap(promise) {
   })
 }
 
-module.exports = { cloud, as, unwrap }
+// 直接读写数据库里的一条记录（测试里改时间、看存了什么）
+async function getDoc(collection, id) {
+  const res = await db.collection(collection).where({ _id: id }).limit(1).get()
+  return res.data[0] || null
+}
+
+function setDoc(collection, id, data) {
+  return db.collection(collection).doc(id).update({ data })
+}
+
+const cloud = { __db: db, __state: fakes.state }
+
+module.exports = { cloud, db, state: fakes.state, as, unwrap, getDoc, setDoc, modules: { common, coffee, book } }

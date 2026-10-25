@@ -63,7 +63,13 @@ Page({
   save(e) {
     const item = this.data.list[e.currentTarget.dataset.index]
     wx.showLoading({ title: '保存中', mask: true })
-    wx.cloud.downloadFile({ fileID: item.qrcode }).then((res) => {
+    new Promise((resolve, reject) => {
+      wx.downloadFile({
+        url: item.qrcode,
+        success: (res) => (res.statusCode === 200 ? resolve(res) : reject(new Error('download ' + res.statusCode))),
+        fail: reject
+      })
+    }).then((res) => {
       wx.saveImageToPhotosAlbum({
         filePath: res.tempFilePath,
         success: () => {

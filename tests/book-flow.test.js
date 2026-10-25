@@ -1,7 +1,7 @@
 // 用内存数据库把第 2 步的借书流程跑一遍：导入示例 → 顾客借书 → 收款交书 → 还书算超时；包天送的赠饮券在点单时抵扣
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { cloud, as, unwrap } = require('./helpers/load')
+const { db, as, unwrap, getDoc, setDoc } = require('./helpers/load')
 
 const owner = as('OWNER')
 const keeper = as('KEEPER') // 书籍管理员
@@ -16,13 +16,12 @@ const fails = async (p, code) => {
   if (code) assert.equal(res.code, code, res.msg)
   return res
 }
-const rentals = () => cloud.__db.collections.book_rentals
 
 let shelf
 let menu
 
 test('准备：店主、书籍管理员、咖啡师，导入示例菜单和书', async () => {
-  cloud.__db.reset()
+  db.reset()
   await ok(owner.common('bindOwner', { name: '坤总' }))
   for (const [who, role] of [[keeper, 'book_manager'], [barista, 'barista']]) {
     const invite = await ok(owner.common('createInvite', { role }))
@@ -76,7 +75,7 @@ test('按小时借书：先付款再交书，超时按小时补', async () => {
   assert.equal(reading.overtimeNow.fee, 0)
 
   // 假装已经超时 75 分钟：补 2 小时
-  rentals()[id].dueAt = new Date(Date.now() - 75 * 60000)
+  await setDoc('book_rentals', id, { dueAt: new Date(Date.now() - 75 * 60000) })
   const staffView = await ok(keeper.book('listRentals', { status: 'reading' }))
   assert.equal(staffView.rentals[0].overtimeNow.hours, 2)
   const ret = await ok(keeper.book('returnBook', { id }))
@@ -177,16 +176,16 @@ test('包天送咖啡：付款后发券，点单自动抵扣一杯，取消订�
 
   // 券只在发券当天有效
   const vid = quote.applied[0].id
-  cloud.__db.collections.vouchers[vid].day = '2000-01-01'
+  await setDoc('vouchers', vid, { day: '2000-01-01' })
   const expired = await ok(alice.coffee('myVouchers'))
   assert.equal(expired.usable.length, 0)
   assert.equal(expired.others[0].status, 'expired')
   assert.equal((await ok(alice.coffee('quote', { items }))).discountFee, 0)
-  cloud.__db.collections.vouchers[vid].day = rentals()[id].day
+  await setDoc('vouchers', vid, { day: (await getDoc('book_rentals', id)).day })
 
   // 包天到当天结束，不收超时费
   await ok(keeper.book('handOut', { id }))
-  rentals()[id].dueAt = new Date(Date.now() - 5 * 3600 * 1000)
+  await setDoc('book_rentals', id, { dueAt: new Date(Date.now() - 5 * 3600 * 1000) })
   const ret = await ok(keeper.book('returnBook', { id }))
   assert.equal(ret.overtimeFee, 0)
 })
@@ -219,12 +218,12 @@ test('规则管理：下架后顾客看不到也不能用；按小时价格不�
 })
 
 test('新版本加的集合不存在时自动建好', async () => {
-  delete cloud.__db.collections.vouchers
+  db.dropCollection('vouchers')
   const res = await ok(alice.coffee('myVouchers'))
   assert.deepEqual(res, { usable: [], others: [] })
-  delete cloud.__db.collections.book_rules
+  db.dropCollection('book_rules')
   const s = await ok(alice.book('getShelf'))
   assert.deepEqual(s.rules, [])
   await ok(keeper.book('saveRule', { rule: { type: 'hourly', name: '新规则', price: 600 } }))
-  assert.ok(cloud.__db.collections.book_rules, '写入时自动建集合')
+  assert.ok(db.hasCollection('book_rules'), '写入时自动建集合')
 })

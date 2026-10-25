@@ -99,14 +99,10 @@ Page({
       sizeType: ['compressed'],
       success: (res) => {
         const file = res.tempFiles[0]
-        const ext = (file.tempFilePath.match(/\.(\w+)$/) || [])[1] || 'jpg'
         wx.showLoading({ title: '上传中', mask: true })
-        wx.cloud.uploadFile({
-          cloudPath: 'covers/' + Date.now() + '-' + Math.floor(Math.random() * 1e6) + '.' + ext,
-          filePath: file.tempFilePath
-        }).then((up) => {
+        api.upload(file.tempFilePath, 'covers').then((url) => {
           wx.hideLoading()
-          this.setData({ 'form.cover': up.fileID })
+          this.setData({ 'form.cover': url })
         }).catch((err) => {
           wx.hideLoading()
           api.toastError(err)

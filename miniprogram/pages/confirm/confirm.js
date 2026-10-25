@@ -11,7 +11,7 @@ Page({
     tableNo: '',
     mode: 'dine_in',
     remark: '',
-    quote: null, // 云端算的价和赠饮券 { total, vouchers, applied, discountFee, payFee }
+    quote: null, // 服务器算的价和赠饮券 { total, vouchers, applied, discountFee, payFee }
     useVouchers: true,
     payable: 0,
     payMethod: 'counter', // 开通微信支付后默认 wechat
@@ -47,7 +47,7 @@ Page({
     return this.data.list.map((i) => ({ productId: i.productId, qty: i.qty, specs: i.specs }))
   },
 
-  // 让云端算一遍价，顺便看看有没有能用的赠饮券
+  // 让服务器算一遍价，顺便看看有没有能用的赠饮券
   requote() {
     if (!this.data.list.length) return
     api.coffee('quote', { items: this.items() }).then((quote) => {

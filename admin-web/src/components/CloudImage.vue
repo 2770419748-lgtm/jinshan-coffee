@@ -4,26 +4,16 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-import { tempUrl } from '../api'
+import { computed } from 'vue'
+import { imageUrl } from '../api'
 
-// 云存储里的图片（cloud://）要先换成临时网址才能在网页里显示
+// 服务器上的图片（/uploads/...），没有图片时显示文字
 const props = defineProps({
   src: { type: String, default: '' },
   text: { type: String, default: '' },
   fit: { type: String, default: 'cover' }
 })
-const url = ref('')
-
-watch(() => props.src, async (src) => {
-  url.value = ''
-  if (!src) return
-  try {
-    url.value = await tempUrl(src)
-  } catch (e) {
-    url.value = ''
-  }
-}, { immediate: true })
+const url = computed(() => imageUrl(props.src))
 </script>
 
 <style scoped>

@@ -13,7 +13,7 @@
     </view>
     <view class="field" wx:if="{{type === 'owner' && codeRequired}}">
       <text class="field-label">绑定码</text>
-      <input class="field-input" placeholder="云函数里设置的 OWNER_CODE" placeholder-class="placeholder" maxlength="32" value="{{code}}" bindinput="onCode" />
+      <input class="field-input" placeholder="服务器配置文件里的 ownerCode" placeholder-class="placeholder" maxlength="32" value="{{code}}" bindinput="onCode" />
     </view>
   </view>
 

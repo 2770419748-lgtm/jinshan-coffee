@@ -2,8 +2,8 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 require('./helpers/load')
-const { sanitizeRule, quoteRental, dueAt, overtime, ruleSummary } = require('../cloudfunctions/book/lib/billing')
-const { applyVouchers } = require('../cloudfunctions/coffee/lib/pricing')
+const { sanitizeRule, quoteRental, dueAt, overtime, ruleSummary } = require('../server/functions/billing')
+const { applyVouchers } = require('../server/functions/pricing')
 
 const MIN = 60000
 const HOUR = 60 * MIN

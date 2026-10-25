@@ -30,7 +30,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { api, tempUrl } from '../api'
+import { api, imageUrl } from '../api'
 import CloudImage from '../components/CloudImage.vue'
 
 const tables = ref([])
@@ -75,7 +75,7 @@ async function gen(t) {
 }
 
 async function download(t) {
-  const url = await tempUrl(t.qrcode)
+  const url = imageUrl(t.qrcode)
   if (url) window.open(url, '_blank')
 }
 

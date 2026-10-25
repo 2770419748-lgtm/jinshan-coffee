@@ -7,11 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "build:mock": "vite build --mode mock --outDir dist-mock",
-    "mock": "npm run build:mock && node mock/server.js",
-    "build:demo": "vite build --mode demo --outDir dist-demo && node demo/build.mjs dist-demo"
+    "mock": "npm run build:mock && node mock/server.js"
   },
   "dependencies": {
-    "@cloudbase/js-sdk": "2.17.0",
     "element-plus": "2.9.1",
     "read-excel-file": "5.8.5",
     "vue": "3.5.13",
@@ -19,7 +17,6 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "5.2.1",
-    "buffer": "6.0.3",
     "qrcode": "1.5.4",
     "vite": "5.4.11"
   }

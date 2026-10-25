@@ -1,7 +1,7 @@
 // 用内存数据库把第 1 步的主要流程完整跑一遍：店主绑定 → 导入菜单 → 顾客下单 → 店员接单出餐
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { cloud, as, unwrap } = require('./helpers/load')
+const { db, state, as, unwrap } = require('./helpers/load')
 
 const owner = as('OWNER')
 const alice = as('ALICE') // 顾客
@@ -19,12 +19,11 @@ const fails = async (p, code) => {
 let menu
 let orderId
 
-test('第一次打开：自动建集合，还没有店主', async () => {
-  cloud.__db.reset()
+test('第一次打开：空数据库，还没有店主', async () => {
+  db.reset()
   const me = await ok(alice.common('login'))
   assert.equal(me.staff, null)
   assert.equal(me.hasOwner, false)
-  assert.ok(cloud.__db.collections.coffee_orders, '应该建好 coffee_orders 集合')
   const empty = await ok(alice.coffee('getMenu'))
   assert.deepEqual(empty, { categories: [], products: [] })
 })
@@ -58,14 +57,14 @@ test('桌号按自然顺序排列，重复桌号不能加', async () => {
   const t5 = tables.find((t) => t.tableNo === '5')
   const code = await ok(owner.coffee('genTableCode', { id: t5._id, envVersion: 'trial' }))
   assert.equal(code.envVersion, 'trial')
-  assert.equal(cloud.__state.lastCodeParams.scene, 't=5')
-  assert.equal(cloud.__state.lastCodeParams.page, 'pages/menu/menu')
-  assert.equal(cloud.__state.lastCodeParams.checkPath, false)
+  assert.equal(state.lastCodeParams.scene, 't=5')
+  assert.equal(state.lastCodeParams.page, 'pages/menu/menu')
+  assert.equal(state.lastCodeParams.checkPath, false)
 })
 
 const byName = (name) => menu.products.find((p) => p.name === name)
 
-test('顾客扫 5 号桌下单：云端算价，取餐号从 001 开始', async () => {
+test('顾客扫 5 号桌下单：服务器算价，取餐号从 001 开始', async () => {
   const latte = byName('拿铁')
   const pour = byName('手冲')
   const res = await ok(alice.coffee('createOrder', {
@@ -188,7 +187,7 @@ test('商品编辑：改价、换规格、校验；分类有商品不能删', as
 test('删除商品会顺带清掉图片', async () => {
   const p = menu.products.find((x) => x.name === '芝士蛋糕')
   const full = await ok(owner.coffee('getProduct', { id: p._id }))
-  await ok(owner.coffee('saveProduct', { product: Object.assign({}, full, { image: 'cloud://env.test/products/cake.jpg' }) }))
+  await ok(owner.coffee('saveProduct', { product: Object.assign({}, full, { image: '/uploads/products/202610/cake.jpg' }) }))
   await ok(owner.coffee('deleteProduct', { id: p._id }))
-  assert.ok(cloud.__state.deleted.indexOf('cloud://env.test/products/cake.jpg') !== -1)
+  assert.ok(state.deleted.indexOf('/uploads/products/202610/cake.jpg') !== -1)
 })
