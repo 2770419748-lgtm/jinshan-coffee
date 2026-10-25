@@ -1,7 +1,7 @@
 {
   "description": "进山咖啡小程序：扫码点单、咖啡后台、店内书架",
   "projectname": "jinshan-coffee",
-  "appid": "touristappid",
+  "appid": "wx8310059ba8f45927",
   "compileType": "miniprogram",
   "miniprogramRoot": "miniprogram/",
   "cloudfunctionRoot": "cloudfunctions/",
@@ -14,7 +14,21 @@
     "minified": true,
     "showShadowRootInWxmlPanel": true,
     "packNpmManually": false,
-    "packNpmRelationList": []
+    "packNpmRelationList": [],
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
   },
   "condition": {},
   "editorSetting": {
@@ -23,8 +37,12 @@
   },
   "packOptions": {
     "ignore": [
-      { "type": "folder", "value": "tests" }
+      {
+        "value": "tests",
+        "type": "folder"
+      }
     ],
     "include": []
-  }
+  },
+  "simulatorPluginLibVersion": {}
 }
