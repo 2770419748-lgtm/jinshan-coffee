@@ -1,0 +1,83 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{book}}">
+  <view class="card head">
+    <image wx:if="{{book.cover}}" class="cover" src="{{book.cover}}" mode="aspectFill" />
+    <view wx:else class="cover cover-text">{{book.title}}</view>
+    <view class="flex-1 info">
+      <view class="title">{{book.title}}</view>
+      <view class="muted" wx:if="{{book.author}}">{{book.author}}</view>
+      <view class="faint" wx:if="{{book.category}}">{{book.category}}<text class="tag gold member-tag" wx:if="{{member.free}}">会员免费</text></view>
+      <text class="tag {{book.available ? 'gold' : ''}} stock">{{book.available ? '可借 ' + book.available + ' 本' : '都借出了'}}</text>
+    </view>
+  </view>
+
+  <view class="card desc" wx:if="{{book.desc}}">{{book.desc}}</view>
+
+  <view class="section-title">选择计费方式</view>
+  <!-- 会员免费看：是会员可以直接选；不是会员点了去会员中心 -->
+  <view class="card rule member-rule {{useMember ? 'on' : ''}}" wx:if="{{member.free}}" bindtap="pickMember">
+    <view class="row-between">
+      <text class="rule-name">会员畅读</text>
+      <text class="gold">{{member.canFree ? '免费' : '开通会员 ›'}}</text>
+    </view>
+    <view class="faint">{{member.canFree ? '会员免费看，不计时，今天打烊前还书就行' : '充值送会员，会员期内这类书都免费看'}}</view>
+  </view>
+  <view class="empty" wx:if="{{!rules.length && !member.canFree}}">店里还没设置借书价格，请问问店员</view>
+  <view
+    wx:for="{{rules}}"
+    wx:key="_id"
+    class="card rule {{!useMember && index === ruleIndex ? 'on' : ''}}"
+    data-index="{{index}}"
+    bindtap="pickRule"
+  >
+    <view class="row-between">
+      <text class="rule-name">{{item.name}}</text>
+      <text class="gold">{{item.summary}}</text>
+    </view>
+    <view class="faint" wx:if="{{item.desc}}">{{item.desc}}</view>
+    <view class="free" wx:if="{{item.freeCups}}">
+      送 {{item.freeCups}} 杯：{{item.freeProducts.length ? '' : '任选饮品'}}<text wx:for="{{item.freeProducts}}" wx:for-item="p" wx:for-index="pi" wx:key="id">{{pi ? '、' : ''}}{{p.name}}</text><text wx:if="{{item.freeMaxFee}}">（每杯最多抵 ¥{{f.yuan(item.freeMaxFee)}}）</text>
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{!useMember && rules[ruleIndex].type === 'hourly'}}">
+    <view class="row-between">
+      <text>借几个小时</text>
+      <view class="stepper">
+        <view class="stepper-btn" data-delta="-1" bindtap="changeHours">−</view>
+        <text class="stepper-num">{{hours}}</text>
+        <view class="stepper-btn plus" data-delta="1" bindtap="changeHours">+</view>
+      </view>
+    </view>
+    <view class="faint note">从店员把书交给你开始计时。超时按 ¥{{f.yuan(rules[ruleIndex].price)}}/小时补，不满 1 小时按 1 小时算<text wx:if="{{rules[ruleIndex].graceMinutes}}">，有 {{rules[ruleIndex].graceMinutes}} 分钟宽限</text>。</view>
+  </view>
+  <view class="card" wx:elif="{{!useMember && rules[ruleIndex].type === 'day'}}">
+    <view class="faint">今天打烊前还书就行。<text wx:if="{{rules[ruleIndex].freeCups}}">付款后赠饮券会放进「我的 → 赠饮券」，今天点单时自动抵扣。</text></view>
+  </view>
+
+  <view class="card" wx:if="{{!useMember && fee > 0 && methods.length > 1}}">
+    <view>付款方式</view>
+    <view class="chips pay-methods">
+      <view wx:for="{{methods}}" wx:key="key" class="chip {{payMethod === item.key ? 'on' : ''}}" data-method="{{item.key}}" bindtap="pickPay">{{item.label}}</view>
+    </view>
+    <view class="faint note" wx:if="{{payMethod === 'balance' && member.balance < fee}}">余额不够，<text class="gold" bindtap="goMember">去充值 ›</text></view>
+  </view>
+
+  <view class="card" wx:if="{{rules.length || member.canFree}}">
+    <input class="remark" placeholder="备注，选填" placeholder-class="placeholder" maxlength="50" value="{{remark}}" bindinput="onRemark" />
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>
+
+<view class="empty" wx:elif="{{loading}}">加载中…</view>
+<view class="empty" wx:else>这本书暂时不在书架上了</view>
+
+<view class="submit-bar" wx:if="{{book && (rules.length || member.canFree)}}">
+  <view class="flex-1">
+    <text class="muted">需付 </text>
+    <text class="price big">{{f.yuan(fee)}}</text>
+  </view>
+  <view class="btn-gold {{submitting || !book.available ? 'disabled' : ''}}" bindtap="submit">{{book.available ? (submitting ? '提交中…' : (!useMember && (payMethod === 'wechat' || payMethod === 'balance') && fee > 0 ? '付款借书' : '下单借书')) : '都借出了'}}</view>
+</view>

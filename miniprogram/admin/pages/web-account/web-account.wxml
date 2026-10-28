@@ -1,0 +1,29 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="card intro">
+    <view class="gold title">在电脑上管理店铺</view>
+    <view class="muted">网页后台能看每日汇总、处理订单和借书、改菜单、批量导入书目。在电脑上打开网址后，用微信扫页面上的二维码就能登录；下面的账号密码是备用的，手机不在身边时用。</view>
+    <view class="url" wx:if="{{webUrl}}">
+      <text class="faint">网址：</text><text selectable>{{webUrl}}</text>
+      <text class="gold copy" bindtap="copyUrl">复制</text>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="field">
+      <text class="field-label">账号</text>
+      <input class="field-input" placeholder="小写字母、数字，比如 kun" placeholder-class="placeholder" maxlength="20" value="{{username}}" data-field="username" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">{{current ? '新密码' : '密码'}}</text>
+      <input class="field-input" password placeholder="至少 8 位，字母加数字" placeholder-class="placeholder" maxlength="64" value="{{password}}" data-field="password" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">再输一次</text>
+      <input class="field-input" password placeholder="确认密码" placeholder-class="placeholder" maxlength="64" value="{{password2}}" data-field="password2" bindinput="onInput" />
+    </view>
+  </view>
+  <view class="faint tip" wx:if="{{current}}">已开通，账号是「{{current}}」。改密码后，电脑上已经登录的会退出。</view>
+
+  <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : (current ? '修改账号密码' : '开通网页后台')}}</view>
+  <view class="btn-danger btn-block" wx:if="{{current}}" bindtap="clear">停用网页后台</view>
+</view>

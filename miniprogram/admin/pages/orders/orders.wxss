@@ -1,0 +1,74 @@
+.tabs {
+  display: flex;
+  background: #121110;
+  border-bottom: 1rpx solid var(--line);
+}
+.tab {
+  flex: 1;
+  text-align: center;
+  padding: 24rpx 0;
+  color: var(--text-2);
+  border-bottom: 4rpx solid transparent;
+}
+.tab.on {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+  font-weight: 600;
+}
+.tab-count {
+  margin-left: 6rpx;
+  font-size: 22rpx;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  padding: 16rpx 28rpx 0;
+  font-size: 24rpx;
+}
+.pickup {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: var(--gold);
+  margin-right: 16rpx;
+}
+.items {
+  margin: 16rpx 0;
+  padding: 16rpx 0;
+  border-top: 1rpx solid var(--line);
+  border-bottom: 1rpx solid var(--line);
+}
+.item-line {
+  display: flex;
+  font-size: 30rpx;
+  padding: 4rpx 0;
+}
+.qty {
+  font-weight: 600;
+  margin-left: 16rpx;
+}
+.remark {
+  color: var(--gold);
+  margin-bottom: 12rpx;
+}
+.star-line {
+  color: var(--gold);
+  font-size: 26rpx;
+  margin-bottom: 12rpx;
+}
+.pay {
+  margin-left: 12rpx;
+}
+.ops .btn-small {
+  margin-left: 16rpx;
+}
+.cancel-link {
+  text-align: right;
+  color: var(--text-3);
+  font-size: 24rpx;
+  margin-top: 16rpx;
+}
+
+.tag.reserve {
+  font-weight: 600;
+  border: 1rpx solid var(--gold);
+}

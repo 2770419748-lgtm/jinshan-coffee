@@ -1,0 +1,52 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{ready}}">
+  <view class="card">
+    <view class="field">
+      <text class="field-label">会员储值</text>
+      <view class="field-input row-between">
+        <text class="muted small">{{enabled ? '顾客能看到会员中心和充值档位' : '没打开，顾客看不到充值'}}</text>
+        <switch checked="{{enabled}}" color="#d6b25e" bindchange="onEnabled" />
+      </view>
+    </view>
+    <view class="faint small note">打开后顾客能用余额点单、借书，也能用余额预约。{{payEnabled ? '微信支付已开通，顾客可以在小程序里自己充。' : '微信支付还没开通，顾客到吧台付钱，店员在「会员储值」里按会员号给他充。'}}</view>
+  </view>
+
+  <view class="section-title">会员免费看哪些书</view>
+  <view class="card">
+    <view class="chips" wx:if="{{categories.length}}">
+      <view wx:for="{{categories}}" wx:key="*this" class="chip {{f.indexOf(freeCategories, item) !== -1 ? 'on' : ''}}" data-cat="{{item}}" bindtap="toggleCategory">{{item}}</view>
+    </view>
+    <view class="faint small" wx:else>书目里还没有分类。录书时填上分类（比如「漫画」）就能选了。</view>
+    <view class="faint small note">会员期内借这些分类的书不收钱、不计时，当天打烊前还。分类按书目里填的分类名。</view>
+  </view>
+
+  <view class="section-title">储值说明</view>
+  <view class="card">
+    <textarea class="notice" maxlength="120" auto-height placeholder="显示在会员中心最下面，比如：储值金额不能提现" placeholder-class="placeholder" value="{{notice}}" bindinput="onNotice" />
+  </view>
+
+  <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : '保存设置'}}</view>
+
+  <view class="row-between plans-head">
+    <text class="section-title">充值档位</text>
+    <text class="gold add" bindtap="addPlan">+ 新增档位</text>
+  </view>
+  <view wx:for="{{plans}}" wx:key="_id" class="card plan {{item.enabled ? '' : 'off'}}" data-id="{{item._id}}" bindtap="editPlan">
+    <view class="moves" catchtap="noop">
+      <text class="move {{index === 0 ? 'faint' : ''}}" data-index="{{index}}" data-delta="-1" bindtap="move">↑</text>
+      <text class="move {{index === plans.length - 1 ? 'faint' : ''}}" data-index="{{index}}" data-delta="1" bindtap="move">↓</text>
+    </view>
+    <view class="flex-1 info">
+      <view class="title">{{item.title}}</view>
+      <view class="muted small">收 ¥{{f.yuan(item.price)}}，到账 ¥{{f.yuan(item.price + item.bonus)}}<text wx:if="{{item.memberDays}}">，送 {{item.memberDays}} 天会员</text></view>
+    </view>
+    <view class="side" catchtap="noop">
+      <switch class="switch" checked="{{item.enabled}}" color="#d6b25e" data-id="{{item._id}}" bindchange="togglePlan" />
+      <text class="faint small">{{item.enabled ? '上架' : '下架'}}</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{loading}}">加载中…</view>
+  <view class="empty" wx:elif="{{!plans.length}}">还没有充值档位。新增一个，比如「充 300 送 100，送 365 天会员」。</view>
+  <view class="safe-bottom"></view>
+</view>

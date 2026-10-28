@@ -1,0 +1,110 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="topbar">
+  <block wx:if="{{reserving}}">
+    <text><text class="gold">预约点单</text>，结算时选取餐时间</text>
+    <text class="topbar-link" bindtap="stopReserve">不预约了</text>
+  </block>
+  <block wx:elif="{{tableNo}}">
+    <text><text class="gold">{{tableNo}}</text> 号桌</text>
+    <text class="topbar-link" bindtap="clearTable">不是这桌？</text>
+  </block>
+  <text wx:else class="muted">没扫桌码也能点，结算时选堂食或外带</text>
+</view>
+
+<view class="body">
+  <scroll-view class="cats" scroll-y>
+    <view
+      wx:for="{{categories}}"
+      wx:key="_id"
+      class="cat {{item._id === currentCat ? 'active' : ''}}"
+      data-id="{{item._id}}"
+      bindtap="selectCat"
+    >{{item.name}}</view>
+  </scroll-view>
+
+  <scroll-view class="goods" scroll-y scroll-into-view="{{scrollTo}}" scroll-with-animation>
+    <view wx:if="{{loading}}" class="empty">菜单加载中…</view>
+    <view wx:elif="{{!categories.length}}" class="empty">菜单还在准备中</view>
+    <view wx:elif="{{!visible.length}}" class="empty">这个分类还没有商品</view>
+
+    <view wx:for="{{visible}}" wx:key="_id" id="p-{{item._id}}" class="goods-item {{item.soldOut ? 'sold-out' : ''}} {{item._id === focusId ? 'focus' : ''}}">
+      <image class="goods-img" src="{{item.image || '/images/logo.jpg'}}" mode="aspectFill" lazy-load />
+      <view class="goods-info">
+        <view class="goods-name">{{item.name}}</view>
+        <view class="goods-desc" wx:if="{{item.desc}}">{{item.desc}}</view>
+        <view class="goods-foot">
+          <text class="price">{{f.yuan(item.price)}}</text>
+          <text wx:if="{{item.soldOut}}" class="tag">售罄</text>
+          <view wx:elif="{{item.specs.length}}" class="btn-gold btn-small" data-id="{{item._id}}" bindtap="tapAdd">选规格</view>
+          <view wx:else class="add-btn" data-id="{{item._id}}" bindtap="tapAdd">+</view>
+        </view>
+      </view>
+    </view>
+    <view class="safe-bottom"></view>
+  </scroll-view>
+</view>
+
+<!-- 购物车栏 -->
+<view class="cart-bar" wx:if="{{cartCount}}">
+  <view class="cart-info" bindtap="toggleCart">
+    <view class="cart-icon">{{cartCount}}</view>
+    <text class="price big">{{f.yuan(cartTotal)}}</text>
+  </view>
+  <view class="btn-gold" bindtap="checkout">去结算</view>
+</view>
+
+<!-- 购物车明细 -->
+<view class="mask" wx:if="{{showCart}}" bindtap="toggleCart"></view>
+<view class="sheet cart-sheet" wx:if="{{showCart}}">
+  <view class="sheet-head">
+    <text class="sheet-title">购物车</text>
+    <text class="muted" bindtap="clearCart">清空</text>
+  </view>
+  <view wx:for="{{cartList}}" wx:key="key" class="cart-line">
+    <view class="flex-1">
+      <view>{{item.name}}</view>
+      <view class="faint" wx:if="{{item.specText}}">{{item.specText}}</view>
+    </view>
+    <text class="price cart-line-price">{{f.yuan(item.unitPrice * item.qty)}}</text>
+    <view class="stepper">
+      <view class="stepper-btn" data-key="{{item.key}}" data-delta="-1" bindtap="changeQty">−</view>
+      <text class="stepper-num">{{item.qty}}</text>
+      <view class="stepper-btn plus" data-key="{{item.key}}" data-delta="1" bindtap="changeQty">+</view>
+    </view>
+  </view>
+  <view class="safe-bottom"></view>
+</view>
+
+<!-- 选规格 -->
+<view class="mask" wx:if="{{spec}}" bindtap="closeSpec"></view>
+<view class="sheet" wx:if="{{spec}}">
+  <view class="sheet-head">
+    <text class="sheet-title">{{spec.product.name}}</text>
+    <text class="sheet-close" bindtap="closeSpec">×</text>
+  </view>
+  <view wx:for="{{spec.product.specs}}" wx:for-item="g" wx:for-index="gi" wx:key="name" class="spec-group">
+    <view class="spec-name">{{g.name}}</view>
+    <view class="chips">
+      <view
+        wx:for="{{g.options}}"
+        wx:for-item="o"
+        wx:for-index="oi"
+        wx:key="name"
+        class="chip {{spec.selected[gi] === oi ? 'on' : ''}}"
+        data-g="{{gi}}"
+        data-o="{{oi}}"
+        bindtap="pickOption"
+      >{{o.name}}<text wx:if="{{o.price}}"> +{{f.yuan(o.price)}}</text></view>
+    </view>
+  </view>
+  <view class="spec-foot">
+    <text class="price big flex-1">{{f.yuan(spec.unitPrice * spec.qty)}}</text>
+    <view class="stepper">
+      <view class="stepper-btn" data-delta="-1" bindtap="changeSpecQty">−</view>
+      <text class="stepper-num">{{spec.qty}}</text>
+      <view class="stepper-btn plus" data-delta="1" bindtap="changeSpecQty">+</view>
+    </view>
+  </view>
+  <view class="btn-gold btn-block spec-confirm" bindtap="confirmSpec">加入购物车</view>
+</view>

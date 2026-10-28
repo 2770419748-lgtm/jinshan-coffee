@@ -1,0 +1,71 @@
+/* 黑底金色，跟店里的 logo 一致 */
+html.dark {
+  --el-color-primary: #d6b25e;
+  --el-color-primary-light-3: #a88d4c;
+  --el-color-primary-light-5: #7f6b3b;
+  --el-color-primary-light-7: #56492b;
+  --el-color-primary-light-8: #42381f;
+  --el-color-primary-light-9: #2d2716;
+  --el-color-primary-dark-2: #e0c47f;
+  --el-bg-color: #141312;
+  --el-bg-color-page: #0b0b0b;
+  --el-bg-color-overlay: #1b1a18;
+  --el-border-color: #2c2925;
+  --el-border-color-light: #2c2925;
+  --el-border-color-lighter: #24221f;
+  --el-text-color-primary: #f2ecdf;
+  --el-text-color-regular: #d8d1c2;
+  --el-fill-color-blank: #141312;
+}
+html, body, #app {
+  margin: 0;
+  height: 100%;
+  background: var(--el-bg-color-page);
+  color: var(--el-text-color-primary);
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+}
+.gold { color: var(--el-color-primary); }
+.muted { color: var(--el-text-color-secondary); }
+.danger { color: var(--el-color-danger); }
+.ok { color: var(--el-color-success); }
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.toolbar .spacer { flex: 1; }
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+.big-no {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--el-color-primary);
+}
+.tip {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.el-table .cell { line-height: 1.6; }
+/* 金色按钮上用深色字，看得清 */
+html.dark .el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
+  --el-button-text-color: #1a1408;
+  --el-button-hover-text-color: #1a1408;
+  --el-button-active-text-color: #1a1408;
+  --el-button-disabled-text-color: rgba(26, 20, 8, 0.6);
+}
+html.dark .el-radio-button {
+  --el-radio-button-checked-text-color: #1a1408;
+}
+/* 手机上对话框占满宽度，表单标签放到上面 */
+@media (max-width: 760px) {
+  .el-dialog { width: 94vw !important; }
+  .el-dialog .el-form-item { display: block; }
+  .el-dialog .el-form-item__label { width: auto !important; justify-content: flex-start; }
+  .el-message-box { max-width: 92vw; }
+}

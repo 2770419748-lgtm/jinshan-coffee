@@ -1,0 +1,36 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view wx:if="{{ready}}">
+  <scroll-view class="cat-bar" scroll-x enable-flex>
+    <view class="chip {{current === 'all' ? 'on' : ''}}" data-id="all" bindtap="pickCat">全部</view>
+    <view wx:for="{{categories}}" wx:key="_id" class="chip {{current === item._id ? 'on' : ''}}" data-id="{{item._id}}" bindtap="pickCat">{{item.name}}</view>
+  </scroll-view>
+
+  <view class="page">
+    <view wx:for="{{list}}" wx:key="_id" class="card product {{item.onShelf ? '' : 'off'}}" data-id="{{item._id}}" bindtap="edit">
+      <image class="img" src="{{item.image || '/images/logo.jpg'}}" mode="aspectFill" />
+      <view class="flex-1 info">
+        <view class="name">{{item.name}}</view>
+        <view class="faint small">{{item.categoryName}}{{item.specs.length ? ' · ' + item.specs.length + ' 组规格' : ''}}</view>
+        <view class="row-between">
+          <text class="price">{{f.yuan(item.price)}}</text>
+          <view class="row" catchtap="noop">
+            <text class="sold {{item.soldOut ? 'on' : ''}}" data-id="{{item._id}}" catchtap="toggleSoldOut">{{item.soldOut ? '已售罄' : '标售罄'}}</text>
+            <switch class="shelf" checked="{{item.onShelf}}" color="#d6b25e" data-id="{{item._id}}" bindchange="toggleShelf" />
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="empty" wx:if="{{loading}}">加载中…</view>
+    <view class="empty-box" wx:elif="{{!all.length}}">
+      <view class="empty">还没有商品</view>
+      <view class="btn-ghost btn-block" wx:if="{{isOwner}}" bindtap="seedDemo">导入示例菜单试试</view>
+    </view>
+    <view class="empty" wx:elif="{{!list.length}}">这个分类下还没有商品</view>
+    <view class="faint tip" wx:if="{{all.length}}">开关控制上架；售罄的商品顾客能看到但点不了。</view>
+    <view class="safe-bottom"></view>
+  </view>
+
+  <view class="fab btn-gold" bindtap="add">+ 新增商品</view>
+</view>

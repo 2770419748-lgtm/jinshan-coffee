@@ -1,0 +1,50 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="card">
+    <view class="field">
+      <text class="field-label">点开去哪</text>
+      <view class="field-input chips kinds">
+        <view wx:for="{{kindList}}" wx:key="key" class="chip {{form.kind === item.key ? 'on' : ''}}" data-kind="{{item.key}}" bindtap="pickKind">{{item.name}}</view>
+      </view>
+    </view>
+    <view class="field" wx:if="{{form.kind === 'product' || form.kind === 'book'}}">
+      <text class="field-label">{{form.kind === 'product' ? '哪个商品' : '哪本书'}}</text>
+      <picker class="field-input" mode="selector" range="{{targets}}" range-key="name" value="{{targetIndex}}" bindchange="pickTarget" disabled="{{!targets.length}}">
+        <view class="row-between">
+          <text class="{{targetIndex >= 0 ? '' : 'placeholder'}}">{{targetIndex >= 0 ? targets[targetIndex].name : (targets.length ? '点这里选' : (form.kind === 'product' ? '还没有上架的商品' : '还没有上架的书'))}}</text>
+          <text class="cell-arrow"></text>
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="section-title">图片（建议 750×400）</view>
+  <view class="card">
+    <view class="image-box" bindtap="chooseImage">
+      <image wx:if="{{form.image}}" class="image" src="{{form.image}}" mode="aspectFill" />
+      <image wx:elif="{{fallbackImage}}" class="image dim" src="{{fallbackImage}}" mode="aspectFill" />
+      <view wx:else class="image placeholder-box"><text class="plus">+</text></view>
+      <view class="image-hint" wx:if="{{!form.image}}">{{fallbackImage ? '现在用的是' + (form.kind === 'book' ? '书封面' : '商品图') + '，点这里换一张宽图' : '点这里上传'}}</view>
+    </view>
+    <view class="faint remove-img" wx:if="{{form.image}}" bindtap="removeImage">移除图片</view>
+  </view>
+
+  <view class="card">
+    <view class="field">
+      <text class="field-label">大标题</text>
+      <input class="field-input" placeholder="{{titleHint}}" placeholder-class="placeholder" maxlength="16" value="{{form.title}}" data-field="title" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">小字</text>
+      <input class="field-input" placeholder="{{subtitleHint}}" placeholder-class="placeholder" maxlength="24" value="{{form.subtitle}}" data-field="subtitle" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">显示</text>
+      <view class="field-input"><switch checked="{{form.enabled}}" color="#d6b25e" bindchange="onEnabled" /></view>
+    </view>
+  </view>
+  <view class="faint note">商品或书下架以后，这张轮播会自动不显示，重新上架又会出来。</view>
+
+  <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : '保存'}}</view>
+  <view class="btn-danger btn-block" wx:if="{{id}}" bindtap="remove">删除这张轮播</view>
+  <view class="safe-bottom"></view>
+</view>

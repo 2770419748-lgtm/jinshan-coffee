@@ -1,0 +1,4 @@
+.tip { margin: 0 4rpx 20rpx; }
+.voucher { display: flex; align-items: center; gap: 24rpx; }
+.amount { font-size: 44rpx; font-weight: 700; min-width: 140rpx; text-align: center; }
+.voucher.off { opacity: 0.45; }

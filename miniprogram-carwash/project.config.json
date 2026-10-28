@@ -1,0 +1,22 @@
+{
+  "description": "黑镜车体护理车房洗车小程序：预约到店或上门洗车、洗车储值和次卡、技师接单。和进山咖啡共用一台服务器",
+  "projectname": "blackmirror-carwash",
+  "appid": "touristappid",
+  "compileType": "miniprogram",
+  "libVersion": "3.5.0",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "uploadWithSourceMap": true
+  },
+  "condition": {},
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  }
+}

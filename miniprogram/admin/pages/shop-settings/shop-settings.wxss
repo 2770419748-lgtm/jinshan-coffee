@@ -1,0 +1,19 @@
+.small { font-size: 24rpx; }
+.save {
+  margin: 24rpx 0 8rpx;
+}
+.steps .step {
+  display: flex;
+  margin-bottom: 20rpx;
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+.steps .step .gold {
+  width: 40rpx;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.hours-note {
+  padding-top: 16rpx;
+}

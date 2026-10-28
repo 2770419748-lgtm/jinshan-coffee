@@ -1,0 +1,28 @@
+.intro {
+  font-size: 24rpx;
+  margin: 0 4rpx 20rpx;
+}
+.rule.off .name,
+.rule.off .summary {
+  opacity: 0.4;
+}
+.name {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-right: 16rpx;
+}
+.summary {
+  margin: 8rpx 0 4rpx;
+}
+.small {
+  font-size: 24rpx;
+}
+.shelf {
+  transform: scale(0.8);
+}
+.fab {
+  position: fixed;
+  right: 32rpx;
+  bottom: calc(40rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.5);
+}

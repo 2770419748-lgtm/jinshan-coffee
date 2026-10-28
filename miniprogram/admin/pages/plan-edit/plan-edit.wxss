@@ -1,0 +1,11 @@
+.field-label {
+  width: 200rpx;
+}
+.note {
+  font-size: 24rpx;
+  margin: 0 8rpx 8rpx;
+  line-height: 1.6;
+}
+.save {
+  margin: 24rpx 0 20rpx;
+}

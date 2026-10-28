@@ -1,0 +1,24 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page">
+  <view class="card" wx:for="{{cards}}" wx:key="_id" data-id="{{item._id}}" bindtap="toggle" hover-class="btn-hover">
+    <view class="row-between">
+      <view class="bold">{{item.name}}</view>
+      <text class="tag {{item.state === 'active' ? 'on' : ''}}">{{item.stateText}}</text>
+    </view>
+    <view class="times"><text class="big">{{item.remaining}}</text><text class="muted"> / {{item.total}} 次</text></view>
+    <view class="muted small">能洗：{{item.serviceNames.length ? f.join(item.serviceNames, '、') : '—'}}</view>
+    <view class="faint small">{{item.expiresDay ? item.expiresDay + ' 到期' : '不限期'}} · 办卡 {{f.time(item.createdAt)}}</view>
+    <view class="logs" wx:if="{{openId === item._id}}">
+      <view class="log row-between" wx:for="{{logs}}" wx:for-item="log" wx:key="_id">
+        <view class="flex-1">
+          <view class="small">{{log.title || log.typeName}}</view>
+          <view class="faint small">{{f.time(log.createdAt)}}</view>
+        </view>
+        <text class="small">{{log.change > 0 ? '+' + log.change : log.change}} 次</text>
+      </view>
+      <view class="faint small" wx:if="{{!logs.length}}">还没有记录</view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{loaded && !cards.length}}">还没有次卡，可以在会员中心办一张</view>
+</view>

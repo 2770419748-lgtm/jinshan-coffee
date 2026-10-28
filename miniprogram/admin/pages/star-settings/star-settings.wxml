@@ -1,0 +1,50 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="card">
+    <view class="field">
+      <text class="field-label">集星</text>
+      <view class="field-input row-between">
+        <text class="muted small">{{form.enabled ? '顾客买一杯得一颗星' : '没打开，顾客看不到集星'}}</text>
+        <switch checked="{{form.enabled}}" color="#d6b25e" bindchange="onEnabled" />
+      </view>
+    </view>
+    <view class="field">
+      <text class="field-label">几颗换一杯</text>
+      <input class="field-input" type="number" placeholder="比如 10" placeholder-class="placeholder" value="{{form.needText}}" data-field="needText" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">每杯最多抵</text>
+      <input class="field-input" type="digit" placeholder="元，选填；不填整杯免费" placeholder-class="placeholder" value="{{form.maxText}}" data-field="maxText" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">有效天数</text>
+      <input class="field-input" type="number" placeholder="选填；不填一直有效" placeholder-class="placeholder" value="{{form.validText}}" data-field="validText" bindinput="onInput" />
+    </view>
+  </view>
+
+  <view class="section-title">买哪些得星</view>
+  <view class="card">
+    <view class="chips">
+      <view class="chip {{form.earnAll ? 'on' : ''}}" data-kind="earn" bindtap="pickAll">全部商品</view>
+      <view wx:for="{{categories}}" wx:key="_id" class="chip {{earnPicked[item._id] ? 'on' : ''}}" data-kind="earn" data-id="{{item._id}}" bindtap="toggleCategory">{{item.name}}</view>
+    </view>
+    <view class="faint small note">按菜单分类选，比如只选「咖啡」。每件得 1 颗星，出餐、收款后到账；用券或用星免费的那杯不得星。</view>
+  </view>
+
+  <view class="section-title">能换哪些</view>
+  <view class="card">
+    <view class="chips">
+      <view class="chip {{form.redeemAll ? 'on' : ''}}" data-kind="redeem" bindtap="pickAll">全部商品</view>
+      <view wx:for="{{categories}}" wx:key="_id" class="chip {{redeemPicked[item._id] ? 'on' : ''}}" data-kind="redeem" data-id="{{item._id}}" bindtap="toggleCategory">{{item.name}}</view>
+    </view>
+    <view class="faint small note">顾客下单时打开「用星换一杯」，在能换的商品里免费最贵的那一杯，每单限一杯。订单取消星星退回。</view>
+  </view>
+
+  <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : '保存设置'}}</view>
+
+  <view class="card stats" wx:if="{{stats}}">
+    <view class="muted">顾客手里一共 <text class="gold">{{stats.stars}}</text> 颗星（{{stats.holders}} 人）</view>
+    <view class="faint small">累计发出 {{stats.earned}} 颗（含店主补的），换掉 {{stats.used}} 颗</view>
+  </view>
+  <view class="faint small note">在店里买了没用小程序的，可以在「会员储值」里按会员号给顾客加星。</view>
+  <view class="safe-bottom"></view>
+</view>

@@ -1,0 +1,29 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="card list" wx:if="{{list.length}}">
+    <view wx:for="{{list}}" wx:key="id" class="cell">
+      <view class="flex-1">
+        <text>{{item.name}}</text>
+        <text class="faint me" wx:if="{{item.isMe}}">（我）</text>
+        <view class="faint web" wx:if="{{item.webUsername}}">网页后台：{{item.webUsername}} <text class="link" data-index="{{index}}" bindtap="clearWeb">停用</text></view>
+      </view>
+      <text class="tag gold role" data-index="{{index}}" bindtap="changeRole">{{item.roleName}}</text>
+      <text class="danger op" wx:if="{{!item.isMe}}" data-index="{{index}}" bindtap="remove">移除</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{loading}}">加载中…</view>
+  <view class="faint tip">点角色可以修改。咖啡师看不到书籍后台，书籍管理员看不到咖啡后台。</view>
+
+  <view class="btn-gold btn-block" bindtap="invite">+ 邀请员工</view>
+</view>
+
+<view class="mask" wx:if="{{invite}}" bindtap="closeInvite"></view>
+<view class="sheet invite" wx:if="{{invite}}">
+  <view class="sheet-head">
+    <text class="sheet-title">邀请码</text>
+    <text class="sheet-close" bindtap="closeInvite">×</text>
+  </view>
+  <view class="code">{{invite.code}}</view>
+  <view class="muted center">角色：{{invite.roleName}} · 24 小时内有效，只能用一次</view>
+  <view class="faint center steps">让员工打开小程序，进入「我的」，点底部的「我是店员，用邀请码绑定」，输入这 6 位数字。</view>
+  <view class="btn-ghost btn-block" bindtap="copyCode">复制邀请码</view>
+</view>

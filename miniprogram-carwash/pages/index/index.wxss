@@ -1,0 +1,34 @@
+.hero { background: #000; }
+.banner { width: 750rpx; height: 290rpx; display: block; }
+.shop-name { font-size: 36rpx; font-weight: 600; margin-bottom: 4rpx; }
+.shop-row {
+  display: flex;
+  align-items: center;
+  padding-top: 16rpx;
+  margin-top: 16rpx;
+  border-top: 1rpx solid var(--line);
+}
+.link { color: var(--accent); font-size: 26rpx; margin-left: 16rpx; }
+.notice {
+  margin-top: 16rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  background: var(--card-2);
+  color: var(--text-2);
+  font-size: 24rpx;
+}
+.member { display: flex; align-items: center; }
+.member-side { text-align: right; }
+.closed {
+  margin-bottom: 24rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 16rpx;
+  border: 1rpx dashed var(--line);
+  color: var(--warn);
+  font-size: 26rpx;
+}
+.service { display: flex; align-items: center; gap: 20rpx; }
+.cover { width: 140rpx; height: 140rpx; border-radius: 14rpx; flex-shrink: 0; background: var(--card-2); }
+.service-name { font-size: 32rpx; font-weight: 600; }
+.prices { margin-top: 8rpx; }
+.member-price { margin-left: 16rpx; font-size: 24rpx; color: var(--text-2); }

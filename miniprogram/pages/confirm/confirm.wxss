@@ -1,0 +1,90 @@
+.mode-row {
+  display: flex;
+  margin-bottom: 8rpx;
+}
+.line {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 0;
+}
+.line-img {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 12rpx;
+  margin-right: 20rpx;
+  background: var(--card-2);
+}
+.line-right {
+  text-align: right;
+  margin-left: 16rpx;
+}
+.remark-title {
+  margin: 0 0 12rpx;
+}
+.remark {
+  width: 100%;
+  min-height: 80rpx;
+  color: var(--text);
+  font-size: 28rpx;
+}
+.pay-note {
+  font-size: 24rpx;
+  margin-top: 12rpx;
+}
+.submit-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 20rpx 24rpx calc(20rpx + env(safe-area-inset-bottom));
+  background: #121110;
+  border-top: 1rpx solid var(--line);
+}
+.small {
+  font-size: 24rpx;
+}
+.pay-methods {
+  margin-top: 16rpx;
+}
+.pay-methods .chip {
+  margin-bottom: 0;
+}
+.reserve-card {
+  border-color: var(--gold);
+}
+.slot-label {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+.reserve-note {
+  margin-top: 12rpx;
+}
+.sheet-tip {
+  margin: -12rpx 0 20rpx;
+}
+.coupon {
+  display: flex;
+  align-items: center;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  border-radius: 16rpx;
+  border: 1rpx solid var(--line);
+  background: var(--card-2);
+}
+.coupon.on {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+}
+.coupon.off { opacity: 0.5; }
+.coupon-amount {
+  width: 140rpx;
+  flex-shrink: 0;
+}
+.coupon-check {
+  font-size: 36rpx;
+}
+.no-coupon {
+  margin-top: 8rpx;
+}

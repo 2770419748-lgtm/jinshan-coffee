@@ -1,0 +1,31 @@
+.profile {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 8rpx 40rpx;
+}
+.avatar {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  border: 2rpx solid var(--gold);
+  margin-right: 28rpx;
+}
+.hello {
+  font-size: 36rpx;
+  font-weight: 600;
+}
+.list {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.small {
+  font-size: 24rpx;
+  margin-top: 6rpx;
+}
+.staff-link {
+  text-align: center;
+  color: var(--text-3);
+  font-size: 24rpx;
+  margin-top: 40rpx;
+  text-decoration: underline;
+}

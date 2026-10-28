@@ -1,0 +1,4 @@
+# 配置文件里有 AppSecret 和支付密钥，数据目录里是店里的数据，都不能进代码仓库
+config.json
+data/
+cert/

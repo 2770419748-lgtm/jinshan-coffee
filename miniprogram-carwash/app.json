@@ -1,0 +1,50 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/orders/orders",
+    "pages/mine/mine",
+    "pages/book/book",
+    "pages/order-detail/order-detail",
+    "pages/addresses/addresses",
+    "pages/address-edit/address-edit",
+    "pages/member/member",
+    "pages/member-logs/member-logs",
+    "pages/cards/cards",
+    "pages/vouchers/vouchers",
+    "pages/bind/bind"
+  ],
+  "subPackages": [
+    {
+      "root": "staff",
+      "name": "staff",
+      "pages": [
+        "pages/orders/orders",
+        "pages/order/order",
+        "pages/counter/counter",
+        "pages/web-account/web-account"
+      ]
+    }
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#000000",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "黑镜车体护理车房",
+    "backgroundColor": "#000000",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#808080",
+    "selectedColor": "#ffffff",
+    "backgroundColor": "#000000",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "预约", "iconPath": "images/tab/home.png", "selectedIconPath": "images/tab/home-on.png" },
+      { "pagePath": "pages/orders/orders", "text": "订单", "iconPath": "images/tab/orders.png", "selectedIconPath": "images/tab/orders-on.png" },
+      { "pagePath": "pages/mine/mine", "text": "我的", "iconPath": "images/tab/mine.png", "selectedIconPath": "images/tab/mine-on.png" }
+    ]
+  },
+  "requiredPrivateInfos": ["chooseLocation"],
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

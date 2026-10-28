@@ -1,0 +1,65 @@
+.intro {
+  font-size: 24rpx;
+  margin: 0 4rpx 20rpx;
+  line-height: 1.6;
+}
+.banner {
+  display: flex;
+  align-items: center;
+}
+.banner.off .thumb,
+.banner.off .info {
+  opacity: 0.4;
+}
+.thumb-img {
+  width: 200rpx;
+  height: 107rpx;
+  border-radius: 12rpx;
+  background: var(--card-2);
+}
+.thumb-plain {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold);
+  letter-spacing: 4rpx;
+}
+.info {
+  margin: 0 16rpx 0 20rpx;
+}
+.warn {
+  margin-left: 8rpx;
+}
+.title {
+  margin-top: 6rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.small {
+  font-size: 22rpx;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.switch {
+  transform: scale(0.75);
+}
+.moves {
+  display: flex;
+}
+.move {
+  padding: 4rpx 14rpx;
+  font-size: 32rpx;
+  color: var(--gold);
+}
+.fab {
+  position: fixed;
+  right: 32rpx;
+  bottom: calc(40rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.5);
+}

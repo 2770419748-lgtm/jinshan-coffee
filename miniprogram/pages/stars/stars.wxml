@@ -1,0 +1,53 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{info}}">
+  <!-- 集星卡 -->
+  <view class="star-card">
+    <view class="row-between">
+      <text class="star-brand">进山集星</text>
+      <text class="faint small" wx:if="{{info.memberNo}}">会员号 {{info.memberNo}}</text>
+    </view>
+    <view class="star-count">
+      <text class="star-num">{{info.stars}}</text>
+      <text class="muted"> / {{info.need}} 颗</text>
+    </view>
+    <view class="dots" wx:if="{{dots.length}}">
+      <text wx:for="{{dots}}" wx:key="i" class="dot {{item.on ? 'on' : ''}}">★</text>
+    </view>
+    <view class="bar" wx:else>
+      <view class="bar-in" style="width: {{percent}}%"></view>
+    </view>
+    <view class="star-tip gold" wx:if="{{info.enabled}}">{{tip}}</view>
+    <view class="star-tip muted" wx:else>店里暂时没开集星活动<text wx:if="{{info.stars}}">，星星给你留着</text></view>
+    <view class="faint small" wx:if="{{info.pending}}">还有 {{info.pending}} 颗等出餐后到账</view>
+    <view class="faint small" wx:if="{{info.expiring}}">其中 {{info.expiring.n}} 颗 {{info.expiring.day}} 以后过期</view>
+  </view>
+
+  <view class="btn-gold btn-block go" wx:if="{{info.enabled}}" bindtap="goMenu">{{info.stars >= info.need ? '去点单，用星换一杯' : '去点单'}}</view>
+
+  <block wx:if="{{info.enabled}}">
+    <view class="section-title">规则</view>
+    <view class="card">
+      <view wx:for="{{rules}}" wx:key="*this" class="rule muted">{{index + 1}}. {{item}}</view>
+    </view>
+  </block>
+
+  <view class="section-title">星星记录</view>
+  <view class="card list" wx:if="{{logs.length}}">
+    <view wx:for="{{logs}}" wx:key="_id" class="log">
+      <view class="flex-1">
+        <view>{{item.title || item.typeName}}</view>
+        <view class="faint small">{{item.typeName}} · {{f.time(item.createdAt)}}</view>
+        <view class="faint small" wx:if="{{item.reason}}">原因：{{item.reason}}</view>
+      </view>
+      <view class="log-right">
+        <view class="amount {{item.amount > 0 ? 'plus' : ''}}">{{item.amount > 0 ? '+' : ''}}{{item.amount}}</view>
+        <view class="faint small">剩 {{item.stars}} 颗</view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:elif="{{!loading}}">还没有星星，买一杯试试</view>
+  <view class="faint more" wx:if="{{logs.length && !hasMore}}">没有更多了</view>
+</view>
+
+<view class="empty" wx:elif="{{loading}}">加载中…</view>
