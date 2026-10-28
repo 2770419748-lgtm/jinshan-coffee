@@ -1,0 +1,33 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page">
+  <view class="head">
+    <view class="head-title">领券中心</view>
+    <view class="muted">领到的券放在「我的券」里，点单结算时自动抵扣</view>
+  </view>
+
+  <view class="empty" wx:if="{{loading}}">加载中…</view>
+  <view class="empty" wx:elif="{{!coupons.length}}">现在没有可以领的券，过几天再来看看</view>
+
+  <view wx:for="{{coupons}}" wx:key="_id" class="ticket {{item.canClaim ? '' : 'off'}}">
+    <view class="ticket-left">
+      <view class="ticket-amount"><text class="yen">¥</text>{{f.yuan(item.amount)}}</view>
+      <view class="ticket-rule">{{f.couponRule(item)}}</view>
+    </view>
+    <view class="ticket-body">
+      <view class="ticket-title">{{item.title}}</view>
+      <view class="faint small">领取后 {{item.validDays}} 天内有效</view>
+      <view class="faint small">{{item.left === null ? '' : '还剩 ' + item.left + ' 张 · '}}每人限 {{item.perUser}} 张{{item.mine ? '，你已领 ' + item.mine + ' 张' : ''}}</view>
+    </view>
+    <view class="ticket-action">
+      <view wx:if="{{item.canClaim}}" class="btn-gold btn-small {{claiming === item._id ? 'disabled' : ''}}" data-id="{{item._id}}" bindtap="claim">领取</view>
+      <text wx:elif="{{item.mine}}" class="tag gold">已领取</text>
+      <text wx:else class="tag">已领完</text>
+    </view>
+  </view>
+
+  <view class="actions" wx:if="{{!loading}}">
+    <view class="btn-ghost btn-block" bindtap="goMine">查看我的券</view>
+    <view class="btn-gold btn-block" bindtap="goMenu">去点单</view>
+  </view>
+</view>

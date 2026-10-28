@@ -1,0 +1,25 @@
+<view class="page">
+  <view class="muted loading" wx:if="{{state === 'loading'}}">加载中…</view>
+
+  <block wx:elif="{{state === 'confirm'}}">
+    <view class="card hero">
+      <view class="badge gold">电脑登录</view>
+      <view class="title">电脑上的进山管理后台请求登录</view>
+      <view class="muted">确认后，那台电脑会以「{{staff.name}}（{{staff.roleName}}）」的身份登录，7 天内有效。</view>
+    </view>
+    <view class="faint warn">只在自己面前的电脑上扫码确认。如果二维码是别人发给你的，或者不是你本人在操作，请点「取消」。</view>
+    <view class="btn-gold btn-block {{busy ? 'disabled' : ''}}" bindtap="confirm">{{busy ? '登录中…' : '确认登录'}}</view>
+    <view class="btn-ghost btn-block cancel" bindtap="cancel">取消</view>
+  </block>
+
+  <block wx:else>
+    <view class="card hero">
+      <view class="title" wx:if="{{state === 'done'}}">已登录，回到电脑上继续</view>
+      <view class="title" wx:elif="{{state === 'cancelled'}}">已取消，电脑不会登录</view>
+      <view class="title" wx:elif="{{state === 'invalid'}}">这不是网页后台的登录码</view>
+      <view class="title" wx:else>二维码已经失效</view>
+      <view class="muted" wx:if="{{state === 'expired'}}">二维码 3 分钟内有效，而且只能用一次。请在电脑上刷新二维码再扫。</view>
+    </view>
+    <view class="btn-ghost btn-block" bindtap="back">返回</view>
+  </block>
+</view>

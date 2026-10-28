@@ -1,0 +1,78 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="card">
+    <view class="field">
+      <text class="field-label">名称</text>
+      <input class="field-input" placeholder="比如 按小时、包天送咖啡" placeholder-class="placeholder" maxlength="16" value="{{form.name}}" data-field="name" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">计费方式</text>
+      <view class="field-input row">
+        <view class="chip {{form.type === 'hourly' ? 'on' : ''}}" data-type="hourly" bindtap="pickType">按小时</view>
+        <view class="chip {{form.type === 'day' ? 'on' : ''}}" data-type="day" bindtap="pickType">包天</view>
+      </view>
+    </view>
+    <view class="field">
+      <text class="field-label">{{form.type === 'hourly' ? '每小时（元）' : '每天（元）'}}</text>
+      <input class="field-input" type="digit" placeholder="{{form.type === 'hourly' ? '比如 8' : '比如 39'}}" placeholder-class="placeholder" value="{{form.priceText}}" data-field="priceText" bindinput="onInput" />
+    </view>
+
+    <block wx:if="{{form.type === 'hourly'}}">
+      <view class="field">
+        <text class="field-label">最少几小时</text>
+        <input class="field-input" type="number" value="{{form.minHours}}" data-field="minHours" bindinput="onInput" />
+      </view>
+      <view class="field">
+        <text class="field-label">最多几小时</text>
+        <input class="field-input" type="number" value="{{form.maxHours}}" data-field="maxHours" bindinput="onInput" />
+      </view>
+      <view class="field">
+        <text class="field-label">宽限（分钟）</text>
+        <input class="field-input" type="number" placeholder="超时不到这么久不收钱" placeholder-class="placeholder" value="{{form.graceMinutes}}" data-field="graceMinutes" bindinput="onInput" />
+      </view>
+    </block>
+
+    <block wx:else>
+      <view class="field">
+        <text class="field-label">送几杯</text>
+        <view class="field-input">
+          <view class="stepper">
+            <view class="stepper-btn" data-delta="-1" bindtap="changeCups">−</view>
+            <text class="stepper-num">{{form.freeCups}}</text>
+            <view class="stepper-btn plus" data-delta="1" bindtap="changeCups">+</view>
+          </view>
+        </view>
+      </view>
+      <block wx:if="{{form.freeCups}}">
+        <view class="field">
+          <text class="field-label">每杯最多抵</text>
+          <input class="field-input" type="digit" placeholder="元，选填；不填按整杯抵" placeholder-class="placeholder" value="{{form.freeMaxText}}" data-field="freeMaxText" bindinput="onInput" />
+        </view>
+        <view class="pick-title muted">能换哪些饮品（不选就是菜单上任选）</view>
+        <view class="chips">
+          <view wx:for="{{products}}" wx:key="_id" class="chip {{picked[item._id] ? 'on' : ''}}" data-id="{{item._id}}" bindtap="toggleProduct">{{item.name}}</view>
+        </view>
+        <view class="faint small" wx:if="{{!products.length}}">咖啡菜单还没有商品</view>
+      </block>
+    </block>
+
+    <view class="field">
+      <text class="field-label">说明</text>
+      <input class="field-input" placeholder="选填，顾客能看到" placeholder-class="placeholder" maxlength="60" value="{{form.desc}}" data-field="desc" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">排序</text>
+      <input class="field-input" type="number" placeholder="数字越小越靠前" placeholder-class="placeholder" value="{{form.sort}}" data-field="sort" bindinput="onInput" />
+    </view>
+    <view class="field">
+      <text class="field-label">上架</text>
+      <view class="field-input"><switch checked="{{form.onShelf}}" color="#d6b25e" bindchange="onShelf" /></view>
+    </view>
+  </view>
+
+  <view class="faint note" wx:if="{{form.type === 'hourly'}}">顾客借书时选几个小时先付钱，从交书开始计时。超过时间（扣掉宽限）按每小时价格补，不满 1 小时按 1 小时算。</view>
+  <view class="faint note" wx:else>当天打烊前还书。送的饮品在收款后变成赠饮券，当天点单时自动抵扣。</view>
+
+  <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : '保存'}}</view>
+  <view class="btn-danger btn-block" wx:if="{{id}}" bindtap="remove">删除规则</view>
+  <view class="safe-bottom"></view>
+</view>

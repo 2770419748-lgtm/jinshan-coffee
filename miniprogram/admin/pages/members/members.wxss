@@ -1,0 +1,63 @@
+.stats {
+  display: flex;
+  padding: 24rpx 16rpx;
+}
+.stat {
+  flex: 1;
+  text-align: center;
+  font-size: 30rpx;
+}
+.small {
+  font-size: 22rpx;
+}
+.settings-link {
+  text-align: right;
+  font-size: 26rpx;
+  margin: -8rpx 4rpx 20rpx;
+}
+.search {
+  display: flex;
+  align-items: center;
+  padding: 0 12rpx 0 24rpx;
+  height: 84rpx;
+  border-radius: 42rpx;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+}
+.search-input {
+  flex: 1;
+  color: var(--text);
+  font-size: 28rpx;
+}
+.clear {
+  font-size: 40rpx;
+  padding: 0 16rpx;
+}
+.tip {
+  font-size: 22rpx;
+  margin: 12rpx 8rpx 24rpx;
+}
+.list {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.member {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+.member:last-child {
+  border-bottom: none;
+}
+.no {
+  font-size: 32rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
+}
+.vip {
+  margin-left: 12rpx;
+}
+.member .price {
+  font-size: 30rpx;
+}

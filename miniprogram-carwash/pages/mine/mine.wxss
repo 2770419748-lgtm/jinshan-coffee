@@ -1,0 +1,15 @@
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+  padding: 24rpx 8rpx 36rpx;
+}
+.avatar { width: 112rpx; height: 112rpx; border-radius: 24rpx; border: 1rpx solid var(--line); }
+.hello { font-size: 36rpx; font-weight: 600; }
+.list { padding-top: 0; padding-bottom: 0; }
+.staff-link {
+  text-align: center;
+  color: var(--text-3);
+  font-size: 24rpx;
+  padding: 24rpx 0;
+}

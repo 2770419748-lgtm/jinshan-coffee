@@ -1,0 +1,41 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{ready}}">
+  <view class="card stats" wx:if="{{stats}}">
+    <view class="stat">
+      <view class="faint small">今天充值</view>
+      <text class="price">{{f.yuan(stats.recharge)}}</text>
+    </view>
+    <view class="stat">
+      <view class="faint small">今天余额消费</view>
+      <text class="price">{{f.yuan(stats.spent)}}</text>
+    </view>
+    <view class="stat">
+      <view class="faint small">顾客余额合计</view>
+      <text class="price">{{f.yuan(stats.balanceTotal)}}</text>
+    </view>
+  </view>
+  <view class="settings-link gold" wx:if="{{isOwner}}" bindtap="goSettings">储值设置和充值档位 ›</view>
+
+  <view class="search">
+    <input class="search-input" placeholder="会员号，或备注里的名字、手机尾号" placeholder-class="placeholder" confirm-type="search" value="{{keyword}}" bindinput="onKeyword" bindconfirm="search" />
+    <text class="faint clear" wx:if="{{keyword}}" bindtap="clear">×</text>
+    <view class="btn-gold btn-small" bindtap="search">找</view>
+  </view>
+  <view class="faint tip">顾客到吧台充值时，让他打开小程序「我的 → 会员中心」报会员号。</view>
+
+  <view class="card list" wx:if="{{members.length}}">
+    <view wx:for="{{members}}" wx:key="memberNo" class="member cell-arrow" data-no="{{item.memberNo}}" bindtap="open" hover-class="btn-hover">
+      <view class="flex-1">
+        <view>
+          <text class="no">{{item.memberNo}}</text>
+          <text class="tag gold vip" wx:if="{{item.isMember}}">会员至 {{item.memberUntil}}</text>
+        </view>
+        <view class="faint small">{{item.remark || '没有备注'}}<text wx:if="{{item.stars}}"> · ★ {{item.stars}}</text></view>
+      </view>
+      <text class="price">{{f.yuan(item.balance)}}</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{loading}}">加载中…</view>
+  <view class="empty" wx:elif="{{!members.length}}">{{keyword ? '没找到，换个关键字试试' : '还没有会员。顾客打开会员中心就会有会员号。'}}</view>
+</view>

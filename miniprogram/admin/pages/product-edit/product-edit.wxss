@@ -1,0 +1,70 @@
+.image-box {
+  display: flex;
+  justify-content: center;
+}
+.image {
+  width: 280rpx;
+  height: 280rpx;
+  border-radius: 20rpx;
+}
+.placeholder-box {
+  border: 2rpx dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.plus {
+  font-size: 64rpx;
+  color: var(--text-3);
+}
+.remove-img {
+  text-align: center;
+  font-size: 24rpx;
+  margin-top: 12rpx;
+}
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  margin-bottom: 8rpx;
+}
+.spec {
+  padding: 20rpx 24rpx;
+}
+.group-name {
+  flex: 1;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--text);
+}
+.small-link {
+  font-size: 24rpx;
+}
+.option {
+  display: flex;
+  align-items: center;
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+.opt-name {
+  flex: 1;
+  color: var(--text);
+}
+.opt-price {
+  width: 100rpx;
+  margin: 0 8rpx;
+  text-align: center;
+  color: var(--text);
+  border-bottom: 1rpx solid var(--line);
+}
+.opt-del {
+  font-size: 40rpx;
+  color: var(--text-3);
+  padding: 0 0 0 20rpx;
+}
+.add-opt {
+  margin-top: 16rpx;
+}
+.save {
+  margin: 24rpx 0 20rpx;
+}

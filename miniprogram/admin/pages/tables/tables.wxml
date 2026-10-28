@@ -1,0 +1,31 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="card trial">
+    <view class="row-between">
+      <text>生成体验版桌码</text>
+      <switch checked="{{trial}}" color="#d6b25e" bindchange="onTrial" />
+    </view>
+    <view class="faint small">正式版桌码要等小程序发布后才能扫开。发布前想测试，就打开这个开关生成体验版桌码，扫码的人要先被加为体验成员。</view>
+  </view>
+
+  <view wx:for="{{list}}" wx:key="_id" class="card table">
+    <view class="code-box" data-index="{{index}}" bindtap="preview">
+      <image wx:if="{{item.qrcode}}" class="code" src="{{item.qrcode}}" mode="aspectFit" />
+      <view wx:else class="code no-code faint">未生成</view>
+    </view>
+    <view class="flex-1 info">
+      <view class="table-no">{{item.tableNo}} 号桌</view>
+      <view class="faint small" wx:if="{{item.qrcode}}">{{item.qrcodeEnv === 'release' ? '正式版桌码' : '体验版桌码'}}</view>
+      <view class="ops">
+        <text class="gold op" data-index="{{index}}" bindtap="gen">{{item.qrcode ? '重新生成' : '生成桌码'}}</text>
+        <text class="gold op" wx:if="{{item.qrcode}}" data-index="{{index}}" bindtap="save">存到相册</text>
+        <text class="danger op" data-index="{{index}}" bindtap="remove">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty" wx:if="{{loading}}">加载中…</view>
+  <view class="empty" wx:elif="{{!list.length}}">还没有桌号，先添加</view>
+
+  <view class="btn-gold btn-block" bindtap="add">+ 添加桌号</view>
+  <view class="safe-bottom"></view>
+</view>

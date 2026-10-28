@@ -1,0 +1,51 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="section-title">营业时间</view>
+  <view class="card">
+    <view class="field">
+      <text class="field-label">开门</text>
+      <picker class="field-input" mode="time" value="{{hours.open}}" data-field="open" bindchange="onHours">
+        <text class="gold">{{hours.open}}</text>
+      </picker>
+    </view>
+    <view class="field">
+      <text class="field-label">打烊</text>
+      <picker class="field-input" mode="time" value="{{hours.close}}" data-field="close" bindchange="onHours">
+        <text class="gold">{{hours.close}}</text>
+      </picker>
+    </view>
+    <view class="faint small hours-note">显示在顾客首页；预约只能约这段时间里的，每 15 分钟一档，最早 30 分钟后。</view>
+  </view>
+
+  <view class="section-title">收款方式</view>
+  <view class="card">
+    <view class="field">
+      <text class="field-label">商户号</text>
+      <text class="field-input {{payReady ? '' : 'muted small'}}">{{payReady ? mchId : '服务器上还没配置'}}</text>
+    </view>
+    <view class="field">
+      <text class="field-label">微信支付</text>
+      <view class="field-input row-between">
+        <text class="muted small">{{payEnabled ? '顾客可以在小程序里直接付，也能预约' : '没打开，顾客到吧台付，不能预约'}}</text>
+        <switch checked="{{payEnabled}}" color="#d6b25e" bindchange="onPay" />
+      </view>
+    </view>
+    <view class="field" wx:if="{{payEnabled}}">
+      <text class="field-label">吧台付款</text>
+      <view class="field-input row-between">
+        <text class="muted small">{{allowCounter ? '顾客也能选到吧台付' : '只能在线付'}}</text>
+        <switch checked="{{allowCounter}}" color="#d6b25e" bindchange="onCounter" />
+      </view>
+    </view>
+  </view>
+
+  <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : '保存'}}</view>
+
+  <view class="section-title">怎么开通微信支付</view>
+  <view class="card steps">
+    <view class="step"><text class="gold">1</text><text>用个体户营业执照申请微信支付商户号，在商户平台「产品中心 → AppID 账号管理」里关联这个小程序的 AppID，并开通 JSAPI 支付。</text></view>
+    <view class="step"><text class="gold">2</text><text>在商户平台「账户中心 → API 安全」里申请 API 证书、设置 APIv3 密钥，把商户号、证书序列号、证书私钥文件和 APIv3 密钥填到服务器的配置文件里，重启服务器（步骤见说明文档）。</text></view>
+    <view class="step"><text class="gold">3</text><text>回到这里打开微信支付，自己先下一单付 1 分钱的试试，再到订单里取消，看钱有没有原路退回。</text></view>
+    <view class="faint small">商户平台的菜单名称可能会调整，以实际页面为准。没打开之前，小程序照常只收吧台付款。</view>
+  </view>
+  <view class="safe-bottom"></view>
+</view>

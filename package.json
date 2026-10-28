@@ -1,0 +1,8 @@
+{
+  "name": "jinshan-coffee",
+  "private": true,
+  "description": "进山咖啡小程序的本地测试脚本（不参与小程序打包）",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

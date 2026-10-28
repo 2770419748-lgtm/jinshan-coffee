@@ -1,0 +1,86 @@
+<view class="page" wx:if="{{staff}}">
+  <view class="who">
+    <text class="who-name">{{staff.name}}</text>
+    <text class="tag gold">{{staff.roleName}}</text>
+  </view>
+
+  <block wx:if="{{canCoffee}}">
+    <view class="section-title">咖啡后台</view>
+    <view class="grid">
+      <view class="tile primary" data-url="/admin/pages/orders/orders" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">订单处理</view>
+        <view class="tile-sub">新订单响铃，收款、出餐</view>
+      </view>
+      <view class="tile" data-url="/admin/pages/products/products" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">商品管理</view>
+        <view class="tile-sub">上下架、改价、售罄</view>
+      </view>
+      <view class="tile" data-url="/admin/pages/categories/categories" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">分类管理</view>
+        <view class="tile-sub">菜单分类和顺序</view>
+      </view>
+      <view class="tile" data-url="/admin/pages/tables/tables" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">桌台和桌码</view>
+        <view class="tile-sub">添加桌号，生成二维码</view>
+      </view>
+      <view class="tile" data-url="/admin/pages/members/members" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">会员储值</view>
+        <view class="tile-sub">按会员号给顾客充值</view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{canBook}}">
+    <view class="section-title">书籍后台</view>
+    <view class="grid">
+      <view class="tile primary" data-url="/admin/pages/rentals/rentals" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">借阅处理</view>
+        <view class="tile-sub">收款、交书计时、还书</view>
+      </view>
+      <view class="tile" data-url="/admin/pages/books/books" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">书目管理</view>
+        <view class="tile-sub">录入新书，扫码填 ISBN</view>
+      </view>
+      <view class="tile" data-url="/admin/pages/rules/rules" bindtap="go" hover-class="btn-hover">
+        <view class="tile-title">计费规则</view>
+        <view class="tile-sub">按小时、包天送咖啡</view>
+      </view>
+    </view>
+  </block>
+
+  <view class="section-title">店铺</view>
+  <view class="grid">
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/staff/staff" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">员工管理</view>
+      <view class="tile-sub">邀请员工，分配角色</view>
+    </view>
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/shop-settings/shop-settings" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">店铺设置</view>
+      <view class="tile-sub">营业时间、微信支付</view>
+    </view>
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/banners/banners" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">首页轮播</view>
+      <view class="tile-sub">新品、新书、领券海报</view>
+    </view>
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/coupons/coupons" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">代金券</view>
+      <view class="tile-sub">满减券，顾客自己领</view>
+    </view>
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/member-settings/member-settings" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">储值设置</view>
+      <view class="tile-sub">充值档位、会员免费看的书</view>
+    </view>
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/star-settings/star-settings" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">集星设置</view>
+      <view class="tile-sub">几颗星换一杯、哪些商品算</view>
+    </view>
+    <view class="tile" bindtap="scanLogin" hover-class="btn-hover">
+      <view class="tile-title">扫码登录电脑</view>
+      <view class="tile-sub">扫网页后台上的二维码</view>
+    </view>
+    <view class="tile" data-url="/admin/pages/web-account/web-account" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">电脑网页后台</view>
+      <view class="tile-sub">网址、备用的账号密码</view>
+    </view>
+  </view>
+</view>

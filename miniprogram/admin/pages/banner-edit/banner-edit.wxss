@@ -1,0 +1,51 @@
+.kinds {
+  flex-wrap: wrap;
+}
+.kinds .chip {
+  margin-bottom: 8rpx;
+}
+.image-box {
+  position: relative;
+}
+.image {
+  width: 100%;
+  height: 340rpx;
+  border-radius: 16rpx;
+  background: var(--card-2);
+}
+.image.dim {
+  opacity: 0.6;
+}
+.placeholder-box {
+  border: 2rpx dashed var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.plus {
+  font-size: 64rpx;
+  color: var(--text-3);
+}
+.image-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 20rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: var(--text);
+  text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.8);
+}
+.remove-img {
+  text-align: center;
+  font-size: 24rpx;
+  margin-top: 12rpx;
+}
+.note {
+  font-size: 24rpx;
+  margin: 0 8rpx 8rpx;
+  line-height: 1.6;
+}
+.save {
+  margin: 24rpx 0 20rpx;
+}

@@ -1,0 +1,147 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page">
+  <view class="card reserve-card" wx:if="{{reserving}}">
+    <picker mode="selector" range="{{slots}}" range-key="label" value="{{slotIndex}}" bindchange="pickSlot" disabled="{{!slots.length}}">
+      <view class="row-between">
+        <text>取餐时间</text>
+        <view class="row">
+          <text class="gold slot-label">{{reserveLabel || (quote ? '没有能约的时间' : '加载中…')}}</text>
+          <text class="cell-arrow"></text>
+        </view>
+      </view>
+    </picker>
+    <view class="faint small reserve-note">营业时间内都能约，最早 30 分钟后。到点来吧台报取餐号取。</view>
+  </view>
+
+  <view class="card">
+    <view class="mode-row">
+      <view class="chip {{mode === 'dine_in' ? 'on' : ''}}" data-mode="dine_in" bindtap="pickMode">堂食</view>
+      <view class="chip {{mode === 'takeaway' ? 'on' : ''}}" data-mode="takeaway" bindtap="pickMode">外带</view>
+    </view>
+    <view class="muted" wx:if="{{reserving}}">做好后凭取餐号到吧台取</view>
+    <view class="muted" wx:elif="{{mode === 'dine_in' && tableNo}}">已带上 <text class="gold">{{tableNo}}</text> 号桌，店员能看到你坐哪桌</view>
+    <view class="muted" wx:elif="{{mode === 'dine_in'}}">没有扫桌码，做好后凭取餐号到吧台取</view>
+    <view class="muted" wx:else>做好后凭取餐号到吧台取</view>
+  </view>
+
+  <view class="card">
+    <view wx:for="{{list}}" wx:key="key" class="line">
+      <image class="line-img" src="{{item.image || '/images/logo.jpg'}}" mode="aspectFill" />
+      <view class="flex-1">
+        <view>{{item.name}}</view>
+        <view class="faint" wx:if="{{item.specText}}">{{item.specText}}</view>
+      </view>
+      <view class="line-right">
+        <text class="price">{{f.yuan(item.unitPrice * item.qty)}}</text>
+        <view class="faint">×{{item.qty}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="section-title remark-title">备注</view>
+    <textarea
+      class="remark"
+      placeholder="口味要求等，选填"
+      placeholder-class="placeholder"
+      maxlength="50"
+      auto-height
+      value="{{remark}}"
+      bindinput="onRemark"
+    />
+  </view>
+
+  <view class="card" wx:if="{{quote && quote.vouchers}}">
+    <view class="row-between" wx:if="{{quote.applied.length || !useVouchers}}">
+      <view>
+        <view>赠饮券 <text class="gold" wx:if="{{useVouchers}}">-¥{{f.yuan(quote.voucherFee)}}</text><text class="faint" wx:else>不使用</text></view>
+        <view class="faint small" wx:if="{{useVouchers}}">用 {{quote.applied.length}} 张，抵扣<text wx:for="{{quote.applied}}" wx:key="id">{{index ? '、' : ''}}{{item.name}}</text></view>
+      </view>
+      <switch checked="{{useVouchers}}" color="#d6b25e" bindchange="toggleVouchers" />
+    </view>
+    <view class="faint" wx:else>你有 {{quote.vouchers}} 张赠饮券，这单的商品用不上</view>
+  </view>
+
+  <!-- 集星：星星够了能免费换一杯；不够时告诉顾客这单能得几颗 -->
+  <view class="card" wx:if="{{quote && quote.stars}}">
+    <view class="row-between" wx:if="{{quote.stars.redeem}}">
+      <view>
+        <view>用 {{quote.stars.need}} 颗星换一杯 <text class="gold" wx:if="{{useStars}}">-¥{{f.yuan(quote.starFee)}}</text></view>
+        <view class="faint small">免费换{{quote.stars.redeem.name}}，现有 {{quote.stars.balance}} 颗<text wx:if="{{quote.stars.earn}}">；这单出餐后还得 {{quote.stars.earn}} 颗</text></view>
+      </view>
+      <switch checked="{{useStars}}" color="#d6b25e" bindchange="toggleStars" />
+    </view>
+    <view class="row-between" wx:else bindtap="goStars">
+      <text>集星 <text class="gold">{{quote.stars.balance}}/{{quote.stars.need}}</text></text>
+      <text class="faint small">{{quote.stars.earn ? '这单出餐后得 ' + quote.stars.earn + ' 颗' : (quote.stars.balance >= quote.stars.need ? '这单没有能用星换的商品' : '这单的商品不集星')}}</text>
+    </view>
+  </view>
+
+  <view class="card row-between" wx:if="{{quote && quote.coupons.length}}" bindtap="openCoupons" hover-class="btn-hover">
+    <text>代金券</text>
+    <view class="row">
+      <text class="gold" wx:if="{{quote.coupon}}">-¥{{f.yuan(quote.couponFee)}}</text>
+      <text class="faint" wx:elif="{{usableCoupons}}">{{usableCoupons}} 张可用</text>
+      <text class="faint" wx:else>这单用不上</text>
+      <text class="cell-arrow"></text>
+    </view>
+  </view>
+
+  <view class="card pay-card" wx:if="{{payable > 0}}">
+    <view class="row-between" wx:if="{{methods.length < 2}}">
+      <text class="muted">付款方式</text>
+      <text>{{methods[0].label}}</text>
+    </view>
+    <block wx:else>
+      <view class="muted">付款方式</view>
+      <view class="chips pay-methods">
+        <view wx:for="{{methods}}" wx:key="key" class="chip {{payMethod === item.key ? 'on' : ''}}" data-method="{{item.key}}" bindtap="pickPay">{{item.label}}</view>
+      </view>
+    </block>
+    <view class="faint pay-note" wx:if="{{balanceLow}}">余额不够这单，<text class="gold" bindtap="goMember">去充值 ›</text></view>
+    <view class="faint pay-note" wx:elif="{{payMethod === 'balance'}}">提交后直接从会员余额里扣。</view>
+    <view class="faint pay-note" wx:elif="{{reserving && payMethod === 'wechat'}}">预约要先在线付款，提交后直接微信支付；15 分钟内没付款会自动取消。</view>
+    <view class="faint pay-note" wx:elif="{{payMethod === 'wechat'}}">提交后直接微信付款。</view>
+    <view class="faint pay-note" wx:elif="{{reserving}}">预约要先在线付款。</view>
+    <view class="faint pay-note" wx:else>下单后到吧台报取餐号付款。</view>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>
+
+<view class="submit-bar">
+  <view class="flex-1">
+    <text class="muted">共 {{count}} 件 合计 </text>
+    <text class="price big">{{f.yuan(payable)}}</text>
+    <text class="faint small" wx:if="{{quote && quote.discountFee}}"> 已省 ¥{{f.yuan(quote.discountFee)}}</text>
+  </view>
+  <view class="btn-gold {{submitting ? 'disabled' : ''}}" bindtap="submit">{{submitting ? '提交中…' : ((payMethod === 'wechat' || payMethod === 'balance') && payable > 0 ? '提交并付款' : '提交订单')}}</view>
+</view>
+
+<!-- 选代金券 -->
+<view class="mask" wx:if="{{showCoupons}}" bindtap="closeCoupons"></view>
+<view class="sheet" wx:if="{{showCoupons}}">
+  <view class="sheet-head">
+    <text class="sheet-title">选代金券</text>
+    <text class="sheet-close" bindtap="closeCoupons">×</text>
+  </view>
+  <view class="faint small sheet-tip">一单只能用一张，可以和赠饮券一起用</view>
+  <view
+    wx:for="{{quote.coupons}}"
+    wx:key="id"
+    class="coupon {{item.discount ? '' : 'off'}} {{quote.coupon && quote.coupon.id === item.id ? 'on' : ''}}"
+    data-id="{{item.id}}"
+    data-ok="{{item.discount > 0}}"
+    bindtap="pickCoupon"
+  >
+    <view class="coupon-amount"><text class="price big">{{f.yuan(item.amount)}}</text></view>
+    <view class="flex-1">
+      <view>{{item.title}}</view>
+      <view class="faint small">{{f.couponRule(item)}} · {{f.shortDay(item.expiresDay)}} 到期</view>
+    </view>
+    <text class="gold coupon-check" wx:if="{{quote.coupon && quote.coupon.id === item.id}}">✓</text>
+    <text class="faint small" wx:elif="{{!item.discount}}">未满足条件</text>
+  </view>
+  <view class="btn-ghost btn-block no-coupon" data-id="" bindtap="pickCoupon">不使用代金券</view>
+</view>

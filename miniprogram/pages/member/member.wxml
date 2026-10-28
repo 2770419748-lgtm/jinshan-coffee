@@ -1,0 +1,67 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{member}}">
+  <!-- 会员卡 -->
+  <view class="vip">
+    <view class="vip-top">
+      <image class="vip-logo" src="/images/logo.jpg" mode="aspectFill" />
+      <view class="flex-1">
+        <view class="vip-brand">进山会员</view>
+        <view class="vip-status">{{member.isMember ? '会员 · ' + member.memberUntil + ' 到期' : '储值卡'}}</view>
+      </view>
+      <text class="vip-badge" wx:if="{{member.isMember}}">VIP</text>
+    </view>
+    <view class="vip-label">余额（元）</view>
+    <view class="vip-balance">{{f.yuan(member.balance)}}</view>
+    <view class="vip-bottom">
+      <view bindtap="copyNo">会员号 <text class="vip-no">{{member.memberNo}}</text></view>
+      <view class="vip-logs" bindtap="goLogs" hover-class="btn-hover">余额明细 ›</view>
+    </view>
+  </view>
+
+  <view class="card perk" wx:if="{{freeText}}">
+    <view class="row-between">
+      <text class="perk-title">会员权益</text>
+      <text class="gold small" bindtap="goBooks">去书架 ›</text>
+    </view>
+    <view class="muted">会员期内借「{{freeText}}」类的书免费看，不计时，当天打烊前还到吧台就行。</view>
+    <view class="faint small perk-note" wx:if="{{!member.isMember}}">充值时选送会员的档位就能开通。</view>
+  </view>
+
+  <block wx:if="{{plans.length}}">
+    <view class="section-title">充值</view>
+    <view class="plans">
+      <view
+        wx:for="{{plans}}"
+        wx:key="_id"
+        class="plan {{index === planIndex ? 'on' : ''}}"
+        data-index="{{index}}"
+        bindtap="pickPlan"
+      >
+        <view class="plan-price"><text class="yen">¥</text>{{f.yuan(item.price)}}</view>
+        <view class="plan-bonus" wx:if="{{item.bonus}}">送 ¥{{f.yuan(item.bonus)}}</view>
+        <view class="plan-bonus none" wx:else>到账 ¥{{f.yuan(item.price)}}</view>
+        <view class="plan-days" wx:if="{{item.memberDays}}">送 {{item.memberDays}} 天会员</view>
+        <view class="plan-desc" wx:if="{{item.desc}}">{{item.desc}}</view>
+      </view>
+    </view>
+    <view class="card counter" wx:if="{{!payInfo.enabled}}">
+      <view class="counter-title">到吧台充值</view>
+      <view class="muted">付 ¥{{f.yuan(plans[planIndex].price)}} 给店员，报会员号 <text class="gold">{{member.memberNo}}</text>，店员当场给你充上 ¥{{f.yuan(plans[planIndex].price + plans[planIndex].bonus)}}<text wx:if="{{plans[planIndex].memberDays}}">，再送 {{plans[planIndex].memberDays}} 天会员</text>。</view>
+    </view>
+  </block>
+  <view class="empty" wx:elif="{{!settings.enabled}}">店里暂时没开放充值</view>
+
+  <view class="notice" wx:if="{{settings.notice}}">{{settings.notice}}</view>
+  <view class="safe-bottom" wx:if="{{plans.length && payInfo.enabled}}"></view>
+</view>
+
+<view class="empty" wx:elif="{{loading}}">加载中…</view>
+
+<view class="submit-bar" wx:if="{{member && plans.length && payInfo.enabled}}">
+  <view class="flex-1">
+    <text class="muted">到账 </text>
+    <text class="price big">{{f.yuan(plans[planIndex].price + plans[planIndex].bonus)}}</text>
+  </view>
+  <view class="btn-gold {{paying ? 'disabled' : ''}}" bindtap="recharge">{{paying ? '处理中…' : '微信支付 ¥' + f.yuan(plans[planIndex].price)}}</view>
+</view>

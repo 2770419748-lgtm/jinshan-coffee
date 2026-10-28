@@ -1,0 +1,39 @@
+.who {
+  display: flex;
+  align-items: center;
+  padding: 8rpx 4rpx 24rpx;
+}
+.who-name {
+  font-size: 40rpx;
+  font-weight: 600;
+  margin-right: 16rpx;
+}
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+.tile {
+  width: 48.5%;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 20rpx;
+  padding: 28rpx 24rpx;
+  margin-bottom: 20rpx;
+}
+.tile.primary {
+  border-color: var(--gold);
+  background: linear-gradient(135deg, #2a2316, #171615);
+}
+.tile.disabled { opacity: 0.4; }
+.tile-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--gold);
+}
+.tile-sub {
+  font-size: 24rpx;
+  color: var(--text-2);
+  margin-top: 8rpx;
+}

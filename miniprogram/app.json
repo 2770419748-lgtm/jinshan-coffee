@@ -1,0 +1,74 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/menu/menu",
+    "pages/orders/orders",
+    "pages/mine/mine",
+    "pages/confirm/confirm",
+    "pages/order-detail/order-detail",
+    "pages/bind/bind",
+    "pages/books/books",
+    "pages/book-detail/book-detail",
+    "pages/rental-detail/rental-detail",
+    "pages/vouchers/vouchers",
+    "pages/coupons/coupons",
+    "pages/member/member",
+    "pages/member-logs/member-logs",
+    "pages/stars/stars"
+  ],
+  "subPackages": [
+    {
+      "root": "admin",
+      "name": "admin",
+      "pages": [
+        "pages/home/home",
+        "pages/orders/orders",
+        "pages/products/products",
+        "pages/product-edit/product-edit",
+        "pages/categories/categories",
+        "pages/tables/tables",
+        "pages/staff/staff",
+        "pages/rentals/rentals",
+        "pages/books/books",
+        "pages/book-edit/book-edit",
+        "pages/rules/rules",
+        "pages/rule-edit/rule-edit",
+        "pages/web-account/web-account",
+        "pages/shop-settings/shop-settings",
+        "pages/web-login/web-login",
+        "pages/banners/banners",
+        "pages/banner-edit/banner-edit",
+        "pages/coupons/coupons",
+        "pages/coupon-edit/coupon-edit",
+        "pages/members/members",
+        "pages/member-detail/member-detail",
+        "pages/member-settings/member-settings",
+        "pages/plan-edit/plan-edit",
+        "pages/star-settings/star-settings"
+      ]
+    }
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#0b0b0b",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "进山咖啡",
+    "backgroundColor": "#0b0b0b",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#8c8577",
+    "selectedColor": "#d6b25e",
+    "backgroundColor": "#0b0b0b",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页", "iconPath": "images/tab/home.png", "selectedIconPath": "images/tab/home-on.png" },
+      { "pagePath": "pages/menu/menu", "text": "点单", "iconPath": "images/tab/menu.png", "selectedIconPath": "images/tab/menu-on.png" },
+      { "pagePath": "pages/books/books", "text": "书架", "iconPath": "images/tab/books.png", "selectedIconPath": "images/tab/books-on.png" },
+      { "pagePath": "pages/orders/orders", "text": "订单", "iconPath": "images/tab/orders.png", "selectedIconPath": "images/tab/orders-on.png" },
+      { "pagePath": "pages/mine/mine", "text": "我的", "iconPath": "images/tab/mine.png", "selectedIconPath": "images/tab/mine-on.png" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

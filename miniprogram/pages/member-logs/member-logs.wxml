@@ -1,0 +1,21 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page">
+  <view class="card list" wx:if="{{logs.length}}">
+    <view wx:for="{{logs}}" wx:key="_id" class="log">
+      <view class="flex-1">
+        <view>{{item.title || item.typeName}}</view>
+        <view class="faint small">{{item.typeName}} · {{f.time(item.createdAt)}}</view>
+        <view class="faint small" wx:if="{{item.memberDays}}">送 {{item.memberDays}} 天会员<text wx:if="{{item.memberUntil}}">，到 {{item.memberUntil}}</text></view>
+        <view class="faint small" wx:if="{{item.reason}}">原因：{{item.reason}}</view>
+      </view>
+      <view class="log-right">
+        <view class="amount {{item.amount > 0 ? 'plus' : ''}}" wx:if="{{item.amount}}">{{f.signed(item.amount)}}</view>
+        <view class="faint small">余额 {{f.yuan(item.balance)}}</view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{loading}}">加载中…</view>
+  <view class="empty" wx:elif="{{!logs.length}}">还没有余额变动</view>
+  <view class="faint more" wx:elif="{{!hasMore}}">没有更多了</view>
+</view>

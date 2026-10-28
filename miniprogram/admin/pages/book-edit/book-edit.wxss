@@ -1,0 +1,39 @@
+.cover-box {
+  display: flex;
+  justify-content: center;
+}
+.cover {
+  width: 220rpx;
+  height: 300rpx;
+  border-radius: 12rpx;
+}
+.placeholder-box {
+  border: 2rpx dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.plus {
+  font-size: 64rpx;
+  color: var(--text-3);
+}
+.remove-img {
+  text-align: center;
+  font-size: 24rpx;
+  margin-top: 12rpx;
+}
+.scan {
+  padding-left: 20rpx;
+}
+.cats {
+  padding-top: 16rpx;
+}
+.desc {
+  width: 100%;
+  min-height: 120rpx;
+  color: var(--text);
+}
+.save {
+  margin: 24rpx 0 20rpx;
+}

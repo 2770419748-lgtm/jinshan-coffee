@@ -1,0 +1,13 @@
+<view class="page">
+  <view class="tip faint small" wx:if="{{select}}">点一个地址选它</view>
+  <view class="card addr" wx:for="{{list}}" wx:key="_id">
+    <view class="flex-1" data-index="{{index}}" bindtap="pick" hover-class="btn-hover">
+      <view class="bold">{{item.place}} {{item.detail}}</view>
+      <view class="muted small">{{item.name}} {{item.phone}} <text class="tag on" wx:if="{{item.isDefault}}">默认</text></view>
+    </view>
+    <view class="edit muted small" data-id="{{item._id}}" bindtap="edit">编辑</view>
+  </view>
+  <view class="empty" wx:if="{{loaded && !list.length}}">还没有地址</view>
+  <view class="btn-main btn-block" bindtap="add">新增地址</view>
+  <view class="faint small privacy">地址和电话只给接单的技师看，用来上门找车。</view>
+</view>

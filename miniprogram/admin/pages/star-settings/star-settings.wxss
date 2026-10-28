@@ -1,0 +1,13 @@
+.small {
+  font-size: 22rpx;
+}
+.note {
+  margin-top: 12rpx;
+  line-height: 1.6;
+}
+.save {
+  margin: 8rpx 0 24rpx;
+}
+.stats .faint {
+  margin-top: 8rpx;
+}

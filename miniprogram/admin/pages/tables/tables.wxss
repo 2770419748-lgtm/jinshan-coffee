@@ -1,0 +1,34 @@
+.small {
+  font-size: 24rpx;
+  margin-top: 8rpx;
+}
+.table {
+  display: flex;
+  align-items: center;
+}
+.code {
+  width: 180rpx;
+  height: 180rpx;
+  border-radius: 12rpx;
+  background: #fff;
+}
+.no-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-2);
+}
+.info {
+  margin-left: 24rpx;
+}
+.table-no {
+  font-size: 34rpx;
+  font-weight: 600;
+}
+.ops {
+  margin-top: 20rpx;
+}
+.op {
+  margin-right: 28rpx;
+  font-size: 26rpx;
+}

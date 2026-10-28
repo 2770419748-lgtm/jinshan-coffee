@@ -1,0 +1,87 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{order}}">
+  <view class="card pickup-card">
+    <view class="muted">取餐号</view>
+    <view class="pickup-no">{{order.pickupNo}}</view>
+    <view class="reserve-at" wx:if="{{order.reserveAt}}">预约 {{f.time(order.reserveAt)}} 取</view>
+    <view class="status {{order.status}}">{{order.payDeadline ? '待付款' : f.status(order.status)}}</view>
+    <view class="faint cancel-reason" wx:if="{{order.status === 'cancelled' && order.cancelReason}}">{{order.cancelReason}}，已自动取消</view>
+    <view class="faint cancel-reason" wx:if="{{order.notifyReady && (order.status === 'pending' || order.status === 'making')}}">做好了会在微信里通知你</view>
+
+    <view class="steps" wx:if="{{order.status !== 'cancelled'}}">
+      <view class="step {{step >= 1 ? 'on' : ''}}">已下单</view>
+      <view class="step-line {{step >= 2 ? 'on' : ''}}"></view>
+      <view class="step {{step >= 2 ? 'on' : ''}}">制作中</view>
+      <view class="step-line {{step >= 3 ? 'on' : ''}}"></view>
+      <view class="step {{step >= 3 ? 'on' : ''}}">可取餐</view>
+    </view>
+
+    <block wx:if="{{order.payStatus === 'unpaid' && order.status !== 'cancelled'}}">
+      <view class="pay-tip" wx:if="{{order.payDeadline}}">预约要先付款 <text class="price">{{f.yuan(order.payFee)}}</text>，请在 <text class="gold">{{f.clock(order.payDeadline)}}</text> 前付，过时自动取消</view>
+      <view class="pay-tip" wx:elif="{{order.pay.enabled && !order.pay.allowCounter}}">还没付款 <text class="price">{{f.yuan(order.payFee)}}</text>，付款后开始制作</view>
+      <view class="pay-tip" wx:elif="{{order.pay.enabled}}">还没付款 <text class="price">{{f.yuan(order.payFee)}}</text>，可以微信支付，也可以到吧台报取餐号付</view>
+      <view class="pay-tip" wx:else>请到吧台报取餐号付款 <text class="price">{{f.yuan(order.payFee)}}</text></view>
+      <view class="btn-gold btn-block pay-btn" wx:if="{{order.pay.enabled}}" bindtap="payNow">微信支付 ¥{{f.yuan(order.payFee)}}</view>
+      <view class="btn-ghost btn-block pay-btn" wx:if="{{order.wallet && order.wallet.balance >= order.payFee}}" bindtap="payByBalance">用余额付（余额 ¥{{f.yuan(order.wallet.balance)}}）</view>
+    </block>
+    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'paid'}}">已付款{{f.payMethod(order.payMethod)}}</view>
+    <view class="pay-tip ok" wx:elif="{{order.payStatus === 'refunded'}}">{{order.payMethod === 'balance' ? '钱已退回会员余额' : '已原路退款'}}</view>
+  </view>
+
+  <view class="card">
+    <view class="row-between info-row">
+      <text class="muted">{{f.mode(order.mode)}}</text>
+      <text wx:if="{{order.tableNo}}">{{order.tableNo}} 号桌</text>
+    </view>
+    <view wx:for="{{order.items}}" class="line">
+      <view class="flex-1">
+        <view>{{item.name}}</view>
+        <view class="faint" wx:if="{{item.specs.length}}">{{f.specText(item.specs)}}</view>
+      </view>
+      <text class="faint qty">×{{item.qty}}</text>
+      <text class="price">{{f.yuan(item.subtotal)}}</text>
+    </view>
+    <block wx:if="{{order.discountFee}}">
+      <view class="row-between sub-row">
+        <text class="muted">商品合计</text>
+        <text>¥{{f.yuan(order.totalFee)}}</text>
+      </view>
+      <view class="row-between sub-row" wx:for="{{order.vouchers}}" wx:key="id">
+        <text class="muted">赠饮券（{{item.name}}）</text>
+        <text class="gold">-¥{{f.yuan(item.discount)}}</text>
+      </view>
+      <view class="row-between sub-row" wx:if="{{order.starRedeem}}">
+        <text class="muted">集星兑换（{{order.starRedeem.name}}，{{order.starRedeem.stars}} 颗星）</text>
+        <text class="gold">-¥{{f.yuan(order.starFee)}}</text>
+      </view>
+      <view class="row-between sub-row" wx:if="{{order.coupon}}">
+        <text class="muted">代金券（{{order.coupon.title}}）</text>
+        <text class="gold">-¥{{f.yuan(order.coupon.discount)}}</text>
+      </view>
+    </block>
+    <view class="row-between total-row">
+      <text class="muted">{{order.discountFee ? '实付' : '合计'}}</text>
+      <text class="price big">{{f.yuan(order.payFee)}}</text>
+    </view>
+    <view class="star-note" wx:if="{{order.starsEarn && order.status !== 'cancelled'}}" bindtap="goStars">
+      <text class="gold">★</text>
+      <text class="muted">{{order.starsCredited ? ' 这单已得 ' + order.starsEarn + ' 颗星' : ' 出餐' + (order.payStatus === 'paid' ? '' : '并付款') + '后得 ' + order.starsEarn + ' 颗星'}}</text>
+      <text class="cell-arrow"></text>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="cell" wx:if="{{order.remark}}"><text class="muted">备注</text><text>{{order.remark}}</text></view>
+    <view class="cell"><text class="muted">下单时间</text><text>{{f.time(order.createdAt)}}</text></view>
+    <view class="cell"><text class="muted">订单号</text><text selectable>{{order.orderNo}}</text></view>
+  </view>
+
+  <view class="actions">
+    <view class="btn-danger btn-block" wx:if="{{order.status === 'pending' && order.payStatus === 'unpaid'}}" bindtap="cancel">取消订单</view>
+    <view class="btn-ghost btn-block" bindtap="backToMenu">再点一单</view>
+  </view>
+</view>
+
+<view class="empty" wx:elif="{{loading}}">加载中…</view>
+<view class="empty" wx:else>没找到这个订单</view>

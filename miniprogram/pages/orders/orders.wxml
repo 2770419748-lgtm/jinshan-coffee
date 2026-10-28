@@ -1,0 +1,48 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="tabs">
+  <view class="tab {{tab === 'coffee' ? 'on' : ''}}" data-tab="coffee" bindtap="switchTab">咖啡订单</view>
+  <view class="tab {{tab === 'book' ? 'on' : ''}}" data-tab="book" bindtap="switchTab">借书记录</view>
+</view>
+
+<view class="page">
+  <block wx:if="{{tab === 'coffee'}}">
+    <view wx:for="{{list}}" wx:key="_id" class="card order" data-id="{{item._id}}" bindtap="open" hover-class="btn-hover">
+      <view class="row-between">
+        <view>
+          <text class="pickup">{{item.pickupNo}}</text>
+          <text class="faint mode">{{f.mode(item.mode)}}{{item.tableNo ? ' · ' + item.tableNo + ' 号桌' : ''}}</text>
+        </view>
+        <text class="tag danger" wx:if="{{item.awaitingPay && item.payStatus === 'unpaid' && item.status === 'pending'}}">待付款</text>
+        <text class="tag {{item.status === 'done' ? 'ok' : item.status === 'cancelled' ? '' : 'gold'}}" wx:else>{{f.status(item.status)}}</text>
+      </view>
+      <view class="muted brief">{{f.itemsBrief(item.items)}}</view>
+      <view class="row-between">
+        <text class="gold" wx:if="{{item.reserveAt}}">预约 {{f.time(item.reserveAt)}}</text>
+        <text class="faint" wx:else>{{f.time(item.createdAt)}}</text>
+        <text class="price">{{f.yuan(item.payFee)}}</text>
+      </view>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view wx:for="{{list}}" wx:key="_id" class="card order" data-id="{{item._id}}" bindtap="open" hover-class="btn-hover">
+      <view class="row-between">
+        <view>
+          <text class="pickup">{{item.code}}</text>
+          <text class="faint mode">{{f.rentalBrief(item)}}</text>
+        </view>
+        <text class="tag {{item.status === 'returned' ? 'ok' : item.status === 'cancelled' ? '' : 'gold'}}">{{f.rentalStatus(item.status)}}</text>
+      </view>
+      <view class="muted brief">《{{item.bookTitle}}》<text class="danger" wx:if="{{item.overtimePayStatus === 'unpaid'}}"> 超时费待付</text></view>
+      <view class="row-between">
+        <text class="faint">{{f.time(item.createdAt)}}</text>
+        <text class="price">{{f.yuan(item.fee)}}</text>
+      </view>
+    </view>
+  </block>
+
+  <view class="empty" wx:if="{{!loading && !list.length}}">{{tab === 'book' ? '还没有借过书，去书架看看吧' : '还没有订单，去点一杯吧'}}</view>
+  <view class="empty" wx:elif="{{loading}}">加载中…</view>
+  <view class="empty" wx:elif="{{!hasMore}}">没有更多了</view>
+</view>
