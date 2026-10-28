@@ -1,19 +1,26 @@
 #!/bin/bash
 # 进山服务器的运维脚本：部署、重启、看状态、备份、回滚。
 #
-# 第一次设置（在服务器上用 root 运行一次，以后要换钥匙或升级本脚本时再运行）：
+# 第一次设置（在服务器上用 root 运行一次，以后要换钥匙时再运行）：
 #   sudo bash jinshan-ops.sh install
 # 它会把自己装成 /usr/local/bin/jinshan-ops，把服务器程序改成系统服务 jinshan（崩了自动拉起来），
 # 再生成一把只能调用本脚本的部署钥匙，最后打印出要填到 GitHub 仓库 SERVER_SSH 里的内容。
 #
-# 之后 GitHub Actions 用这把钥匙登录服务器，只能做这些事：
-#   status | logs [行数] | restart | backup | rollback | deploy <提交号> [分支]（代码包从标准输入传进来）
-# 在服务器终端里也可以直接用，比如：sudo jinshan-ops status
+# 测试版（同一台服务器上的第二份，端口 3001，数据从正式版复制，不收真钱）：
+#   sudo bash jinshan-ops.sh install-test
+# 它会顺便把本脚本升级成新版，部署钥匙不变。以后升级本脚本也用它。
+#
+# 之后 GitHub Actions 用这把钥匙登录服务器，只能做这些事（前面加 test 就是对测试版做）：
+#   status | logs [行数] | restart | backup | rollback | version | deploy <提交号> [分支]（代码包从标准输入传进来）
+#   test refresh-data（把正式版的数据重新复制到测试版）
+# 在服务器终端里也可以直接用，比如：sudo jinshan-ops status、sudo jinshan-ops test status
 #
 # config.json、data/、cert/ 永远不会被覆盖或删除。
 set -euo pipefail
 umask 022
 export TZ=Asia/Shanghai
+# 后面会 cd /，先记下本脚本的完整路径（用相对路径运行时也能找到自己）
+SELF=$(readlink -f "${BASH_SOURCE[0]}")
 
 CONF_FILE=/etc/jinshan-ops.conf
 APP_ROOT=/www/wwwroot/jinshan
@@ -27,6 +34,7 @@ set_paths() {
   VERSION_FILE=$APP_ROOT/.deploy-version
 }
 set_paths
+PROD_SERVER_DIR=$SERVER_DIR
 BACKUP_ROOT=/www/backup/jinshan
 HISTORY_FILE=$BACKUP_ROOT/history.log
 SERVICE=jinshan
@@ -43,6 +51,10 @@ MAX_BUNDLE_BYTES=$((100 * 1024 * 1024))
 KEEP_CODE=10
 KEEP_DB=20
 REMOTE=0
+# 测试版：固定目录和端口，系统服务 jinshan-test
+INSTANCE=prod
+TEST_ROOT=/www/wwwroot/jinshan-test
+TEST_PORT=3001
 
 say() { printf '%s\n' "$*"; }
 die() { printf '错误：%s\n' "$*" >&2; exit 1; }
@@ -61,9 +73,23 @@ log_history() {
   printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$HISTORY_FILE"
 }
 
-# 从 config.json 读端口、地址和数据目录
-load_cfg() {
-  IFS=$'\t' read -r PORT HOST DATA_DIR < <(node_run -e '
+# 对测试版操作：换成测试版的目录、服务、备份和锁
+use_test() {
+  INSTANCE="test"
+  APP_ROOT=$TEST_ROOT
+  set_paths
+  BACKUP_ROOT=/www/backup/jinshan-test
+  HISTORY_FILE=$BACKUP_ROOT/history.log
+  SERVICE=jinshan-test
+  UNIT_FILE=/etc/systemd/system/$SERVICE.service
+  LOCK_FILE=/run/jinshan-ops-test.lock
+  KEEP_CODE=5
+  KEEP_DB=10
+}
+
+# 从 config.json 读端口、地址和数据目录；不传目录就读现在这个（正式或测试）的
+read_cfg() {
+  node_run -e '
     const fs = require("fs"), path = require("path")
     const dir = process.argv[1]
     let c = {}
@@ -71,7 +97,52 @@ load_cfg() {
     let host = c.host || "127.0.0.1"
     if (host === "0.0.0.0" || host === "::") host = "127.0.0.1"
     console.log([c.port || 3000, host, path.resolve(dir, c.dataDir || "data")].join("\t"))
-  ' "$SERVER_DIR")
+  ' "${1:-$SERVER_DIR}"
+}
+
+load_cfg() {
+  IFS=$'\t' read -r PORT HOST DATA_DIR < <(read_cfg)
+}
+
+# 正式版的端口和数据目录（测试版复制数据、检查配置时用）
+load_prod_cfg() {
+  IFS=$'\t' read -r PROD_PORT _ PROD_DATA_DIR < <(read_cfg "$PROD_SERVER_DIR")
+}
+
+# 测试版的配置不能碰正式版的数据、不能收钱，端口不能和正式版一样
+check_test_config() {
+  local root msg
+  load_prod_cfg
+  root=$(readlink -f "$APP_ROOT")
+  msg=$(node_run -e '
+    const fs = require("fs"), path = require("path")
+    const [dir, root, prodPort] = process.argv.slice(1)
+    let c
+    try { c = JSON.parse(fs.readFileSync(path.join(dir, "config.json"), "utf8")) } catch (e) { console.log("读不了配置文件：" + e.message); process.exit(1) }
+    const errs = []
+    const inside = (p) => { const r = path.resolve(dir, p); return r === root || r.startsWith(root + "/") }
+    if (c.env !== "test") errs.push("env 要填 test")
+    if (Number(c.port || 3000) === Number(prodPort)) errs.push("端口和正式版一样")
+    if (!inside(c.dataDir || "data")) errs.push("dataDir 不在测试版目录里")
+    ;["uploadDir", "adminDir"].forEach((k) => { if (c[k] && !inside(c[k])) errs.push(k + " 不在测试版目录里") })
+    if ((c.pay || {}).mchId || ((c.carwash || {}).pay || {}).mchId) errs.push("填了商户号（测试版不收钱）")
+    if (errs.length) { console.log(errs.join("；")); process.exit(1) }
+  ' "$SERVER_DIR" "$root" "$PROD_PORT") || die "测试版配置 $SERVER_DIR/config.json 不对：$msg"
+}
+
+# 对测试版操作前检查配置（正式版不用）
+guard_test() {
+  if [ "$INSTANCE" = test ]; then check_test_config; fi
+}
+
+# 代码认不认得测试版（config.json 里的 env）：不认得的老代码会照常收钱、给真顾客发通知，不能当测试版跑
+supports_test() {
+  grep -q 'isTest()' "$1/platform.js" 2>/dev/null
+}
+
+# 测试版要先装好才能部署、重启
+need_test_installed() {
+  [ -f "$UNIT_FILE" ] && [ -f "$SERVER_DIR/config.json" ] || die "测试版还没装：在服务器上用 root 运行 jinshan-ops.sh install-test"
 }
 
 version_field() { [ -f "$VERSION_FILE" ] && sed -n "s/^$1=//p" "$VERSION_FILE" | head -n 1 || true; }
@@ -250,11 +321,15 @@ deploy() {
   [ "$size" -le "$MAX_BUNDLE_BYTES" ] || die "代码包超过 100MB，不像正常的代码包"
   load_cfg
   [ -f "$SERVER_DIR/config.json" ] || die "服务器上没有 $SERVER_DIR/config.json，先按 README 把配置文件放好"
+  guard_test
   check_bundle "$work/bundle.tar.gz"
   mkdir "$work/new"
   tar -xzf "$work/bundle.tar.gz" -C "$work/new" --no-same-owner
   chown -R "$RUN_USER:$RUN_USER" "$work/new"
   say "收到代码包 $((size / 1024)) KB，版本 ${sha:0:12}"
+  if [ "$INSTANCE" = test ] && ! supports_test "$work/new/server"; then
+    die "这个版本的代码还不支持测试版，不能部署到测试版"
+  fi
 
   say "检查新代码能不能加载……"
   (cd "$work/new/server" && as_app timeout 60 "$NODE_BIN" --disable-warning=ExperimentalWarning \
@@ -288,8 +363,12 @@ deploy() {
 rollback() {
   local prev cur
   load_cfg
+  guard_test
   prev=$(version_field prev)
   [ -n "$prev" ] && [ -f "$prev" ] || die "没有上一版的代码备份，回滚不了（可以在 GitHub 上重新部署某个旧版本）"
+  if [ "$INSTANCE" = test ] && ! tar -xzf "$prev" -O server/platform.js 2>/dev/null | grep -q 'isTest()'; then
+    die "上一版是安装测试版时复制的老代码，不支持测试版，不能退回去（可以在 GitHub 上部署别的版本）"
+  fi
   cur=$(backup_code)
   say "现在的代码已备份：$cur"
   restore_code "$prev"
@@ -309,6 +388,7 @@ status() {
   load_cfg
   local main rss stray="" pid daily
   main=$(main_pid)
+  [ "$INSTANCE" = prod ] || say "【测试版】端口 $PORT，目录 $APP_ROOT"
   say "版本：$(version_field sha | cut -c1-12)  分支：$(version_field ref)  部署时间：$(version_field time)"
   rss=$(ps -o rss= -p "$main" 2>/dev/null | awk '{printf "%d MB", $1 / 1024}' || true)
   say "程序：$(systemctl is-active "$SERVICE" 2>/dev/null || true)，启动于 $(systemctl show -p ActiveEnterTimestamp --value "$SERVICE")，占内存 ${rss:-?}"
@@ -333,6 +413,7 @@ status() {
 
 restart_cmd() {
   load_cfg
+  guard_test
   if restart_service; then
     log_history "重启"
     say "已重启，健康检查正常"
@@ -346,6 +427,59 @@ backup_cmd() {
   load_cfg
   backup_db manual
   log_history "手动备份数据库"
+}
+
+# 把正式版的数据（数据库和图片）复制到测试版的数据目录。测试版的程序要先停掉
+copy_prod_data() {
+  local prod_db tmp
+  load_prod_cfg
+  prod_db=$PROD_DATA_DIR/jinshan.db
+  [ -f "$prod_db" ] || die "正式版还没有数据库 $prod_db"
+  [ "$(readlink -f "$PROD_DATA_DIR")" != "$(readlink -f "$DATA_DIR")" ] || die "测试版和正式版的数据目录是同一个，不能复制"
+  install -d -m 700 -o "$RUN_USER" -g "$RUN_USER" "$DATA_DIR"
+  # 图片等文件；测试版自己的每日备份留着
+  rsync -a --delete --exclude=/jinshan.db --exclude='/jinshan.db-*' --exclude=/backups "$PROD_DATA_DIR/" "$DATA_DIR/"
+  chown -R "$RUN_USER:$RUN_USER" "$DATA_DIR"
+  chmod 700 "$DATA_DIR"
+  # 数据库用 www 身份导出一致的副本（正式版在跑也没关系）
+  tmp=$(mktemp -d /tmp/jinshan-copy.XXXXXX)
+  chown "$RUN_USER:" "$tmp"
+  if ! (cd / && as_app "$NODE_BIN" --disable-warning=ExperimentalWarning -e '
+    const { DatabaseSync } = require("node:sqlite")
+    const db = new DatabaseSync(process.argv[1], { readOnly: true })
+    db.exec("PRAGMA busy_timeout = 10000")
+    db.prepare("VACUUM INTO ?").run(process.argv[2])
+    db.close()
+  ' "$prod_db" "$tmp/copy.db"); then
+    rm -rf "$tmp"
+    die "复制正式版数据库失败"
+  fi
+  rm -f "$DATA_DIR/jinshan.db" "$DATA_DIR/jinshan.db-wal" "$DATA_DIR/jinshan.db-shm"
+  mv "$tmp/copy.db" "$DATA_DIR/jinshan.db"
+  rm -rf "$tmp"
+  chown "$RUN_USER:$RUN_USER" "$DATA_DIR/jinshan.db"
+  chmod 600 "$DATA_DIR/jinshan.db"
+  say "已复制正式版的数据：数据库 $(du -h "$DATA_DIR/jinshan.db" | cut -f1)，数据目录共 $(du -sh "$DATA_DIR" | cut -f1)"
+}
+
+# 测试版：把正式版现在的数据重新复制过来（测试版原来的数据库先备份）
+refresh_data() {
+  [ "$INSTANCE" = test ] || die "只能给测试版复制数据：test refresh-data"
+  load_cfg
+  guard_test
+  backup_db before-refresh
+  systemctl stop "$SERVICE"
+  if ! (copy_prod_data); then
+    restart_service || true
+    die "复制失败，测试版还是原来的数据"
+  fi
+  if restart_service; then
+    log_history "从正式版重新复制数据"
+    say "测试版的数据已换成正式版现在的数据，健康检查正常"
+  else
+    log_history "从正式版重新复制数据后启动失败"
+    exit 1
+  fi
 }
 
 with_lock() {
@@ -363,9 +497,17 @@ run_action() {
     return 0
   fi
   # GitHub 能连上了，说明钥匙已经填进 GitHub，服务器上的那份不用留
-  [ "$REMOTE" = 1 ] && rm -f "$SECRET_FILE"
+  if [ "$REMOTE" = 1 ]; then rm -f "$SECRET_FILE"; fi
+  # 前面带 test 的是对测试版做
+  if [ "${args[0]:-}" = test ]; then
+    use_test
+    need_test_installed
+    args=("${args[@]:1}")
+  fi
   case ${args[0]:-} in
     status) status ;;
+    version) printf '%s %s\n' "$(version_field sha)" "$(version_field ref)" ;;
+    refresh-data) with_lock refresh_data ;;
     logs)
       local n=${args[1]:-200}
       [[ $n =~ ^[0-9]{1,5}$ ]] || die "行数要是数字"
@@ -379,7 +521,7 @@ run_action() {
       [[ ${args[1]:-} =~ ^[0-9a-f]{40}$ ]] || die "提交号不对"
       with_lock deploy "${args[1]}" "${args[2]:-}"
       ;;
-    *) die "不认识的动作：${args[0]:-（空）}。能用的：status、logs、restart、backup、rollback、deploy" ;;
+    *) die "不认识的动作：${args[0]:-（空）}。能用的：status、logs、restart、backup、rollback、version、deploy，测试版还有 refresh-data（前面加 test）" ;;
   esac
 }
 
@@ -469,10 +611,15 @@ ensure_tools() {
 }
 
 write_unit() {
+  local prefix="" desc="Jinshan mini program server"
+  if [ "$INSTANCE" = test ]; then
+    prefix="test "
+    desc="$desc (test)"
+  fi
   cat >"$UNIT_FILE" <<EOF
-# 进山小程序服务器。由 jinshan-ops install 生成，改端口等配置请改 $SERVER_DIR/config.json
+# 进山小程序服务器。由 jinshan-ops install${prefix:+-test} 生成，改端口等配置请改 $SERVER_DIR/config.json
 [Unit]
-Description=Jinshan mini program server
+Description=$desc
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=0
@@ -483,7 +630,7 @@ User=$RUN_USER
 Group=$RUN_USER
 WorkingDirectory=$SERVER_DIR
 Environment=NODE_ENV=production
-ExecStartPre=-+$OPS_BIN kill-stray
+ExecStartPre=-+$OPS_BIN ${prefix}kill-stray
 ExecStart=$NODE_BIN --disable-warning=ExperimentalWarning app.js
 Restart=always
 RestartSec=3
@@ -518,7 +665,7 @@ setup_deploy_user() {
 }
 
 install_all() {
-  local ip_arg=${1:-} self node ip ssh_port hostkey known work
+  local ip_arg=${1:-} node ip ssh_port hostkey known work
   [ "$(id -u)" = 0 ] || die "要用 root 运行：sudo bash $0 install"
   command -v systemctl >/dev/null 2>&1 || die "这台服务器没有 systemd"
   find_app_root
@@ -532,8 +679,7 @@ install_all() {
   [ -n "$node" ] || die "没找到 $MIN_NODE 以上的 Node.js：在宝塔「网站 → Node 项目 → Node 版本管理器」装一个 v22 或 v24 再运行"
   ln -sfn "$node" "$NODE_BIN"
   say "用 $node（$("$NODE_BIN" -v)）"
-  self=$(readlink -f "${BASH_SOURCE[0]}")
-  [ "$self" = "$OPS_BIN" ] || install -m 755 -o root -g root "$self" "$OPS_BIN"
+  [ "$SELF" = "$OPS_BIN" ] || install -m 755 -o root -g root "$SELF" "$OPS_BIN"
 
   say "[2/5] 把服务器程序改成系统服务 $SERVICE"
   load_cfg
@@ -596,18 +742,155 @@ install_all() {
   say "可以在它的设置里把「开机启动」关掉。以后程序由系统服务 $SERVICE 管。"
 }
 
+# ---------- 测试版 ----------
+
+# 测试版的配置：照正式版的抄，改成测试版的端口、地址和数据目录，去掉商户号
+write_test_config() {
+  local ip=$1 tmp
+  tmp=$(mktemp)
+  node_run -e '
+    const fs = require("fs"), path = require("path")
+    const [prodDir, out, port, ip] = process.argv.slice(1)
+    const c = JSON.parse(fs.readFileSync(path.join(prodDir, "config.json"), "utf8"))
+    const noPay = { mchId: "", serialNo: "", privateKeyFile: "", apiV3Key: "", publicKeyFile: "", publicKeyId: "" }
+    c.env = "test"
+    c.port = Number(port)
+    const open = c.host === "0.0.0.0" || c.host === "::"
+    c.publicUrl = open ? "http://" + ip + ":" + port : ""
+    c.dataDir = "data"
+    delete c.uploadDir
+    delete c.adminDir
+    c.pay = Object.assign({}, noPay)
+    if (c.carwash) c.carwash.pay = Object.assign({}, noPay)
+    fs.writeFileSync(out, JSON.stringify(c, null, 2) + "\n")
+  ' "$PROD_SERVER_DIR" "$tmp" "$TEST_PORT" "$ip"
+  install -m 600 -o "$RUN_USER" -g "$RUN_USER" "$tmp" "$SERVER_DIR/config.json"
+  rm -f "$tmp"
+}
+
+# 把正式版现在的代码复制成测试版的第一版（以后由 GitHub 部署）
+copy_prod_code() {
+  local work prod_root
+  prod_root=${PROD_SERVER_DIR%/server}
+  work=$(mktemp -d /tmp/jinshan-test-code.XXXXXX)
+  mkdir -p "$work/server" "$work/admin-web"
+  rsync -a --exclude=/config.json --exclude='/config.json.*' --exclude=/data --exclude=/cert --exclude=/node_modules \
+    --exclude='*.pem' --exclude='*.db' --exclude='*.db-*' --exclude='*.bak' "$PROD_SERVER_DIR/" "$work/server/"
+  [ -d "$prod_root/admin-web/dist" ] && rsync -a "$prod_root/admin-web/dist/" "$work/admin-web/dist/"
+  install -d -m 755 -o "$RUN_USER" -g "$RUN_USER" "$APP_ROOT" "$SERVER_DIR"
+  sync_code "$work"
+  rm -rf "$work"
+  printf 'sha=%s\nref=%s\ntime=%s\nnote=安装测试版时从正式版复制的代码\n' \
+    "$(sed -n 's/^sha=//p' "$prod_root/.deploy-version" 2>/dev/null | head -n 1)" \
+    "$(sed -n 's/^ref=//p' "$prod_root/.deploy-version" 2>/dev/null | head -n 1)" \
+    "$(date '+%Y-%m-%d %H:%M:%S')" >"$VERSION_FILE"
+}
+
+install_test() {
+  local ip_arg=${1:-} ip pids open started
+  [ "$(id -u)" = 0 ] || die "要用 root 运行：sudo bash $0 install-test"
+  [ -x "$NODE_BIN" ] && [ -f /etc/systemd/system/jinshan.service ] && [ -f "$PROD_SERVER_DIR/config.json" ] ||
+    die "先装好正式版的自动部署（sudo bash jinshan-ops.sh install）"
+  ip=$(public_ip "$ip_arg")
+  ensure_tools
+
+  say "[1/6] 升级运维脚本（部署钥匙不变，GitHub 上的 SERVER_SSH 不用改）"
+  [ "$SELF" = "$OPS_BIN" ] || install -m 755 -o root -g root "$SELF" "$OPS_BIN"
+
+  load_prod_cfg
+  use_test
+  [ "$TEST_PORT" != "$PROD_PORT" ] || die "正式版用的就是 $TEST_PORT 端口"
+  PORT=$TEST_PORT
+  pids=$(port_pids)
+  if [ -n "$pids" ] && ! systemctl is-active -q "$SERVICE"; then
+    die "端口 $TEST_PORT 已经被别的程序占着（pid $pids），先停掉它"
+  fi
+
+  say "[2/6] 测试版的代码：$APP_ROOT"
+  if [ -f "$SERVER_DIR/app.js" ]; then
+    say "已经有了，不动（以后由 GitHub 部署）"
+  else
+    copy_prod_code
+    say "已从正式版复制"
+  fi
+
+  say "[3/6] 测试版的配置：$SERVER_DIR/config.json"
+  if [ -f "$SERVER_DIR/config.json" ]; then
+    say "已经有了，不动"
+  else
+    write_test_config "$ip"
+    say "已按正式版的生成：端口 $TEST_PORT，微信支付关闭，数据放在测试版自己的目录"
+  fi
+  check_test_config
+  load_cfg
+
+  say "[4/6] 测试版的数据"
+  if [ -f "$DATA_DIR/jinshan.db" ]; then
+    say "已经有数据库，不动（要换成正式版现在的数据：sudo jinshan-ops test refresh-data）"
+  else
+    copy_prod_data
+  fi
+
+  say "[5/6] 系统服务 $SERVICE"
+  write_unit
+  systemctl daemon-reload
+  systemctl enable "$SERVICE" >/dev/null 2>&1
+  started=0
+  if ! supports_test "$SERVER_DIR"; then
+    say "现在的代码还不支持测试版，先不启动；GitHub 第一次部署测试版时会自动启动"
+  elif restart_service; then
+    started=1
+    say "测试版已启动，健康检查正常"
+  else
+    systemctl disable --now "$SERVICE" >/dev/null 2>&1 || true
+    die "测试版启动不了，已经停掉（正式版没受影响），把上面的输出截图发给 Claude"
+  fi
+
+  say "[6/6] 防火墙"
+  open=$(node_run -e 'const c = require(process.argv[1]); console.log(c.host === "0.0.0.0" || c.host === "::" ? 1 : 0)' "$SERVER_DIR/config.json")
+  if [ "$open" != 1 ]; then
+    say "测试版只在本机监听，不用开端口（用 nginx 反向代理 test 域名到 127.0.0.1:$TEST_PORT）"
+  elif systemctl is-active -q firewalld; then
+    firewall-cmd -q --permanent --add-port="$TEST_PORT/tcp"
+    firewall-cmd -q --reload
+    say "firewalld 已放行 $TEST_PORT"
+  else
+    say "firewalld 没在运行，跳过"
+  fi
+  log_history "安装测试版"
+
+  say ""
+  say "================ 测试版装好了 ================"
+  [ "$started" = 1 ] || say "还没启动：等 GitHub 部署一次测试版（Actions →「部署到服务器」选测试版）"
+  if [ "$open" = 1 ]; then
+    say "网页后台：http://$ip:$TEST_PORT/admin/（还要在腾讯云轻量服务器的「防火墙」里放行 TCP $TEST_PORT）"
+  fi
+  say "看状态：sudo jinshan-ops test status    重新复制正式版数据：sudo jinshan-ops test refresh-data"
+}
+
 usage() {
-  sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,18p' "$SELF" | sed 's/^# \{0,1\}//'
 }
 
 cd /
 case ${1:-} in
   install) install_all "${2:-}" ;;
+  install-test) install_test "${2:-}" ;;
   remote)
     REMOTE=1
     run_action "${2:-}"
     ;;
   kill-stray) kill_stray ;;
+  test)
+    # 测试版系统服务启动前调用
+    if [ "${2:-}" = kill-stray ]; then
+      use_test
+      kill_stray
+      exit 0
+    fi
+    [ "$(id -u)" = 0 ] || die "要用 root 运行：sudo jinshan-ops $*"
+    run_action "$*"
+    ;;
   "" | -h | --help | help) usage ;;
   *)
     [ "$(id -u)" = 0 ] || die "要用 root 运行：sudo jinshan-ops $*"
