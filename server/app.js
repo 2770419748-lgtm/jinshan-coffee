@@ -235,10 +235,12 @@ function createApp({ config, db, wechat, pay, storage, carwash, extraRoutes }) {
   return { server, modules }
 }
 
-// 测试版的网页后台：页面顶上一条红色的「测试版」，标题前面也加上，免得和正式后台搞混
+// 测试版的网页后台：页面顶上一条红色的「测试版」，标题前面也加上（网页自己改标题时也补上），免得和正式后台搞混
 const TEST_BANNER = '<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#d03050;color:#fff;' +
   'text-align:center;font-size:13px;line-height:22px;pointer-events:none">测试版 · 数据和正式版分开，随便试</div>' +
-  '<style>body{padding-top:22px;box-sizing:border-box}</style>'
+  '<style>body{padding-top:22px;box-sizing:border-box}</style>' +
+  '<script>(function(){var p="【测试版】",t=document.querySelector("title");function fix(){if(document.title.indexOf(p)!==0)document.title=p+document.title}' +
+  'fix();if(t)new MutationObserver(fix).observe(t,{childList:true,characterData:true,subtree:true})})()</script>'
 
 function sendTestIndex(req, res, adminDir) {
   let html
