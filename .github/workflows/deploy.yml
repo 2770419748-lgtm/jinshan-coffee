@@ -1,0 +1,86 @@
+# 把代码部署到进山服务器：main 上的服务器代码或网页后台有改动就自动部署，
+# 也可以在 Actions 里手动运行，部署任意分支或提交。
+# 服务器那边要先做一次设置，见 deploy/README.md。
+name: 部署到服务器
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'admin-web/dist/**'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '要部署的分支、标签或提交号'
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+# 部署和运维一次只做一件事
+concurrency:
+  group: jinshan-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 取部署脚本
+        uses: actions/checkout@v4
+        with:
+          path: tools
+          sparse-checkout: .github
+
+      - name: 取要部署的代码
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+          path: app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 跑测试
+        working-directory: app
+        run: |
+          if [ ! -f server/app.js ] || [ ! -f admin-web/dist/index.html ]; then
+            echo "::error::这个版本里没有 server/app.js 或 admin-web/dist，不能部署"
+            exit 1
+          fi
+          if [ -f package.json ] && node -e 'process.exit(require("./package.json").scripts?.test ? 0 : 1)'; then
+            npm test
+          else
+            echo "没有测试，跳过"
+          fi
+
+      - name: 打包
+        working-directory: app
+        env:
+          REF_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref_name }}
+        run: |
+          git archive --format=tar.gz -o "$RUNNER_TEMP/bundle.tar.gz" HEAD server admin-web/dist
+          echo "SHA=$(git rev-parse HEAD)" >>"$GITHUB_ENV"
+          echo "REF=$(printf '%s' "$REF_NAME" | tr -c 'A-Za-z0-9._/-' '_' | cut -c1-100)" >>"$GITHUB_ENV"
+          ls -lh "$RUNNER_TEMP/bundle.tar.gz"
+
+      - name: 连接服务器
+        env:
+          SERVER_SSH: ${{ secrets.SERVER_SSH }}
+        run: bash tools/.github/scripts/server.sh setup
+
+      - name: 部署
+        env:
+          BUNDLE: ${{ runner.temp }}/bundle.tar.gz
+        run: |
+          bash tools/.github/scripts/server.sh deploy "$SHA" "$REF" 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          {
+            echo "### 部署 \`${SHA:0:12}\`（$REF）"
+            echo '```'
+            cat "$RUNNER_TEMP/deploy.log"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
