@@ -5,6 +5,7 @@
 // 微信的规矩：顾客点一次「允许」只能收一条，所以每次下单、借书时都要问一次。
 const cloud = require('../platform')
 const { BizError } = require('./base')
+const { appOpenid } = require('../lib/identity')
 
 const SHOP_NAME = '进山咖啡'
 const KINDS = { orderReady: '取餐通知', rentalDue: '借书到期提醒' }
@@ -165,12 +166,15 @@ function rentalValues(rental) {
   }
 }
 
-// 发一条通知；没配模板、顾客没允许、微信报错都只记日志，不影响出餐和借书
-async function send(db, kind, openid, values, page) {
+// 发一条通知；没配模板、顾客没允许、微信报错都只记日志，不影响出餐和借书。
+// uid 是用户 id；先洗车后咖啡的顾客，用户 id 是洗车小程序的 openid，要换成咖啡小程序的才能发
+async function send(db, kind, uid, values, page) {
   const s = await readSettings(db)
   const tpl = s[kind]
-  if (!tpl || !openid) return false
+  if (!tpl || !uid) return false
   try {
+    const openid = await appOpenid(db, 'coffee', uid)
+    if (!openid) return false
     await cloud.openapi.subscribeMessage.send({
       touser: openid,
       templateId: tpl.templateId,

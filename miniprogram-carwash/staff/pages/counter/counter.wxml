@@ -1,0 +1,56 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{staff}}">
+  <view class="card search">
+    <input class="field-input" type="number" placeholder="顾客的会员号" placeholder-class="placeholder" maxlength="12" value="{{no}}" bindinput="onNo" confirm-type="search" />
+    <view class="btn-main btn-small" bindtap="find">查找</view>
+  </view>
+  <view class="faint small tip" wx:if="{{!m}}">让顾客打开洗车小程序「我的 → 会员中心」报会员号（和进山咖啡的会员号是同一个）。</view>
+
+  <block wx:if="{{m}}">
+    <view class="card">
+      <view class="row-between">
+        <view>
+          <view class="muted small">会员号 {{m.member.memberNo}}<text wx:if="{{m.member.remark}}"> · {{m.member.remark}}</text></view>
+          <view class="balance">¥{{f.yuan(m.member.balance)}}</view>
+          <view class="faint small">洗车余额</view>
+        </view>
+        <text class="tag {{m.member.isMember ? 'on' : ''}}">{{m.member.isMember ? '会员至 ' + m.member.memberUntil : '不是会员'}}</text>
+      </view>
+    </view>
+
+    <view class="section-title">次卡</view>
+    <view class="card" wx:if="{{m.cards.length}}">
+      <view class="option" wx:for="{{m.cards}}" wx:key="_id">
+        <view class="flex-1">
+          <view class="bold">{{item.name}} · 剩 {{item.remaining}} 次</view>
+          <view class="faint small">能洗：{{f.join(item.serviceNames, '、')}}<text wx:if="{{item.expiresDay}}"> · {{item.expiresDay}} 到期</text></view>
+        </view>
+        <view class="btn-main btn-small" data-index="{{index}}" bindtap="useCard">用一次</view>
+      </view>
+    </view>
+    <view class="faint small tip" wx:else>没有能用的次卡</view>
+
+    <view class="section-title" wx:if="{{m.plans.length}}">充值（先收钱再点）</view>
+    <view class="card" wx:if="{{m.plans.length}}">
+      <view class="option" wx:for="{{m.plans}}" wx:key="_id" data-index="{{index}}" bindtap="recharge">
+        <view class="flex-1">
+          <view class="bold">{{item.title}}</view>
+          <view class="faint small">收 ¥{{f.yuan(item.price)}}，到账 ¥{{f.yuan(item.price + item.bonus)}}<text wx:if="{{item.memberDays}}">，送 {{item.memberDays}} 天会员</text></view>
+        </view>
+        <text class="accent">充 ›</text>
+      </view>
+    </view>
+
+    <view class="section-title" wx:if="{{m.cardTypes.length}}">办次卡（先收钱再点）</view>
+    <view class="card" wx:if="{{m.cardTypes.length}}">
+      <view class="option" wx:for="{{m.cardTypes}}" wx:key="_id" data-index="{{index}}" bindtap="sellCard">
+        <view class="flex-1">
+          <view class="bold">{{item.name}}</view>
+          <view class="faint small">¥{{f.yuan(item.price)}} · {{item.times}} 次 · {{item.validDays ? item.validDays + ' 天有效' : '不限期'}}</view>
+        </view>
+        <text class="accent">办 ›</text>
+      </view>
+    </view>
+  </block>
+</view>

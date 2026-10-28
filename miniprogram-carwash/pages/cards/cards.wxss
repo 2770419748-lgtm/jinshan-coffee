@@ -1,0 +1,4 @@
+.times { margin: 12rpx 0 4rpx; }
+.big { font-size: 56rpx; font-weight: 700; }
+.logs { margin-top: 20rpx; padding-top: 12rpx; border-top: 1rpx solid var(--line); }
+.log { padding: 12rpx 0; }

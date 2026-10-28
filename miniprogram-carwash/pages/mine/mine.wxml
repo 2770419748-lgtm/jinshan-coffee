@@ -1,0 +1,41 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page">
+  <view class="profile">
+    <image class="avatar" src="/images/logo.jpg" mode="aspectFill" />
+    <view>
+      <view class="hello">{{shopName}}</view>
+      <view class="muted" wx:if="{{user && user.staff}}">{{user.staff.name}} · {{user.staff.roleName}}</view>
+    </view>
+  </view>
+
+  <view class="card list">
+    <view class="cell cell-arrow" wx:if="{{member && member.enabled}}" bindtap="goMember" hover-class="btn-hover">
+      <text class="flex-1 accent">会员中心</text>
+      <text class="muted">{{member.balance ? '余额 ¥' + f.yuan(member.balance) : '充值 / 办卡'}}</text>
+    </view>
+    <view class="cell cell-arrow" wx:else bindtap="goMember" hover-class="btn-hover">
+      <text class="flex-1">次卡和会员号</text>
+    </view>
+    <view class="cell cell-arrow" bindtap="goCards" hover-class="btn-hover">
+      <text class="flex-1">我的次卡</text>
+      <text class="muted" wx:if="{{member && member.cards}}">{{member.cards}} 张能用</text>
+    </view>
+    <view class="cell cell-arrow" bindtap="goVouchers" hover-class="btn-hover">
+      <text class="flex-1">我的券</text>
+      <text class="muted">送的咖啡券</text>
+    </view>
+    <view class="cell cell-arrow" bindtap="goAddresses" hover-class="btn-hover">
+      <text class="flex-1">上门地址</text>
+    </view>
+    <view class="cell cell-arrow" wx:if="{{phone}}" bindtap="callShop" hover-class="btn-hover">
+      <text class="flex-1">联系店里</text>
+      <text class="muted">{{phone}}</text>
+    </view>
+    <view class="cell cell-arrow" wx:if="{{isStaff}}" bindtap="goStaff" hover-class="btn-hover">
+      <text class="flex-1 accent">员工：接单和收银</text>
+    </view>
+  </view>
+
+  <view class="staff-link" wx:if="{{user && !isStaff}}" bindtap="bindStaff">我是员工，用邀请码绑定</view>
+</view>

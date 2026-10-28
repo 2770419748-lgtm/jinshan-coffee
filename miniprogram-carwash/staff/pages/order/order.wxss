@@ -1,0 +1,2 @@
+.big { font-size: 34rpx; }
+.right { text-align: right; max-width: 70%; }

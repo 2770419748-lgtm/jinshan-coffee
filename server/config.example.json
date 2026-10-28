@@ -13,5 +13,17 @@
     "apiV3Key": "",
     "publicKeyFile": "",
     "publicKeyId": ""
+  },
+  "carwash": {
+    "appId": "",
+    "appSecret": "",
+    "pay": {
+      "mchId": "",
+      "serialNo": "",
+      "privateKeyFile": "cert/carwash/apiclient_key.pem",
+      "apiV3Key": "",
+      "publicKeyFile": "",
+      "publicKeyId": ""
+    }
   }
 }

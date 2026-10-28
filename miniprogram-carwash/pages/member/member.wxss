@@ -1,0 +1,16 @@
+.vip {
+  border-radius: 24rpx;
+  padding: 36rpx 32rpx;
+  margin-bottom: 24rpx;
+  background: linear-gradient(135deg, #2a2a2a, #050505);
+  border: 1rpx solid #3a3a3a;
+}
+.vip-label { color: var(--text-2); font-size: 24rpx; }
+.vip-balance { font-size: 60rpx; font-weight: 700; }
+.vip-no { font-size: 40rpx; font-weight: 700; letter-spacing: 4rpx; }
+.right { text-align: right; }
+.vip-foot { margin-top: 16rpx; color: var(--text); font-size: 26rpx; }
+.vip-tip { margin-top: 12rpx; color: var(--text-3); font-size: 22rpx; }
+.plan { display: flex; align-items: center; gap: 20rpx; }
+.list { padding-top: 0; padding-bottom: 0; }
+.notice { padding: 0 8rpx 16rpx; }

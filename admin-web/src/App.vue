@@ -3,11 +3,16 @@
   <el-container v-else class="layout">
     <el-aside width="200px" class="aside">
       <div class="brand">
-        <img :src="logo" alt="" />
+        <img :src="shop.key === 'carwash' ? carwashLogo : logo" alt="" />
         <div>
-          <div class="brand-name">{{ shopName }}</div>
+          <div class="brand-name" :class="{ mono: shop.key === 'carwash' }">{{ shop.name }}</div>
           <div class="brand-sub">管理后台</div>
         </div>
+      </div>
+      <div class="switch" v-if="shops.length > 1">
+        <el-radio-group :model-value="current.shop" size="small" @change="switchShop">
+          <el-radio-button v-for="s in shops" :key="s.key" :value="s.key">{{ s.short }}</el-radio-button>
+        </el-radio-group>
       </div>
       <el-menu :default-active="route.path" router class="menu">
         <template v-for="g in visibleMenu" :key="g.group">
@@ -37,17 +42,26 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, session, setToken, config, isMock } from './api'
-import { MENU, allowed } from './router'
+import { api, session, setToken, isMock } from './api'
+import { MENU, allowed, current, myShops, shopOf, firstPage } from './router'
 import logo from './assets/logo.jpg'
+import carwashLogo from './assets/carwash-logo.jpg'
 
 const route = useRoute()
 const router = useRouter()
-const shopName = config().shopName || '进山咖啡'
+
+const shops = computed(() => (session.staff ? myShops() : []))
+const shop = computed(() => shopOf(current.shop))
 
 const visibleMenu = computed(() => MENU
+  .filter((g) => g.shop === current.shop)
   .map((g) => ({ group: g.group, items: g.items.filter(allowed) }))
   .filter((g) => g.items.length))
+
+// 切到另一家店：打开那家能进的第一页
+function switchShop(key) {
+  router.push(firstPage(key))
+}
 
 async function logout() {
   try {
@@ -87,6 +101,13 @@ async function logout() {
   font-weight: 600;
   font-size: 16px;
 }
+.brand-name.mono { color: #fff; }
+.switch {
+  padding: 12px 16px 0;
+}
+.switch .el-radio-group { display: flex; }
+.switch :deep(.el-radio-button) { flex: 1; }
+.switch :deep(.el-radio-button__inner) { width: 100%; }
 .brand-sub {
   color: var(--el-text-color-secondary);
   font-size: 12px;
@@ -122,6 +143,7 @@ async function logout() {
   .aside { width: auto !important; border-right: none; border-bottom: 1px solid var(--el-border-color); }
   .brand { padding: 10px 16px; border-bottom: none; }
   .brand img { width: 32px; height: 32px; }
+  .switch { padding: 0 16px 8px; }
   .menu { display: flex; overflow-x: auto; padding: 0 8px; }
   .menu-group { display: none; }
   .menu :deep(.el-menu-item) { height: 40px; line-height: 40px; padding: 0 12px !important; white-space: nowrap; }

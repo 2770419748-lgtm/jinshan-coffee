@@ -1,0 +1,145 @@
+<wxs src="../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{service}}">
+  <view class="card">
+    <view class="row-between">
+      <view class="service-name">{{service.name}}</view>
+      <view class="price">{{f.yuan(unitPrice)}}</view>
+    </view>
+    <view class="muted small" wx:if="{{service.desc}}">{{service.desc}}</view>
+    <view class="faint small" wx:if="{{service.minutes}}">大约 {{f.minutes(service.minutes)}}</view>
+  </view>
+
+  <view class="section-title">怎么洗</view>
+  <view class="tabs" wx:if="{{modes.length > 1}}">
+    <view class="tab {{mode === 'store' ? 'on' : ''}}" data-mode="store" bindtap="pickMode">到店</view>
+    <view class="tab {{mode === 'door' ? 'on' : ''}}" data-mode="door" bindtap="pickMode">上门</view>
+  </view>
+  <view class="card small muted" wx:else>这个项目只能{{mode === 'door' ? '上门' : '到店'}}做</view>
+
+  <view class="card" wx:if="{{mode === 'door'}}">
+    <view class="row" bindtap="chooseAddress" hover-class="btn-hover">
+      <view class="flex-1" wx:if="{{address}}">
+        <view class="bold">{{address.place}} {{address.detail}}</view>
+        <view class="muted small">{{address.name}} {{address.phone}}</view>
+      </view>
+      <view class="flex-1 muted" wx:else>选择上门地址</view>
+      <text class="faint">›</text>
+    </view>
+    <view class="faint small door-tip" wx:if="{{door}}">上门范围 {{door.radiusKm}} 公里内<text wx:if="{{door.fee}}">，上门费 ¥{{f.yuan(door.fee)}}</text><text wx:if="{{door.outOfRange === 'fee'}}">；超出范围加收 ¥{{f.yuan(door.outOfRangeFee)}}</text><text wx:if="{{door.outOfRange === 'reject'}}">；超出范围不上门</text></view>
+  </view>
+
+  <view class="section-title">选时间</view>
+  <scroll-view scroll-x class="days" enhanced show-scrollbar="{{false}}">
+    <view class="day {{index === dayIndex ? 'on' : ''}}" wx:for="{{days}}" wx:key="day" data-index="{{index}}" bindtap="pickDay">{{item.label}}</view>
+  </scroll-view>
+  <view class="card">
+    <view class="slots" wx:if="{{days[dayIndex] && days[dayIndex].slots.length}}">
+      <view class="slot {{item.start === slotStart ? 'on' : ''}} {{item.left[mode] ? '' : 'full'}}" wx:for="{{days[dayIndex].slots}}" wx:key="start" data-start="{{item.start}}" data-left="{{item.left[mode]}}" bindtap="pickSlot">
+        <view>{{item.label}}</view>
+        <view class="slot-left">{{item.left[mode] ? '剩 ' + item.left[mode] : '约满'}}</view>
+      </view>
+    </view>
+    <view class="empty small" wx:else>这天没有能约的时间了，换一天看看</view>
+  </view>
+
+  <view class="section-title">车和联系方式</view>
+  <view class="card">
+    <view class="field">
+      <text class="field-label">车牌</text>
+      <input class="field-input" placeholder="选填，方便认车" placeholder-class="placeholder" maxlength="10" value="{{plate}}" bindinput="onPlate" />
+    </view>
+    <view class="field">
+      <text class="field-label">车型颜色</text>
+      <input class="field-input" placeholder="选填，比如 白色 Model 3" placeholder-class="placeholder" maxlength="20" value="{{carModel}}" bindinput="onCarModel" />
+    </view>
+    <block wx:if="{{mode === 'store'}}">
+      <view class="field">
+        <text class="field-label">称呼</text>
+        <input class="field-input" placeholder="选填" placeholder-class="placeholder" maxlength="10" value="{{contactName}}" bindinput="onName" />
+      </view>
+      <view class="field">
+        <text class="field-label">手机</text>
+        <input class="field-input" type="number" placeholder="选填，店里有事好联系你" placeholder-class="placeholder" maxlength="11" value="{{contactPhone}}" bindinput="onPhone" />
+      </view>
+    </block>
+    <view class="field">
+      <text class="field-label">备注</text>
+      <input class="field-input" placeholder="选填" placeholder-class="placeholder" maxlength="60" value="{{remark}}" bindinput="onRemark" />
+    </view>
+  </view>
+
+  <block wx:if="{{cards.length}}">
+    <view class="section-title">次卡</view>
+    <view class="card">
+      <view class="option" wx:for="{{cards}}" wx:key="_id" data-id="{{item._id}}" bindtap="toggleCard">
+        <view class="flex-1">
+          <view>{{item.name}}</view>
+          <view class="muted small">剩 {{item.remaining}} 次<text wx:if="{{item.expiresDay}}"> · {{item.expiresDay}} 到期</text></view>
+        </view>
+        <view class="dot {{cardId === item._id ? 'on' : ''}}"></view>
+      </view>
+    </view>
+  </block>
+
+  <view class="section-title">费用</view>
+  <view class="card">
+    <view class="danger" wx:if="{{quoteError}}">{{quoteError}}</view>
+    <block wx:elif="{{quote}}">
+      <view class="line">
+        <text class="muted">{{quote.memberPriced ? '项目（会员价）' : '项目'}}</text>
+        <view><text class="price strike" wx:if="{{quote.memberPriced}}">{{f.yuan(quote.servicePrice)}}</text> <text class="price">{{f.yuan(quote.unitPrice)}}</text></view>
+      </view>
+      <view class="line" wx:if="{{mode === 'door'}}">
+        <text class="muted">上门费（距离 {{quote.distanceKm}} 公里）</text>
+        <text class="price">{{f.yuan(quote.doorFee)}}</text>
+      </view>
+      <view class="line" wx:if="{{quote.extraFee}}">
+        <text class="muted">超出范围加收</text>
+        <text class="price">{{f.yuan(quote.extraFee)}}</text>
+      </view>
+      <view class="line" wx:if="{{quote.cardCover}}">
+        <text class="muted">次卡抵扣</text>
+        <text>-¥{{f.yuan(quote.cardCover)}}</text>
+      </view>
+      <view class="line total">
+        <text>应付</text>
+        <text class="price big">{{f.yuan(quote.payFee)}}</text>
+      </view>
+    </block>
+    <view class="muted small" wx:else>选好{{mode === 'door' ? '地址' : '时间'}}后算价格</view>
+  </view>
+
+  <block wx:if="{{quote && quote.payFee > 0}}">
+    <view class="section-title">怎么付</view>
+    <view class="card">
+      <view class="option" wx:if="{{pay.wechat}}" data-by="wechat" bindtap="pickPay">
+        <view class="flex-1">微信支付<view class="faint small">下单后 15 分钟内付款</view></view>
+        <view class="dot {{payBy === 'wechat' ? 'on' : ''}}"></view>
+      </view>
+      <view class="option {{wallet.balance >= quote.payFee ? '' : 'off'}}" wx:if="{{wallet.enabled}}" data-by="balance" bindtap="pickPay">
+        <view class="flex-1">洗车余额<view class="faint small">余额 ¥{{f.yuan(wallet.balance)}}{{wallet.balance >= quote.payFee ? '' : '，不够了'}}</view></view>
+        <view class="dot {{payBy === 'balance' ? 'on' : ''}}"></view>
+      </view>
+      <view class="option" wx:if="{{pay.later}}" data-by="later" bindtap="pickPay">
+        <view class="flex-1">到店付款<view class="faint small">洗完付给技师（现金或扫码）</view></view>
+        <view class="dot {{payBy === 'later' ? 'on' : ''}}"></view>
+      </view>
+    </view>
+  </block>
+
+  <view class="card policy" wx:if="{{policy.length || notice}}">
+    <view class="small muted" wx:for="{{policy}}" wx:key="*this">· {{item}}</view>
+    <view class="small muted notice" wx:if="{{notice}}">{{notice}}</view>
+  </view>
+
+  <view class="safe-bottom"></view>
+  <view class="bar">
+    <view class="flex-1">
+      <text class="muted small">应付 </text>
+      <text class="price big">{{quote ? f.yuan(quote.payFee) : '--'}}</text>
+    </view>
+    <view class="btn-main {{submitting || !quote || !slotStart ? 'disabled' : ''}}" bindtap="submit">{{submitting ? '提交中…' : (quote && quote.payFee > 0 && payBy === 'wechat' ? '预约并付款' : '提交预约')}}</view>
+  </view>
+</view>
+<view class="empty" wx:elif="{{error}}">{{error}}</view>

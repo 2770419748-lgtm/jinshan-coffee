@@ -1,0 +1,68 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
+<view class="page" wx:if="{{order}}">
+  <view class="card">
+    <view class="row-between">
+      <view class="bold big">{{f.clock(order.slotStart)}} {{order.serviceName}}</view>
+      <text class="tag {{f.statusClass(order.status)}}">{{order.statusText}}</text>
+    </view>
+    <view class="muted small">{{order.slotLabel}} · {{order.modeText}}</view>
+    <view class="cell" wx:if="{{order.plate || order.carModel}}">
+      <text class="muted">车</text>
+      <text class="bold">{{order.plate}} {{order.carModel}}</text>
+    </view>
+    <view class="cell" wx:if="{{order.address}}" bindtap="navigate" hover-class="btn-hover">
+      <text class="muted">地址</text>
+      <view class="right">
+        <view>{{order.address.place}} {{order.address.detail}}</view>
+        <view class="accent small">导航 ›</view>
+      </view>
+    </view>
+    <view class="cell" wx:if="{{order.mode === 'door' && !order.address}}">
+      <text class="muted">地址</text>
+      <text class="faint">接单后才看得到</text>
+    </view>
+    <view class="cell" wx:if="{{order.contactPhone}}" bindtap="call" hover-class="btn-hover">
+      <text class="muted">联系人</text>
+      <text>{{order.contactName}} {{order.contactPhone}} <text class="accent">拨打</text></text>
+    </view>
+    <view class="cell" wx:if="{{order.remark}}">
+      <text class="muted">备注</text>
+      <text>{{order.remark}}</text>
+    </view>
+    <view class="cell">
+      <text class="muted">技师</text>
+      <text>{{order.techName || '还没人接'}}</text>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="cell">
+      <text class="muted">{{order.memberPriced ? '项目（会员价）' : '项目'}}</text>
+      <text>¥{{f.yuan(order.unitPrice)}}</text>
+    </view>
+    <view class="cell" wx:if="{{order.mode === 'door'}}">
+      <text class="muted">上门费（{{order.distanceKm}} 公里）</text>
+      <text>¥{{f.yuan(order.doorFee + order.extraFee)}}</text>
+    </view>
+    <view class="cell" wx:if="{{order.cardCover}}">
+      <text class="muted">次卡「{{order.cardName}}」抵扣</text>
+      <text>-¥{{f.yuan(order.cardCover)}}</text>
+    </view>
+    <view class="cell">
+      <text class="muted">要收</text>
+      <text class="price big">{{f.yuan(order.payFee)}}</text>
+    </view>
+    <view class="cell">
+      <text class="muted">付款</text>
+      <text class="{{order.payStatus === 'unpaid' && order.status !== 'cancelled' ? 'warn' : ''}}">{{f.payText(order)}}</text>
+    </view>
+    <view class="faint small">单号 {{order.orderNo}}<text wx:if="{{order.memberNo}}"> · 会员号 {{order.memberNo}}</text></view>
+  </view>
+
+  <view class="btn-main btn-block btn-gap" wx:if="{{order.status === 'pending'}}" bindtap="accept">接单</view>
+  <view class="btn-main btn-block btn-gap" wx:for="{{next}}" wx:key="status" data-status="{{item.status}}" bindtap="advance">{{item.label}}</view>
+  <view class="btn-ghost btn-block btn-gap" wx:if="{{order.payStatus === 'unpaid' && order.status !== 'cancelled'}}" bindtap="collect">收到钱了（¥{{f.yuan(order.payFee)}}）</view>
+  <view class="btn-danger btn-block btn-gap" wx:if="{{staff && staff.isAdmin && canCancel}}" bindtap="cancel">取消这单（全额退）</view>
+</view>
+<view class="empty" wx:elif="{{error}}">{{error}}</view>

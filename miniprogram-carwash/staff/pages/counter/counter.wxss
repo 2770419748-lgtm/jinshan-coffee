@@ -1,0 +1,3 @@
+.search { display: flex; align-items: center; gap: 20rpx; }
+.tip { margin: 0 8rpx 24rpx; }
+.balance { font-size: 52rpx; font-weight: 700; }

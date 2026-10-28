@@ -23,7 +23,16 @@ const INDEXES = {
   staff: ['role', 'webUsername'],
   staff_invites: ['code'],
   web_sessions: ['staffId'],
-  mp_sessions: ['openid']
+  mp_sessions: ['openid'],
+  wx_users: ['uid'],
+  cw_orders: ['_openid', 'orderNo', 'slotDay', 'slotStart'],
+  cw_addresses: ['_openid'],
+  cw_members: ['memberNo'],
+  cw_member_logs: ['_openid', 'memberNo', 'day'],
+  cw_recharges: ['rechargeNo'],
+  cw_cards: ['_openid', 'memberNo'],
+  cw_card_logs: ['cardId', 'day'],
+  cw_card_orders: ['buyNo']
 }
 
 class Cmd {

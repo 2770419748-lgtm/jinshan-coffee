@@ -104,11 +104,13 @@ function usableVouchers(openid, ids) {
   return safeList(col('vouchers').where(where).limit(50))
 }
 
-// 顾客手里没过期、没用掉的代金券；id 不传时返回全部
-function usableCoupons(openid, id) {
+// 顾客手里没过期、没用掉的代金券；id 不传时返回全部。
+// 洗车送的咖啡券也在这里（usableShops 里有 coffee）；标了只能在别的店用的券不算
+async function usableCoupons(openid, id) {
   const where = { _openid: openid, type: 'cash', status: 'unused', expiresDay: _.gte(cnDay()) }
   if (id) where._id = String(id)
-  return safeList(col('vouchers').where(where).orderBy('expiresDay', 'asc').limit(100))
+  const list = await safeList(col('vouchers').where(where).orderBy('expiresDay', 'asc').limit(100))
+  return list.filter((v) => !Array.isArray(v.usableShops) || v.usableShops.indexOf('coffee') !== -1)
 }
 
 function couponOption(c, left) {

@@ -1,0 +1,31 @@
+<view class="page">
+  <view class="card">
+    <view class="field" bindtap="chooseLocation" hover-class="btn-hover">
+      <text class="field-label">位置</text>
+      <view class="field-input">
+        <view wx:if="{{form.place}}">{{form.place}}</view>
+        <view class="placeholder" wx:else>在地图上选车停的位置</view>
+      </view>
+      <text class="faint">›</text>
+    </view>
+    <view class="field">
+      <text class="field-label">详细位置</text>
+      <input class="field-input" placeholder="比如 3 栋地下车库 B2-018" placeholder-class="placeholder" maxlength="40" value="{{form.detail}}" bindinput="onDetail" />
+    </view>
+    <view class="field">
+      <text class="field-label">联系人</text>
+      <input class="field-input" placeholder="怎么称呼你" placeholder-class="placeholder" maxlength="10" value="{{form.name}}" bindinput="onName" />
+    </view>
+    <view class="field">
+      <text class="field-label">电话</text>
+      <input class="field-input" type="number" placeholder="技师到了打这个电话" placeholder-class="placeholder" maxlength="13" value="{{form.phone}}" bindinput="onPhone" />
+    </view>
+    <view class="field">
+      <text class="field-label">设为默认</text>
+      <view class="flex-1"></view>
+      <switch checked="{{form.isDefault}}" color="#ffffff" bindchange="onDefault" />
+    </view>
+  </view>
+  <view class="btn-main btn-block {{saving ? 'disabled' : ''}}" bindtap="save">保存</view>
+  <view class="btn-danger btn-block btn-gap" wx:if="{{form._id}}" bindtap="remove">删除这个地址</view>
+</view>
