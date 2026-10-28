@@ -63,6 +63,21 @@
     <view class="faint" wx:else>你有 {{quote.vouchers}} 张赠饮券，这单的商品用不上</view>
   </view>
 
+  <!-- 集星：星星够了能免费换一杯；不够时告诉顾客这单能得几颗 -->
+  <view class="card" wx:if="{{quote && quote.stars}}">
+    <view class="row-between" wx:if="{{quote.stars.redeem}}">
+      <view>
+        <view>用 {{quote.stars.need}} 颗星换一杯 <text class="gold" wx:if="{{useStars}}">-¥{{f.yuan(quote.starFee)}}</text></view>
+        <view class="faint small">免费换{{quote.stars.redeem.name}}，现有 {{quote.stars.balance}} 颗<text wx:if="{{quote.stars.earn}}">；这单出餐后还得 {{quote.stars.earn}} 颗</text></view>
+      </view>
+      <switch checked="{{useStars}}" color="#d6b25e" bindchange="toggleStars" />
+    </view>
+    <view class="row-between" wx:else bindtap="goStars">
+      <text>集星 <text class="gold">{{quote.stars.balance}}/{{quote.stars.need}}</text></text>
+      <text class="faint small">{{quote.stars.earn ? '这单出餐后得 ' + quote.stars.earn + ' 颗' : (quote.stars.balance >= quote.stars.need ? '这单没有能用星换的商品' : '这单的商品不集星')}}</text>
+    </view>
+  </view>
+
   <view class="card row-between" wx:if="{{quote && quote.coupons.length}}" bindtap="openCoupons" hover-class="btn-hover">
     <text>代金券</text>
     <view class="row">

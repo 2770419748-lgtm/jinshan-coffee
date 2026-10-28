@@ -1,6 +1,7 @@
-// 咖啡模块：菜单、下单（含预约）、微信支付、余额支付、订单处理、商品分类桌台管理、代金券。
+// 咖啡模块：菜单、下单（含预约）、微信支付、余额支付、订单处理、商品分类桌台管理、代金券、集星。
 // 读写 coffee_ 开头的集合；vouchers 里是顾客的券：赠饮券（书籍模块包天时发放）和在领券中心领的代金券，下单时核销；
-// 用会员余额付款时通过 wallet.js 扣、退余额；读 settings 里的支付设置、营业时间和会员设置。
+// 用会员余额付款时通过 wallet.js 扣、退余额；集星通过 stars.js 给星、扣星（星星记在 members 上）；
+// 读 settings 里的支付设置、营业时间、会员设置和集星设置。
 const cloud = require('../platform')
 const {
   COFFEE_ROLES,
@@ -19,6 +20,7 @@ const { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponDiscou
 const pay = require('./pay')
 const { readShop, hoursOf, reserveSlots } = require('./shop')
 const wallet = require('./wallet')
+const stars = require('./stars')
 const notify = require('./notify')
 const DEMO_MENU = require('./coffee-demo')
 
@@ -177,7 +179,7 @@ async function expireReservation(order) {
   const res = await col('coffee_orders')
     .where({ _id: order._id, status: 'pending', payStatus: 'unpaid' })
     .update({ data: { status: 'cancelled', cancelReason: '超时未付款', cancelledAt: db.serverDate(), updatedAt: db.serverDate() } })
-  if (res.stats.updated) await releaseVouchers(order)
+  if (res.stats.updated) await releaseDiscounts(order)
   return !!res.stats.updated
 }
 
@@ -206,14 +208,82 @@ function voucherIdList(value) {
   return value.filter((id) => typeof id === 'string').slice(0, 20)
 }
 
-// 订单取消时把用掉的赠饮券和代金券退回去
-async function releaseVouchers(order) {
+// 订单取消时把用掉的赠饮券、代金券和兑换用的星星退回去；星星同一单只退一次
+async function releaseDiscounts(order) {
   const ids = (order.vouchers || []).map((v) => v.id)
   if (order.coupon) ids.push(order.coupon.id)
-  if (!ids.length) return
-  await col('vouchers')
-    .where({ _id: _.in(ids), status: 'used', orderNo: order.orderNo })
-    .update({ data: { status: 'unused', orderNo: '', orderId: '', usedAt: null } })
+  if (ids.length) {
+    await col('vouchers')
+      .where({ _id: _.in(ids), status: 'used', orderNo: order.orderNo })
+      .update({ data: { status: 'unused', orderNo: '', orderId: '', usedAt: null } })
+  }
+  const r = order.starRedeem
+  if (r) {
+    await stars.giveBack(db, order._openid, r.stars, r.lots, { title: '订单取消退回 取餐号 ' + order.pickupNo, refType: 'coffee', refId: order._id, refNo: order.orderNo }, async () => {
+      const res = await col('coffee_orders').where({ _id: order._id, starsReturned: _.neq(true) }).update({ data: { starsReturned: true } })
+      return res.stats.updated > 0
+    })
+  }
+}
+
+// 集星：这单用星换哪一杯、出餐后能得几颗星。covered 是每行已经被赠饮券抵掉几杯。
+// 星星够、有能换的商品时 redeem 是能换的那杯（单价最高的，每单最多换一杯）；useStars 为 true 才真的换。
+// 免费的杯（赠饮券、用星换的）不得星。
+function planStars(lines, covered, settings, balance, useStars) {
+  if (!settings.enabled) return { redeem: null, used: false, earn: 0 }
+  let redeem = null
+  let after = covered
+  if (balance >= settings.need) {
+    const productIds = lines.filter((l) => stars.redeemable(settings, l.categoryId)).map((l) => l.productId)
+    if (productIds.length) {
+      const res = applyVouchers(lines, [{ _id: 'stars', title: '集星兑换', productIds, maxFee: settings.maxFee }], covered)
+      const a = res.applied[0]
+      if (a) {
+        redeem = { stars: settings.need, productId: a.productId, name: a.name, discount: a.discount }
+        if (useStars) after = res.covered
+      }
+    }
+  }
+  const earn = lines.reduce((n, l, i) => n + (stars.earns(settings, l.categoryId) ? l.qty - after[i] : 0), 0)
+  return { redeem, used: !!(useStars && redeem), earn }
+}
+
+// 顾客现在能用几颗星（过期的不算）
+function liveStarCount(member, settings) {
+  return member ? stars.liveStars(member, settings).stars : 0
+}
+
+// 出餐了、钱也收了，就给星；出餐、收款、微信到账、余额付都会调。给星出错不影响出餐和收款，只记日志
+async function creditStars(id) {
+  try {
+    const order = await findOne('coffee_orders', { _id: id })
+    if (!order || !order.starsEarn || order.starsCredited || order.status !== 'done' || order.payStatus !== 'paid') return
+    await stars.credit(db, order, async () => {
+      const res = await col('coffee_orders')
+        .where({ _id: order._id, starsCredited: _.neq(true), status: 'done', payStatus: 'paid' })
+        .update({ data: { starsCredited: true, starsCreditedAt: db.serverDate() } })
+      return res.stats.updated > 0
+    })
+  } catch (e) {
+    console.error('集星到账失败', id, e)
+  }
+}
+
+// 设了有效期时清掉过期的星星；服务器每分钟调一次，实际一小时最多跑一次
+let starSweepAt = 0
+async function expireStars() {
+  if (Date.now() - starSweepAt < 3600 * 1000) return 0
+  starSweepAt = Date.now()
+  return stars.expireAll(db)
+}
+
+async function coffeeCategories() {
+  return (await safeList(col('coffee_categories').orderBy('sort', 'asc').limit(100))).map((c) => ({ _id: c._id, name: c.name }))
+}
+
+// 集星规则里选的分类换成名字给顾客看；删掉的分类不显示
+function categoryNames(ids, categories) {
+  return ids.map((id) => categories.find((c) => c._id === id)).filter(Boolean).map((c) => c.name)
 }
 
 async function loadLines(items) {
@@ -262,6 +332,8 @@ async function markWechatPaid(order, paid) {
     .where({ _id: order._id, payStatus: 'unpaid' })
     .update({ data: { payStatus: 'paid', payMethod: 'wechat', awaitingPay: false, transactionId: paid.transactionId, paidAt: db.serverDate(), updatedAt: db.serverDate() } })
   if (res.stats.updated && order.status === 'cancelled') await refundOrder(Object.assign({}, order, { payStatus: 'paid', payMethod: 'wechat' }))
+  // 出餐以后才付的，付了就给星
+  if (res.stats.updated) await creditStars(order._id)
   if (!res.stats.updated) {
     // 刚好用余额付掉了，微信这笔要退回去。吧台收款的不自动退：可能是店员看了顾客的微信付款记录才点的已收款
     const now = await findOne('coffee_orders', { _id: order._id })
@@ -339,9 +411,16 @@ const handlers = {
   // 结算页算价：按数据库价格算总价，自动用上今天能用的赠饮券（noVouchers 为 true 时不用），
   // 再挑一张代金券（couponId 传 '' 表示不用）。
   // 预约时 reserve 传 true，返回能选的时间；reserveAt 是选中的那一档，没选或者选的不能约了就用最早的一档。
-  async quote({ items, couponId, reserve, reserveAt, noVouchers }, openid) {
+  // useStars 为 true 时用星免费换一杯（星星够才换得了）。
+  async quote({ items, couponId, reserve, reserveAt, noVouchers, useStars }, openid) {
     const { lines, total } = await loadLines(items)
-    const [settings, walletInfo, templates] = await Promise.all([pay.getSettings(db), wallet.walletInfo(db, openid), notify.templateIds(db)])
+    const [settings, walletInfo, templates, starSettings, member] = await Promise.all([
+      pay.getSettings(db),
+      wallet.walletInfo(db, openid),
+      notify.templateIds(db),
+      stars.readSettings(db),
+      wallet.findMember(db, openid)
+    ])
     let reservation = null
     if (reserve) {
       const open = reserveOpen(settings, walletInfo)
@@ -351,8 +430,11 @@ const handlers = {
     }
     // 赠饮券当天有效，预约明天的单用不了
     const vouchers = reservation && reservation.reserveAt && cnDay(reservation.reserveAt) !== cnDay() ? [] : await usableVouchers(openid)
-    const { applied, discount } = noVouchers ? { applied: [], discount: 0 } : applyVouchers(lines, vouchers)
-    const left = total - discount
+    const { applied, discount, covered } = applyVouchers(lines, noVouchers ? [] : vouchers)
+    const starBalance = liveStarCount(member, starSettings)
+    const plan = planStars(lines, covered, starSettings, starBalance, useStars === true)
+    const starFee = plan.used ? plan.redeem.discount : 0
+    const left = total - discount - starFee
     const coupons = await usableCoupons(openid)
     const picked = pickCoupon(coupons, left, couponId)
     const couponFee = picked.discount
@@ -361,10 +443,13 @@ const handlers = {
       vouchers: vouchers.length,
       applied,
       voucherFee: discount,
+      // 集星：没开时是 null。redeem 是能免费换的那杯（星星不够或者没有能换的商品时是 null），used 表示这次算价用上了
+      stars: starSettings.enabled ? { balance: starBalance, need: starSettings.need, redeem: plan.redeem, used: plan.used, earn: plan.earn } : null,
+      starFee,
       coupons: coupons.map((c) => couponOption(c, left)).sort((a, b) => b.discount - a.discount),
       coupon: picked.coupon ? { id: picked.coupon._id, title: picked.coupon.title, discount: couponFee } : null,
       couponFee,
-      discountFee: discount + couponFee,
+      discountFee: discount + starFee + couponFee,
       payFee: left - couponFee,
       pay: pay.publicPay(settings),
       // 会员余额：enabled 是店里开没开储值，余额有钱时没开也能用
@@ -375,8 +460,9 @@ const handlers = {
     }
   },
 
-  // payBy 传 'balance' 表示用会员余额付，下单时直接扣；subscribed 为 true 表示顾客允许了取餐通知
-  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, reserveAt, payBy, subscribed }, openid) {
+  // payBy 传 'balance' 表示用会员余额付，下单时直接扣；subscribed 为 true 表示顾客允许了取餐通知；
+  // useStars 为 true 表示用星免费换一杯，下单时扣星
+  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, reserveAt, payBy, subscribed, useStars }, openid) {
     if (mode !== 'dine_in' && mode !== 'takeaway') throw new BizError('请选择堂食或外带')
     const { lines, total } = await loadLines(items)
     const reserving = reserveAt !== undefined && reserveAt !== null
@@ -401,18 +487,25 @@ const handlers = {
     }
     const vouchers = ids.length ? await usableVouchers(openid, ids) : []
     if (vouchers.length !== ids.length) throw new BizError('赠饮券有变化，请重新确认订单', 'VOUCHER_CHANGED')
-    const { applied, discount } = applyVouchers(lines, vouchers)
+    const { applied, discount, covered } = applyVouchers(lines, vouchers)
 
-    // 代金券：一单最多一张，门槛按用完赠饮券以后的金额算
+    // 集星：用星换一杯（赠饮券抵完以后挑），再算出餐后能得几颗星
+    const starSettings = await stars.readSettings(db)
+    const starBalance = useStars === true ? liveStarCount(await wallet.findMember(db, openid), starSettings) : 0
+    const plan = planStars(lines, covered, starSettings, starBalance, useStars === true)
+    if (useStars === true && !plan.used) throw new BizError('集星兑换有变化，请重新确认订单', 'STARS_CHANGED')
+    const starFee = plan.used ? plan.redeem.discount : 0
+
+    // 代金券：一单最多一张，门槛按用完赠饮券和集星兑换以后的金额算
     let coupon = null
     if (couponId) {
       const found = (await usableCoupons(openid, couponId))[0]
-      const fee = couponDiscount(found, total - discount)
+      const fee = couponDiscount(found, total - discount - starFee)
       if (!fee) throw new BizError('代金券有变化，请重新确认订单', 'VOUCHER_CHANGED')
       coupon = { id: found._id, title: found.title, discount: fee }
     }
     const couponFee = coupon ? coupon.discount : 0
-    const payFee = total - discount - couponFee
+    const payFee = total - discount - starFee - couponFee
     const byBalance = payBy === 'balance' && payFee > 0
     if (reserving && payFee > 0 && !byBalance && !paySettings.payEnabled) {
       throw new BizError('店里还没开通微信支付，预约请用会员余额付款', 'RESERVE_DISABLED')
@@ -438,6 +531,21 @@ const handlers = {
       claimed.push(where._id)
     }
 
+    // 用星换的：先扣星，下单失败再退回去
+    let starRedeem = null
+    if (plan.used) {
+      try {
+        const res = await stars.redeem(db, openid, plan.redeem.stars, { title: '换一杯 ' + plan.redeem.name, refType: 'coffee', refNo: orderNo })
+        starRedeem = Object.assign({}, plan.redeem, { lots: res.taken })
+      } catch (e) {
+        await release()
+        throw e
+      }
+    }
+    const undoStars = () => (starRedeem
+      ? stars.giveBack(db, openid, starRedeem.stars, starRedeem.lots, { title: '下单没成功，退回', refType: 'coffee', refNo: orderNo })
+      : Promise.resolve())
+
     // 余额付：先扣钱，下单失败再退回去
     let charged = false
     if (byBalance) {
@@ -446,6 +554,7 @@ const handlers = {
         charged = true
       } catch (e) {
         await release()
+        await undoStars()
         throw e
       }
     }
@@ -468,10 +577,13 @@ const handlers = {
         vouchers: applied,
         coupon,
         couponFee,
-        discountFee: discount + couponFee, // 赠饮券和代金券一共抵了多少
+        starRedeem, // 用星换的那杯 { stars, productId, name, discount, lots（扣掉的批次，取消时按原来的日子退回） }
+        starFee,
+        discountFee: discount + starFee + couponFee, // 赠饮券、集星兑换和代金券一共抵了多少
         payFee,
+        starsEarn: plan.earn, // 出餐、收款以后得几颗星
         remark: cleanText(remark, 50),
-        // 券全抵了就不用再付钱；余额付的下单时就扣了
+        // 券和星全抵了就不用再付钱；余额付的下单时就扣了
         payStatus: payFee === 0 || byBalance ? 'paid' : 'unpaid',
         payMethod: payFee === 0 ? 'voucher' : (byBalance ? 'balance' : 'counter'), // 微信付款后改成 wechat
         status: 'pending',
@@ -488,6 +600,7 @@ const handlers = {
       added = await col('coffee_orders').add({ data: order })
     } catch (e) {
       await release()
+      await undoStars()
       if (charged) await wallet.refund(db, openid, payFee, { title: '下单没成功，退回', refType: 'coffee', refNo: orderNo })
       throw e
     }
@@ -573,6 +686,7 @@ const handlers = {
       await wallet.refund(db, openid, order.payFee, Object.assign({ title: '订单状态变了，退回' }, log))
       throw new BizError('订单状态刚刚变了，钱已经退回余额，请刷新看看')
     }
+    await creditStars(order._id)
     return { payStatus: 'paid' }
   },
 
@@ -613,7 +727,7 @@ const handlers = {
       .where({ _id: order._id, _openid: openid, status: 'pending', payStatus: 'unpaid' })
       .update({ data: { status: 'cancelled', cancelledAt: db.serverDate(), updatedAt: db.serverDate() } })
     if (!res.stats.updated) throw new BizError('订单已经开始处理，不能取消了，请联系店员')
-    await releaseVouchers(order)
+    await releaseDiscounts(order)
     return true
   },
 
@@ -661,6 +775,8 @@ const handlers = {
       .where({ _id: String(id || ''), payStatus: 'unpaid', status: _.neq('cancelled') })
       .update({ data: { payStatus: 'paid', payMethod: 'counter', paidAt: db.serverDate(), paidBy: openid, updatedAt: db.serverDate() } })
     if (!res.stats.updated) throw new BizError('订单已收款或已取消')
+    // 先出餐后收款的，收了款再给星
+    await creditStars(String(id))
     return true
   },
 
@@ -678,20 +794,22 @@ const handlers = {
     // 带上原状态做条件，防止两位店员同时操作
     const res = await col('coffee_orders').where({ _id: order._id, status: order.status }).update({ data })
     if (!res.stats.updated) throw new BizError('订单状态已经变了，请刷新')
-    if (status === 'cancelled') await releaseVouchers(order)
+    if (status === 'cancelled') await releaseDiscounts(order)
+    // 出餐了、钱也收了就给星；吧台付款还没点「已收款」的，点了再给
+    if (status === 'done') await creditStars(order._id)
     // 做好了通知顾客取餐；不等微信回复，发不出去也不影响出餐
     if (status === 'done' && order.notifyReady) notify.orderReady(db, order).catch((e) => console.warn('取餐通知失败', e.message))
     return true
   },
 
-  // 店主看账：每天的单数、收款（微信、吧台、会员余额）、赠饮券和代金券抵扣，以及这段时间卖得最多的商品
+  // 店主看账：每天的单数、收款（微信、吧台、会员余额）、赠饮券、代金券和集星兑换抵扣，以及这段时间卖得最多的商品
   async daySummary({ from, to }, openid) {
     await requireRole(db, openid, ['owner'])
     const days = dayRange(from, to)
     const orders = await fetchAll(col('coffee_orders').where({ day: _.in(days) }).orderBy('createdAt', 'asc'))
     const rows = {}
     days.forEach((d) => {
-      rows[d] = { day: d, orders: 0, cancelled: 0, totalFee: 0, discountFee: 0, couponFee: 0, paidFee: 0, unpaidFee: 0, wechatFee: 0, counterFee: 0, balanceFee: 0, vouchersUsed: 0, couponsUsed: 0, cancelledPaidFee: 0 }
+      rows[d] = { day: d, orders: 0, cancelled: 0, totalFee: 0, discountFee: 0, couponFee: 0, starFee: 0, paidFee: 0, unpaidFee: 0, wechatFee: 0, counterFee: 0, balanceFee: 0, vouchersUsed: 0, couponsUsed: 0, starCups: 0, starsIssued: 0, cancelledPaidFee: 0 }
     })
     const products = {}
     orders.forEach((o) => {
@@ -707,8 +825,11 @@ const handlers = {
       r.totalFee += o.totalFee
       r.discountFee += o.discountFee || 0
       r.couponFee += o.couponFee || 0
+      r.starFee += o.starFee || 0
       r.vouchersUsed += (o.vouchers || []).length
       if (o.coupon) r.couponsUsed++
+      if (o.starRedeem) r.starCups++
+      if (o.starsCredited) r.starsIssued += o.starsEarn || 0
       if (o.payStatus === 'paid') {
         r.paidFee += o.payFee
         if (o.payMethod === 'wechat') r.wechatFee += o.payFee
@@ -730,6 +851,69 @@ const handlers = {
     }, {})
     const top = Object.keys(products).map((k) => products[k]).sort((a, b) => b.qty - a.qty || b.amount - a.amount)
     return { days: list, totals, products: top }
+  },
+
+  // ---------- 集星 ----------
+
+  // 我的星星：规则、现在几颗、还有几颗等出餐后到账、最早一批什么时候过期、变动记录
+  async myStars({ page }, openid) {
+    const size = 20
+    const p = Math.max(0, Math.floor(Number(page) || 0))
+    const [settings, member, categories] = await Promise.all([stars.readSettings(db), wallet.findMember(db, openid), coffeeCategories()])
+    const [logs, open] = await Promise.all([
+      safeList(col('star_logs').where({ _openid: openid }).orderBy('createdAt', 'desc').skip(p * size).limit(size)),
+      p ? [] : safeList(col('coffee_orders').where({ _openid: openid, status: _.in(['pending', 'making']), starsEarn: _.gt(0) }).limit(50))
+    ])
+    const live = stars.liveStars(member, settings)
+    return {
+      enabled: settings.enabled,
+      need: settings.need,
+      maxFee: settings.maxFee,
+      validDays: settings.validDays,
+      // earnAll / redeemAll 为 true 表示全部商品，否则是 earnNames / redeemNames 里这几个分类
+      earnAll: settings.earnAll,
+      earnNames: categoryNames(settings.earnCategories, categories),
+      redeemAll: settings.redeemAll,
+      redeemNames: categoryNames(settings.redeemCategories, categories),
+      stars: live.stars,
+      expiring: live.expiring,
+      pending: open.filter((o) => !o.awaitingPay).reduce((n, o) => n + o.starsEarn, 0),
+      memberNo: member ? member.memberNo : '',
+      logs: logs.map((l) => stars.publicLog(l)),
+      hasMore: logs.length === size
+    }
+  },
+
+  // 集星设置（店主）：规则、咖啡分类，以及顾客手里一共有多少星、换过多少杯
+  async getStarSettings(event, openid) {
+    await requireRole(db, openid, ['owner'])
+    const [settings, categories] = await Promise.all([stars.readSettings(db), coffeeCategories()])
+    let members = []
+    try {
+      members = await fetchAll(col('members').where({ starsUpdatedAt: _.gt(new Date(0)) }).field({ stars: true, starsEarned: true, starsUsed: true }))
+    } catch (e) {
+      if (!isMissingCollection(e)) throw e
+    }
+    const sum = (k) => members.reduce((n, m) => n + (m[k] || 0), 0)
+    return {
+      settings,
+      categories,
+      stats: {
+        holders: members.filter((m) => m.stars > 0).length,
+        stars: sum('stars'),
+        earned: sum('starsEarned'),
+        used: sum('starsUsed')
+      }
+    }
+  },
+
+  async saveStarSettings({ settings }, openid) {
+    await requireRole(db, openid, ['owner'])
+    const data = stars.cleanSettings(settings, (await coffeeCategories()).map((c) => c._id))
+    data.updatedBy = openid
+    data.updatedAt = db.serverDate()
+    await col('settings').doc('stars').set({ data })
+    return stars.readSettings(db)
   },
 
   // ---------- 领券中心（顾客） ----------
@@ -1067,3 +1251,4 @@ const handlers = {
 exports.main = createMain(cloud, handlers)
 exports.onPayNotify = onPayNotify
 exports.expireReservations = expireReservations
+exports.expireStars = expireStars

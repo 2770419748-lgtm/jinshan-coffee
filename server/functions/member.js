@@ -1,5 +1,5 @@
-// 会员模块：会员中心、充值档位、在线充值（微信支付）、吧台代充、店主调整余额、会员和流水查询。
-// 余额怎么加减见 wallet.js；member_plans 是充值档位，member_recharges 是在线充值单。
+// 会员模块：会员中心、充值档位、在线充值（微信支付）、吧台代充、店主调整余额和星星、会员和流水查询。
+// 余额怎么加减见 wallet.js，星星见 stars.js；member_plans 是充值档位，member_recharges 是在线充值单。
 // 设置页要列出书的分类（会员免费看哪些），所以会只读 book_books。
 const cloud = require('../platform')
 const {
@@ -15,6 +15,7 @@ const {
   createMain
 } = require('./base')
 const wallet = require('./wallet')
+const stars = require('./stars')
 const pay = require('./pay')
 
 const db = cloud.database()
@@ -24,8 +25,9 @@ const _ = db.command
 const MAX_PLAN_PRICE = 1000000
 const MAX_PLANS = 20
 const MAX_MEMBER_DAYS = 3650
-// 店主手动调整一次最多 1 万元
+// 店主手动调整一次最多 1 万元、1000 颗星
 const MAX_ADJUST = 1000000
+const MAX_ADJUST_STARS = 1000
 // 在线充值单 15 分钟内付款
 const RECHARGE_PAY_MINUTES = 15
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -219,6 +221,8 @@ const handlers = {
     const size = 20
     const p = Math.max(0, Math.floor(Number(page) || 0))
     const kw = cleanText(keyword, 20)
+    const starSettings = await stars.readSettings(db)
+    const adminMember = (m) => adminView(m, starSettings)
     let list
     if (!kw) {
       list = await safeList(col('members').orderBy('updatedAt', 'desc').skip(p * size).limit(size))
@@ -241,12 +245,20 @@ const handlers = {
   async getMemberDetail({ memberNo }, openid) {
     await requireRole(db, openid, COFFEE_ROLES)
     const m = await wallet.findByNo(db, memberNo)
-    const [logs, plans] = await Promise.all([
+    const [logs, plans, starLogs, starSettings] = await Promise.all([
       safeList(col('member_logs').where({ memberNo: m.memberNo }).orderBy('createdAt', 'desc').limit(50)),
-      enabledPlans()
+      enabledPlans(),
+      safeList(col('star_logs').where({ memberNo: m.memberNo }).orderBy('createdAt', 'desc').limit(50)),
+      stars.readSettings(db)
     ])
-    // plans：吧台代充时能选的档位
-    return { member: adminMember(m), logs: logs.map((l) => wallet.publicLog(l, true)), plans: plans.map(publicPlan) }
+    // plans：吧台代充时能选的档位；starLogs：星星的变动
+    return {
+      member: adminView(m, starSettings),
+      logs: logs.map((l) => wallet.publicLog(l, true)),
+      plans: plans.map(publicPlan),
+      starLogs: starLogs.map((l) => stars.publicLog(l, true)),
+      starSettings: { enabled: starSettings.enabled, need: starSettings.need }
+    }
   },
 
   // 吧台代充：顾客当面付钱（现金、收款码）后，按档位给他充上
@@ -299,6 +311,25 @@ const handlers = {
     }, opts)
     if (!res) throw new BizError('余额只有 ¥' + yuan(m.balance) + '，扣不了这么多', 'BALANCE_LOW')
     return { balance: res.balance, memberUntil: res.memberUntil }
+  },
+
+  // 店主手动加减星星：在店里买了没用小程序的补上、补偿、扣掉多给的，必须写原因。amount：颗数，正数加、负数扣
+  async adjustStars({ memberNo, amount, reason }, openid) {
+    const staff = await requireRole(db, openid, ['owner'])
+    const m = await wallet.findByNo(db, memberNo)
+    const n = intOr(amount, 0)
+    if (!Number.isInteger(n) || !n || Math.abs(n) > MAX_ADJUST_STARS) throw new BizError('加减几颗星请填 1 到 ' + MAX_ADJUST_STARS)
+    const why = cleanText(reason, 40)
+    if (!why) throw new BizError('请写上调整原因，比如「在店里买了没用小程序」')
+    const res = await stars.change(db, m._id, n, {
+      type: 'adjust',
+      title: n > 0 ? '店主加星' : '店主扣星',
+      reason: why,
+      operator: openid,
+      operatorName: staffName(staff)
+    })
+    if (!res) throw new BizError('只有 ' + stars.liveStars(m, await stars.readSettings(db)).stars + ' 颗星，扣不了这么多', 'STARS_LOW')
+    return { stars: res.stars }
   },
 
   // 店主看账：每天充了多少（本金、赠送）、余额花了多少，以及现在大家手里一共还有多少余额
@@ -429,9 +460,13 @@ const handlers = {
   }
 }
 
-function adminMember(m) {
+// 后台看的会员：余额、会员到期日，加上备注和星星（过期的不算）
+function adminView(m, starSettings) {
   return Object.assign(wallet.publicMember(m), {
     remark: m.remark || '',
+    stars: stars.liveStars(m, starSettings).stars,
+    starsEarned: m.starsEarned || 0,
+    starsUsed: m.starsUsed || 0,
     createdAt: m.createdAt,
     updatedAt: m.updatedAt
   })

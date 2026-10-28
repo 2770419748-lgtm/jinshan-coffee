@@ -31,7 +31,7 @@
           <text class="no">{{item.memberNo}}</text>
           <text class="tag gold vip" wx:if="{{item.isMember}}">会员至 {{item.memberUntil}}</text>
         </view>
-        <view class="faint small">{{item.remark || '没有备注'}}</view>
+        <view class="faint small">{{item.remark || '没有备注'}}<text wx:if="{{item.stars}}"> · ★ {{item.stars}}</text></view>
       </view>
       <text class="price">{{f.yuan(item.balance)}}</text>
     </view>

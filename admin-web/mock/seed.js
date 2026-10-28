@@ -1,4 +1,4 @@
-// 预览用的假数据：店主、员工、示例菜单和书、轮播、代金券、会员储值、几张订单和借书单
+// 预览用的假数据：店主、员工、示例菜单和书、轮播、代金券、会员储值、集星、几张订单和借书单
 module.exports = async function seed(as, db) {
   const ok = async (p) => {
     const res = await p
@@ -56,4 +56,10 @@ module.exports = async function seed(as, db) {
   await ok(as('BARISTA').member('counterRecharge', { memberNo: m1.member.memberNo, planId: p300.id }))
   await ok(as('BARISTA').member('setMemberRemark', { memberNo: m1.member.memberNo, remark: '张女士 尾号 6688' }))
   await ok(customers[0].coffee('createOrder', { mode: 'takeaway', payBy: 'balance', items: [{ productId: byName('美式')._id, qty: 1, specs: [{ name: '杯型', option: '中杯' }, { name: '温度', option: '冰' }] }] }))
+
+  // 集星：咖啡一杯一颗星，10 颗换一杯；C1 把纸质集点卡上的 10 颗转进来，下单时用星换了一杯拿铁
+  const coffeeCat = menu.categories.find((c) => c.name === '咖啡')._id
+  await ok(owner.coffee('saveStarSettings', { settings: { enabled: true, need: 10, earnAll: false, earnCategories: [coffeeCat], redeemAll: false, redeemCategories: [coffeeCat] } }))
+  await ok(owner.member('adjustStars', { memberNo: m1.member.memberNo, amount: 10, reason: '纸质集点卡转过来' }))
+  await ok(customers[0].coffee('createOrder', { mode: 'dine_in', tableNo: '2', useStars: true, items: [{ productId: byName('拿铁')._id, qty: 1, specs: cup }, { productId: byName('美式')._id, qty: 1, specs: [{ name: '杯型', option: '中杯' }, { name: '温度', option: '热' }] }] }))
 }

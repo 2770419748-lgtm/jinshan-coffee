@@ -31,6 +31,7 @@
         </view>
       </view>
       <view class="remark" wx:if="{{item.remark}}">备注：{{item.remark}}</view>
+      <view class="star-line" wx:if="{{item.starRedeem}}">集星换一杯：{{item.starRedeem.name}}（-¥{{f.yuan(item.starFee)}}）</view>
 
       <view class="row-between foot">
         <view class="row">

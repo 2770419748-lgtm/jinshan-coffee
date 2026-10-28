@@ -36,7 +36,8 @@
       <el-table-column label="金额" width="140">
         <template #default="{ row }">
           <div class="gold">¥{{ yuan(row.payFee) }}</div>
-          <div v-if="row.discountFee - (row.couponFee || 0)" class="muted small">赠饮券 -¥{{ yuan(row.discountFee - (row.couponFee || 0)) }}</div>
+          <div v-if="row.discountFee - (row.couponFee || 0) - (row.starFee || 0)" class="muted small">赠饮券 -¥{{ yuan(row.discountFee - (row.couponFee || 0) - (row.starFee || 0)) }}</div>
+          <div v-if="row.starRedeem" class="gold small">集星换{{ row.starRedeem.name }} -¥{{ yuan(row.starFee) }}</div>
           <div v-if="row.couponFee" class="muted small">代金券 -¥{{ yuan(row.couponFee) }}</div>
           <el-tag size="small" :type="row.payStatus === 'paid' ? 'success' : row.payStatus === 'refunded' ? 'info' : 'danger'">
             {{ PAY[row.payStatus] }}{{ METHOD[row.payMethod] && row.payStatus !== 'unpaid' ? '（' + METHOD[row.payMethod] + '）' : '' }}
@@ -191,11 +192,13 @@ function reload() {
 }
 
 function cancelText(row) {
-  if (row.payStatus !== 'paid') return '确定取消这单？'
-  if (row.payMethod === 'wechat') return '这单是微信支付的，取消后钱会原路退回顾客的微信。'
-  if (row.payMethod === 'voucher') return '这单用券抵扣，取消后券会退回给顾客。'
-  if (row.payMethod === 'balance') return '这单是会员余额付的，取消后钱会退回顾客的余额。'
-  return '这单已在吧台收款，取消后请记得退款给顾客。'
+  // 用星换的单，取消后星星退回
+  const stars = row.starRedeem ? '用掉的 ' + row.starRedeem.stars + ' 颗星会退回给顾客。' : ''
+  if (row.payStatus !== 'paid') return '确定取消这单？' + stars
+  if (row.payMethod === 'wechat') return '这单是微信支付的，取消后钱会原路退回顾客的微信。' + stars
+  if (row.payMethod === 'voucher') return '这单全部用券或星星抵扣，取消后券和星星会退回给顾客。'
+  if (row.payMethod === 'balance') return '这单是会员余额付的，取消后钱会退回顾客的余额。' + stars
+  return '这单已在吧台收款，取消后请记得退款给顾客。' + stars
 }
 
 async function act(row, op) {

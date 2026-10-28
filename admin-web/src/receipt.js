@@ -47,7 +47,7 @@ function where(o) {
 }
 
 function receiptBody(o) {
-  const drink = (o.discountFee || 0) - (o.couponFee || 0)
+  const drink = (o.discountFee || 0) - (o.couponFee || 0) - (o.starFee || 0)
   const lines = (o.items || []).map((l) => `
     <div class="line">
       <div class="row"><span class="name">${esc(l.name)}</span><span class="qty">×${l.qty}</span><span class="amt">${yuan(l.subtotal)}</span></div>
@@ -66,6 +66,7 @@ function receiptBody(o) {
     ${o.remark ? `<div class="remark">备注：${esc(o.remark)}</div><div class="hr"></div>` : ''}
     <div class="row"><span>商品合计</span><span>¥${yuan(o.totalFee)}</span></div>
     ${drink > 0 ? `<div class="row"><span>赠饮券</span><span>-¥${yuan(drink)}</span></div>` : ''}
+    ${o.starRedeem ? `<div class="row"><span>集星换${esc(o.starRedeem.name)}</span><span>-¥${yuan(o.starFee)}</span></div>` : ''}
     ${o.couponFee ? `<div class="row"><span>代金券</span><span>-¥${yuan(o.couponFee)}</span></div>` : ''}
     <div class="row total"><span>实付</span><span>¥${yuan(o.payFee)}</span></div>
     <div class="pay">${esc(payText(o))}</div>

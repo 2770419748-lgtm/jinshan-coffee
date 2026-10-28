@@ -23,8 +23,9 @@ Page({
     tableNo: '',
     mode: 'dine_in',
     remark: '',
-    quote: null, // 服务器算的价 { total, vouchers, applied, voucherFee, coupons, coupon, couponFee, payFee, pay, wallet, reserve }
+    quote: null, // 服务器算的价 { total, vouchers, applied, voucherFee, stars, starFee, coupons, coupon, couponFee, payFee, pay, wallet, reserve }
     useVouchers: true,
+    useStars: false, // 用星免费换一杯：顾客自己打开
     usableCoupons: 0,
     showCoupons: false,
     reserving: false, // 预约点单：选取餐时间，必须在线付款（微信或会员余额）
@@ -70,11 +71,11 @@ Page({
     return this.data.list.map((i) => ({ productId: i.productId, qty: i.qty, specs: i.specs }))
   },
 
-  // 让服务器算一遍价：赠饮券、代金券怎么抵，预约能选哪些时间
+  // 让服务器算一遍价：赠饮券、集星兑换、代金券怎么抵，预约能选哪些时间
   requote() {
     if (!this.data.list.length) return
-    const { useVouchers, reserving, reserveAt } = this.data
-    const params = { items: this.items(), noVouchers: !useVouchers, reserve: reserving }
+    const { useVouchers, useStars, reserving, reserveAt } = this.data
+    const params = { items: this.items(), noVouchers: !useVouchers, reserve: reserving, useStars }
     if (this.couponChoice !== undefined) params.couponId = this.couponChoice
     if (reserving && reserveAt) params.reserveAt = reserveAt
     return api.coffee('quote', params).then((quote) => {
@@ -90,7 +91,9 @@ Page({
       const data = {
         quote,
         payable: quote.payFee,
-        usableCoupons: quote.coupons.filter((c) => c.discount > 0).length
+        usableCoupons: quote.coupons.filter((c) => c.discount > 0).length,
+        // 星星不够了、没有能换的商品时自动关掉
+        useStars: !!(quote.stars && quote.stars.used)
       }
       if (reserving) {
         const slots = quote.reserve.slots
@@ -128,6 +131,15 @@ Page({
   toggleVouchers(e) {
     this.setData({ useVouchers: e.detail.value })
     this.requote()
+  },
+
+  toggleStars(e) {
+    this.setData({ useStars: e.detail.value })
+    this.requote()
+  },
+
+  goStars() {
+    wx.navigateTo({ url: '/pages/stars/stars' })
   },
 
   pickSlot(e) {
@@ -186,7 +198,8 @@ Page({
       tableNo: !reserving && mode === 'dine_in' ? tableNo : '',
       remark,
       voucherIds: useVouchers ? quote.applied.map((a) => a.id) : [],
-      couponId: quote.coupon ? quote.coupon.id : ''
+      couponId: quote.coupon ? quote.coupon.id : '',
+      useStars: !!(quote.stars && quote.stars.used)
     }
     if (reserving) params.reserveAt = reserveAt
     if (byBalance) params.payBy = 'balance'
@@ -212,7 +225,7 @@ Page({
         reserve.off()
         this.setData({ reserving: false })
       }
-      if (['MENU_CHANGED', 'TABLE_INVALID', 'VOUCHER_CHANGED', 'RESERVE_SLOT', 'RESERVE_DISABLED', 'BALANCE_LOW'].indexOf(err.code) !== -1) {
+      if (['MENU_CHANGED', 'TABLE_INVALID', 'VOUCHER_CHANGED', 'STARS_CHANGED', 'RESERVE_SLOT', 'RESERVE_DISABLED', 'BALANCE_LOW'].indexOf(err.code) !== -1) {
         wx.showModal({ title: '没能下单', content: err.message, showCancel: false })
         if (err.code !== 'MENU_CHANGED' && err.code !== 'TABLE_INVALID') {
           if (err.code === 'VOUCHER_CHANGED') this.couponChoice = undefined

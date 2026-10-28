@@ -13,9 +13,13 @@ Page({
     member: null,
     logs: [],
     plans: [],
+    starLogs: [],
+    starSettings: null, // { enabled, need }
     showRecharge: false,
     showAdjust: false,
+    showStars: false,
     adjust: { sign: -1, amountText: '', untilMode: 'keep', until: '', reason: '' },
+    starAdjust: { sign: 1, countText: '', reason: '' },
     busy: false
   },
 
@@ -33,8 +37,8 @@ Page({
   },
 
   load() {
-    return api.member('getMemberDetail', { memberNo: this.no }).then(({ member, logs, plans }) => {
-      this.setData({ member, logs, plans })
+    return api.member('getMemberDetail', { memberNo: this.no }).then(({ member, logs, plans, starLogs, starSettings }) => {
+      this.setData({ member, logs, plans, starLogs, starSettings })
     }).catch(api.toastError)
   },
 
@@ -64,7 +68,7 @@ Page({
   },
 
   closeSheets() {
-    this.setData({ showRecharge: false, showAdjust: false })
+    this.setData({ showRecharge: false, showAdjust: false, showStars: false })
   },
 
   recharge(e) {
@@ -139,6 +143,48 @@ Page({
     api.member('adjustMember', params).then(() => {
       this.setData({ busy: false, showAdjust: false })
       wx.showToast({ title: '已调整', icon: 'success' })
+      this.load()
+    }).catch((err) => {
+      this.setData({ busy: false })
+      api.toastError(err)
+    })
+  },
+
+  // ---------- 店主加减星 ----------
+
+  openStars() {
+    this.setData({ showStars: true, starAdjust: { sign: 1, countText: '', reason: '' } })
+  },
+
+  onStarAdjust(e) {
+    this.setData({ ['starAdjust.' + e.currentTarget.dataset.field]: e.detail.value })
+  },
+
+  pickStarSign(e) {
+    this.setData({ 'starAdjust.sign': Number(e.currentTarget.dataset.sign) })
+  },
+
+  submitStars() {
+    const { starAdjust, busy, member } = this.data
+    if (busy) return
+    const n = Number(starAdjust.countText)
+    if (!Number.isInteger(n) || n < 1) {
+      wx.showToast({ title: '请填几颗星，比如 1', icon: 'none' })
+      return
+    }
+    const reason = starAdjust.reason.trim()
+    if (!reason) {
+      wx.showToast({ title: '请写上原因，比如「在店里买了没用小程序」', icon: 'none' })
+      return
+    }
+    if (starAdjust.sign < 0 && n > member.stars) {
+      wx.showToast({ title: '只有 ' + member.stars + ' 颗星', icon: 'none' })
+      return
+    }
+    this.setData({ busy: true })
+    api.member('adjustStars', { memberNo: this.no, amount: starAdjust.sign * n, reason }).then((r) => {
+      this.setData({ busy: false, showStars: false })
+      wx.showToast({ title: '现在 ' + r.stars + ' 颗星', icon: 'none' })
       this.load()
     }).catch((err) => {
       this.setData({ busy: false })

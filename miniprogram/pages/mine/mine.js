@@ -5,6 +5,7 @@ Page({
   data: {
     user: null,
     member: null,
+    stars: null, // 集星：{ stars, need }，没开集星时是 null
     loading: true
   },
 
@@ -15,12 +16,16 @@ Page({
       this.setData({ loading: false })
       api.toastError(err)
     })
-    // 首页的会员卡数据：余额、会员到期日
-    api.common('getHome').then((home) => this.setData({ member: home.member })).catch(() => {})
+    // 首页的会员卡和集星卡数据：余额、会员到期日、几颗星
+    api.common('getHome').then((home) => this.setData({ member: home.member, stars: home.stars })).catch(() => {})
   },
 
   goMember() {
     wx.navigateTo({ url: '/pages/member/member' })
+  },
+
+  goStars() {
+    wx.navigateTo({ url: '/pages/stars/stars' })
   },
 
   goOrders() {

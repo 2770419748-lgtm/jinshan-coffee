@@ -1,6 +1,7 @@
 const api = require('../../utils/api')
 const table = require('../../utils/table')
 const reserve = require('../../utils/reserve')
+const starUtil = require('../../utils/stars')
 
 Page({
   data: {
@@ -12,6 +13,9 @@ Page({
     claimable: 0,
     member: null, // 会员卡：{ enabled, balance, isMember, memberUntil, freeCategories, promo }，没开储值又没余额时是 null
     memberText: '',
+    stars: null, // 集星卡：{ stars, need }，没开集星时是 null
+    starDots: [],
+    starTip: '',
     activeOrder: null,
     activeText: '',
     activeRental: null
@@ -29,7 +33,7 @@ Page({
       .then(() => wx.stopPullDownRefresh())
   },
 
-  // 轮播、营业时间、能不能预约、还有几种券可以领、会员卡
+  // 轮播、营业时间、能不能预约、还有几种券可以领、会员卡、集星卡
   loadHome() {
     return api.common('getHome').then((home) => {
       const m = home.member
@@ -43,7 +47,10 @@ Page({
         reserveEnabled: home.reserveEnabled,
         claimable: home.claimableCoupons,
         member: m,
-        memberText
+        memberText,
+        stars: home.stars,
+        starDots: home.stars ? starUtil.dots(home.stars.stars, home.stars.need) : [],
+        starTip: home.stars ? starUtil.tip(home.stars.stars, home.stars.need) : ''
       })
     }).catch(() => {})
   },
@@ -133,6 +140,10 @@ Page({
 
   goMember() {
     wx.navigateTo({ url: '/pages/member/member' })
+  },
+
+  goStars() {
+    wx.navigateTo({ url: '/pages/stars/stars' })
   },
 
   goVouchers() {

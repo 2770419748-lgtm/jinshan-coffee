@@ -23,11 +23,16 @@
       <text class="gold edit">改</text>
     </view>
     <view class="faint small totals">累计充值 ¥{{f.yuan(member.totalRecharge)}} · 送 ¥{{f.yuan(member.totalBonus)}} · 消费 ¥{{f.yuan(member.totalSpent)}}</view>
+    <view class="star-row" wx:if="{{starSettings.enabled || member.stars}}">
+      <text class="muted">集星 </text><text class="gold">{{member.stars}}</text><text class="muted"> 颗</text>
+      <text class="faint small" wx:if="{{starSettings.enabled}}">（{{starSettings.need}} 颗换一杯）</text>
+    </view>
   </view>
 
   <view class="actions">
     <view class="btn-gold flex-1" bindtap="openRecharge">吧台充值</view>
     <view class="btn-ghost adjust-btn" wx:if="{{isOwner}}" bindtap="openAdjust">调整</view>
+    <view class="btn-ghost adjust-btn" wx:if="{{isOwner && (starSettings.enabled || member.stars)}}" bindtap="openStars">加减星</view>
   </view>
 
   <view class="section-title">最近 50 笔</view>
@@ -45,10 +50,27 @@
     </view>
   </view>
   <view class="empty" wx:else>还没有余额变动</view>
+
+  <block wx:if="{{starLogs.length}}">
+    <view class="section-title">集星记录</view>
+    <view class="card list">
+      <view wx:for="{{starLogs}}" wx:key="_id" class="log">
+        <view class="flex-1">
+          <view>{{item.title || item.typeName}}</view>
+          <view class="faint small">{{item.typeName}} · {{f.time(item.createdAt)}}<text wx:if="{{item.operatorName}}"> · {{item.operatorName}}</text></view>
+          <view class="faint small" wx:if="{{item.reason}}">原因：{{item.reason}}</view>
+        </view>
+        <view class="log-right">
+          <view class="amount {{item.amount > 0 ? 'plus' : ''}}">{{item.amount > 0 ? '+' : ''}}{{item.amount}}</view>
+          <view class="faint small">剩 {{item.stars}} 颗</view>
+        </view>
+      </view>
+    </view>
+  </block>
 </view>
 
 <!-- 吧台充值：选档位 -->
-<view class="mask" wx:if="{{showRecharge || showAdjust}}" bindtap="closeSheets"></view>
+<view class="mask" wx:if="{{showRecharge || showAdjust || showStars}}" bindtap="closeSheets"></view>
 <view class="sheet" wx:if="{{showRecharge}}">
   <view class="sheet-head">
     <text class="sheet-title">给 {{member.memberNo}} 充值</text>
@@ -98,4 +120,26 @@
     <input class="field-input" placeholder="比如：线下退款、活动补偿" placeholder-class="placeholder" maxlength="40" value="{{adjust.reason}}" data-field="reason" bindinput="onAdjust" />
   </view>
   <view class="btn-gold btn-block submit {{busy ? 'disabled' : ''}}" bindtap="submitAdjust">{{busy ? '保存中…' : '确认调整'}}</view>
+</view>
+
+<!-- 店主加减星 -->
+<view class="sheet" wx:if="{{showStars}}">
+  <view class="sheet-head">
+    <text class="sheet-title">给 {{member.memberNo}} 加减星</text>
+    <text class="sheet-close" bindtap="closeSheets">×</text>
+  </view>
+  <view class="faint small sheet-tip">在店里买了没用小程序的补上、补偿顾客、扣掉多给的都在这里，每次都要写原因，会记在集星记录里。现在 {{member.stars}} 颗。</view>
+  <view class="field">
+    <text class="field-label">星星</text>
+    <view class="field-input row">
+      <view class="chip mini {{starAdjust.sign === 1 ? 'on' : ''}}" data-sign="1" bindtap="pickStarSign">加</view>
+      <view class="chip mini {{starAdjust.sign === -1 ? 'on' : ''}}" data-sign="-1" bindtap="pickStarSign">扣</view>
+      <input class="flex-1 amount-input" type="number" placeholder="几颗" placeholder-class="placeholder" value="{{starAdjust.countText}}" data-field="countText" bindinput="onStarAdjust" />
+    </view>
+  </view>
+  <view class="field">
+    <text class="field-label">原因</text>
+    <input class="field-input" placeholder="比如：在店里买了没用小程序" placeholder-class="placeholder" maxlength="40" value="{{starAdjust.reason}}" data-field="reason" bindinput="onStarAdjust" />
+  </view>
+  <view class="btn-gold btn-block submit {{busy ? 'disabled' : ''}}" bindtap="submitStars">{{busy ? '保存中…' : '确认'}}</view>
 </view>

@@ -28,6 +28,10 @@
 .totals {
   margin-top: 12rpx;
 }
+.star-row {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+}
 .actions {
   display: flex;
   margin-bottom: 24rpx;

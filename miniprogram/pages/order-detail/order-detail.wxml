@@ -51,6 +51,10 @@
         <text class="muted">赠饮券（{{item.name}}）</text>
         <text class="gold">-¥{{f.yuan(item.discount)}}</text>
       </view>
+      <view class="row-between sub-row" wx:if="{{order.starRedeem}}">
+        <text class="muted">集星兑换（{{order.starRedeem.name}}，{{order.starRedeem.stars}} 颗星）</text>
+        <text class="gold">-¥{{f.yuan(order.starFee)}}</text>
+      </view>
       <view class="row-between sub-row" wx:if="{{order.coupon}}">
         <text class="muted">代金券（{{order.coupon.title}}）</text>
         <text class="gold">-¥{{f.yuan(order.coupon.discount)}}</text>
@@ -59,6 +63,11 @@
     <view class="row-between total-row">
       <text class="muted">{{order.discountFee ? '实付' : '合计'}}</text>
       <text class="price big">{{f.yuan(order.payFee)}}</text>
+    </view>
+    <view class="star-note" wx:if="{{order.starsEarn && order.status !== 'cancelled'}}" bindtap="goStars">
+      <text class="gold">★</text>
+      <text class="muted">{{order.starsCredited ? ' 这单已得 ' + order.starsEarn + ' 颗星' : ' 出餐' + (order.payStatus === 'paid' ? '' : '并付款') + '后得 ' + order.starsEarn + ' 颗星'}}</text>
+      <text class="cell-arrow"></text>
     </view>
   </view>
 

@@ -88,5 +88,12 @@ test('赠饮券：每张抵一杯，挑最贵的；限定商品的券优先', ()
   assert.equal(capped.discount, 3000, '每杯最多抵 15 元')
 
   const none = applyVouchers(lines, [{ _id: 'v', productIds: ['matcha'], maxFee: 0 }])
-  assert.deepEqual(none, { applied: [], discount: 0 }, '用不上的券不算')
+  assert.deepEqual(none, { applied: [], discount: 0, covered: [0, 0, 0] }, '用不上的券不算')
+
+  // 接着上一轮算：已经抵掉的杯不会再被抵，传进来的数组不被改
+  assert.deepEqual(r1.covered, [1, 0, 1])
+  const next = applyVouchers(lines, [any, any], r1.covered)
+  assert.deepEqual(next.applied.map((a) => a.productId), ['americano', 'americano'])
+  assert.deepEqual(next.covered, [1, 2, 1])
+  assert.deepEqual(r1.covered, [1, 0, 1])
 })

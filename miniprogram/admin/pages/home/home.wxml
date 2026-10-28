@@ -70,6 +70,10 @@
       <view class="tile-title">储值设置</view>
       <view class="tile-sub">充值档位、会员免费看的书</view>
     </view>
+    <view class="tile" wx:if="{{isOwner}}" data-url="/admin/pages/star-settings/star-settings" bindtap="go" hover-class="btn-hover">
+      <view class="tile-title">集星设置</view>
+      <view class="tile-sub">几颗星换一杯、哪些商品算</view>
+    </view>
     <view class="tile" bindtap="scanLogin" hover-class="btn-hover">
       <view class="tile-title">扫码登录电脑</view>
       <view class="tile-sub">扫网页后台上的二维码</view>

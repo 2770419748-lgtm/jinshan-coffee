@@ -14,6 +14,10 @@
       <text class="flex-1 gold">会员中心</text>
       <text class="muted">{{member.balance ? '余额 ¥' + f.yuan(member.balance) : (member.isMember ? '会员' : '充值')}}</text>
     </view>
+    <view class="cell cell-arrow" wx:if="{{stars}}" bindtap="goStars" hover-class="btn-hover">
+      <text class="flex-1 gold">集星</text>
+      <text class="muted">{{stars.stars}} / {{stars.need}} 颗</text>
+    </view>
     <view class="cell cell-arrow" bindtap="goOrders" hover-class="btn-hover">
       <text class="flex-1">咖啡订单</text>
     </view>

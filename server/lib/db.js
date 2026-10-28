@@ -18,6 +18,7 @@ const INDEXES = {
   vouchers: ['_openid', 'couponId'],
   members: ['memberNo'],
   member_logs: ['_openid', 'memberNo', 'day'],
+  star_logs: ['_openid', 'memberNo'],
   member_recharges: ['rechargeNo'],
   staff: ['role', 'webUsername'],
   staff_invites: ['code'],

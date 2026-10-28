@@ -1,4 +1,4 @@
-// 公共模块：登录、店主绑定、员工邀请和权限管理、店铺设置、消息通知设置、电脑网页后台登录、顾客首页（轮播、营业时间、可领的券、会员）。
+// 公共模块：登录、店主绑定、员工邀请和权限管理、店铺设置、消息通知设置、电脑网页后台登录、顾客首页（轮播、营业时间、可领的券、会员、集星）。
 // 首页轮播存在 banners 集合；首页要展示商品、书、代金券和会员储值，所以这里会只读 coffee_products、book_books、coffee_coupons、
 // member_plans 和自己的 members 记录。
 const crypto = require('crypto')
@@ -19,6 +19,7 @@ const {
 } = require('./base')
 const { readShop, hoursOf, checkHours } = require('./shop')
 const wallet = require('./wallet')
+const stars = require('./stars')
 const notify = require('./notify')
 
 const db = cloud.database()
@@ -326,7 +327,7 @@ const handlers = {
   // ---------- 顾客首页 ----------
 
   async getHome(event, openid) {
-    const [saved, memberSettings, member] = await Promise.all([readShop(db), wallet.readSettings(db), wallet.findMember(db, openid)])
+    const [saved, memberSettings, member, starSettings] = await Promise.all([readShop(db), wallet.readSettings(db), wallet.findMember(db, openid), stars.readSettings(db)])
     const configured = await safeGet(db.collection('banners').where({ enabled: true }).orderBy('sort', 'asc').limit(MAX_BANNERS))
     let banners
     if (configured.length) {
@@ -341,7 +342,9 @@ const handlers = {
       // 预约必须先在线付款：开通微信支付，或者开了会员储值（用余额付）才能用
       reserveEnabled: (!!saved.payEnabled && cloud.pay.ready()) || memberSettings.enabled,
       claimableCoupons: await claimableCoupons(openid),
-      member: await homeMember(memberSettings, member)
+      member: await homeMember(memberSettings, member),
+      // 集星卡：没开集星时是 null
+      stars: starSettings.enabled ? { stars: stars.liveStars(member, starSettings).stars, need: starSettings.need } : null
     }
   },
 

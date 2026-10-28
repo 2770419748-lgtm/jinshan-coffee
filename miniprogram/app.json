@@ -13,7 +13,8 @@
     "pages/vouchers/vouchers",
     "pages/coupons/coupons",
     "pages/member/member",
-    "pages/member-logs/member-logs"
+    "pages/member-logs/member-logs",
+    "pages/stars/stars"
   ],
   "subPackages": [
     {
@@ -42,7 +43,8 @@
         "pages/members/members",
         "pages/member-detail/member-detail",
         "pages/member-settings/member-settings",
-        "pages/plan-edit/plan-edit"
+        "pages/plan-edit/plan-edit",
+        "pages/star-settings/star-settings"
       ]
     }
   ],

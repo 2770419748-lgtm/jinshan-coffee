@@ -5,11 +5,13 @@ const guard = require('../../../utils/guard')
 const POLL_MS = 8000
 
 function cancelText(order) {
-  if (order.payStatus !== 'paid') return '确定取消这单？'
-  if (order.payMethod === 'wechat') return '这单是微信支付的，取消后钱会原路退回顾客的微信。'
-  if (order.payMethod === 'voucher') return '这单用赠饮券抵扣，取消后券会退回给顾客。'
-  if (order.payMethod === 'balance') return '这单是会员余额付的，取消后钱会退回顾客的余额。'
-  return '这单已在吧台收款，取消后请记得线下退款给顾客。'
+  // 用星换的单，取消后星星退回
+  const stars = order.starRedeem ? '用掉的 ' + order.starRedeem.stars + ' 颗星会退回给顾客。' : ''
+  if (order.payStatus !== 'paid') return '确定取消这单？' + stars
+  if (order.payMethod === 'wechat') return '这单是微信支付的，取消后钱会原路退回顾客的微信。' + stars
+  if (order.payMethod === 'voucher') return '这单全部用券或星星抵扣，取消后券和星星会退回给顾客。'
+  if (order.payMethod === 'balance') return '这单是会员余额付的，取消后钱会退回顾客的余额。' + stars
+  return '这单已在吧台收款，取消后请记得线下退款给顾客。' + stars
 }
 
 Page({

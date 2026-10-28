@@ -50,6 +50,11 @@
   color: var(--gold);
   margin-bottom: 12rpx;
 }
+.star-line {
+  color: var(--gold);
+  font-size: 26rpx;
+  margin-bottom: 12rpx;
+}
 .pay {
   margin-left: 12rpx;
 }

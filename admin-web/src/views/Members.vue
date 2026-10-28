@@ -39,6 +39,9 @@
       <el-table-column label="余额" width="120">
         <template #default="{ row }"><span class="gold">¥{{ yuan(row.balance) }}</span></template>
       </el-table-column>
+      <el-table-column label="星星" width="80">
+        <template #default="{ row }"><span v-if="row.stars">★ {{ row.stars }}</span><span v-else class="muted">0</span></template>
+      </el-table-column>
       <el-table-column label="会员" width="170">
         <template #default="{ row }">
           <el-tag v-if="row.isMember" size="small">至 {{ row.memberUntil }}</el-tag>
@@ -72,6 +75,10 @@
             </div>
           </div>
           <div class="muted small">累计充值 ¥{{ yuan(detail.member.totalRecharge) }} · 送 ¥{{ yuan(detail.member.totalBonus) }} · 消费 ¥{{ yuan(detail.member.totalSpent) }}</div>
+          <div class="stars" v-if="detail.starSettings.enabled || detail.member.stars">
+            集星 <b class="gold">★ {{ detail.member.stars }}</b> 颗
+            <span class="muted small" v-if="detail.starSettings.enabled">（{{ detail.starSettings.need }} 颗换一杯；累计得 {{ detail.member.starsEarned }} 颗、换掉 {{ detail.member.starsUsed }} 颗）</span>
+          </div>
           <div class="remark">
             <el-input v-model="remark" placeholder="备注：名字、手机尾号，方便找" maxlength="30" size="small" />
             <el-button size="small" @click="saveRemark" :disabled="remark === detail.member.remark">保存备注</el-button>
@@ -81,6 +88,7 @@
         <div class="actions">
           <el-button type="primary" @click="rechargeDialog = true" :disabled="!detail.plans.length">吧台充值</el-button>
           <el-button v-if="isOwner" @click="openAdjust">调整余额 / 会员</el-button>
+          <el-button v-if="isOwner && (detail.starSettings.enabled || detail.member.stars)" @click="openStars">加减星</el-button>
           <span v-if="!detail.plans.length" class="muted small">还没有上架的充值档位</span>
         </div>
 
@@ -99,6 +107,24 @@
           </el-table-column>
           <el-table-column label="余额" width="80"><template #default="{ row }">{{ yuan(row.balance) }}</template></el-table-column>
         </el-table>
+
+        <template v-if="detail.starLogs.length">
+          <div class="section star-section">集星记录（最近 50 笔）</div>
+          <el-table :data="detail.starLogs" size="small">
+            <el-table-column label="时间" width="95"><template #default="{ row }">{{ time(row.createdAt) }}</template></el-table-column>
+            <el-table-column label="内容" min-width="150">
+              <template #default="{ row }">
+                <div>{{ row.title || row.typeName }}</div>
+                <div class="muted small">{{ row.typeName }}<span v-if="row.operatorName"> · {{ row.operatorName }}</span></div>
+                <div v-if="row.reason" class="muted small">原因：{{ row.reason }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column label="变动" width="80">
+              <template #default="{ row }"><span :class="{ gold: row.amount > 0 }">{{ row.amount > 0 ? '+' : '' }}{{ row.amount }}</span></template>
+            </el-table-column>
+            <el-table-column label="剩" width="80"><template #default="{ row }">{{ row.stars }} 颗</template></el-table-column>
+          </el-table>
+        </template>
       </template>
     </el-drawer>
 
@@ -143,6 +169,27 @@
         <el-button type="primary" :loading="busy" @click="submitAdjust">确认调整</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="starDialog" title="加减星" width="440px" :close-on-click-modal="false">
+      <div class="tip">在店里买了没用小程序的补上、补偿顾客、扣掉多给的都在这里，会记在集星记录里。现在 {{ detail ? detail.member.stars : 0 }} 颗。</div>
+      <el-form label-width="70px">
+        <el-form-item label="星星">
+          <el-radio-group v-model="starAdjust.sign" size="small">
+            <el-radio-button :value="1">加</el-radio-button>
+            <el-radio-button :value="-1">扣</el-radio-button>
+          </el-radio-group>
+          <el-input-number v-model="starAdjust.count" :min="1" :max="1000" class="sep" />
+          <span class="muted small sep">颗</span>
+        </el-form-item>
+        <el-form-item label="原因" required>
+          <el-input v-model="starAdjust.reason" maxlength="40" placeholder="比如：在店里买了没用小程序" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="starDialog = false">取消</el-button>
+        <el-button type="primary" :loading="busy" @click="submitStars">确认</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -163,6 +210,8 @@ const remark = ref('')
 const rechargeDialog = ref(false)
 const adjustDialog = ref(false)
 const adjust = ref({})
+const starDialog = ref(false)
+const starAdjust = ref({})
 const busy = ref(false)
 let page = 0
 
@@ -279,6 +328,30 @@ async function submitAdjust() {
   }
 }
 
+function openStars() {
+  starAdjust.value = { sign: 1, count: 1, reason: '' }
+  starDialog.value = true
+}
+
+async function submitStars() {
+  const a = starAdjust.value
+  const m = detail.value.member
+  const reason = a.reason.trim()
+  if (!reason) return ElMessage.warning('请写上原因，比如「在店里买了没用小程序」')
+  if (a.sign < 0 && a.count > m.stars) return ElMessage.warning('只有 ' + m.stars + ' 颗星')
+  busy.value = true
+  try {
+    const res = await api.member('adjustStars', { memberNo: m.memberNo, amount: a.sign * a.count, reason })
+    ElMessage.success('现在 ' + res.stars + ' 颗星')
+    starDialog.value = false
+    refresh()
+  } catch (e) {
+    ElMessage.error(e.message)
+  } finally {
+    busy.value = false
+  }
+}
+
 onMounted(() => {
   load(true)
   loadStats()
@@ -352,6 +425,11 @@ onMounted(() => {
   font-size: 13px;
   color: var(--el-text-color-secondary);
   margin-bottom: 8px;
+}
+.star-section { margin-top: 20px; }
+.stars {
+  margin-top: 8px;
+  font-size: 14px;
 }
 .plan {
   display: flex;

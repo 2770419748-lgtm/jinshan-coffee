@@ -49,6 +49,7 @@ function buildLines(products, items) {
     total += subtotal
     return {
       productId: product._id,
+      categoryId: product.categoryId || '',
       name: product.name,
       image: product.image || '',
       specs,
@@ -92,8 +93,10 @@ function sanitizeSpecs(specs) {
 // 包天送的赠饮券：每张抵扣一杯。在券允许的商品里挑单价最高、还没被抵扣的那一杯；
 // 限定了商品的券先挑，免得通用券把它能用的那杯占掉。用不上的券不算进去，也不会被核销。
 // vouchers：[{ _id, title, productIds（空表示不限商品）, maxFee（每杯最多抵扣，0 表示不封顶） }]
-function applyVouchers(lines, vouchers) {
-  const covered = lines.map(() => 0)
+// covered：每行已经被抵掉几杯（接着上一轮算，比如赠饮券用完再算集星兑换），不传就是都没抵。
+// 返回的 covered 是抵完以后每行被抵掉几杯，不会改传进来的数组。
+function applyVouchers(lines, vouchers, covered) {
+  covered = covered ? covered.slice() : lines.map(() => 0)
   const sorted = (vouchers || []).slice().sort((a, b) => {
     const x = (a.productIds || []).length || Infinity
     const y = (b.productIds || []).length || Infinity
@@ -118,7 +121,7 @@ function applyVouchers(lines, vouchers) {
     applied.push({ id: v._id, title: v.title || '赠饮券', productId: lines[best].productId, name: lines[best].name, discount: bestValue })
   })
   const discount = applied.reduce((sum, a) => sum + a.discount, 0)
-  return { applied, discount }
+  return { applied, discount, covered }
 }
 
 // 代金券：满 minSpend 减 amount（minSpend 为 0 是无门槛券），最多抵到 0。

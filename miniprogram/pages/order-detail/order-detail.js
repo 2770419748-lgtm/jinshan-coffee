@@ -84,6 +84,10 @@ Page({
     })
   },
 
+  goStars() {
+    wx.navigateTo({ url: '/pages/stars/stars' })
+  },
+
   backToMenu() {
     wx.switchTab({ url: '/pages/menu/menu' })
   }

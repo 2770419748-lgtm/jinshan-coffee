@@ -89,6 +89,18 @@
       <view class="btn-ghost btn-small" wx:elif="{{member.enabled}}">去充值</view>
     </view>
 
+    <!-- 集星卡：买一杯得一颗星，攒够了点单时免费换一杯 -->
+    <view class="star-card" wx:if="{{stars}}" bindtap="goStars" hover-class="btn-hover">
+      <view class="flex-1">
+        <view class="star-title">集星<text class="star-progress">{{stars.stars}}/{{stars.need}}</text></view>
+        <view class="star-dots" wx:if="{{starDots.length}}">
+          <text wx:for="{{starDots}}" wx:key="i" class="star-dot {{item.on ? 'on' : ''}}">★</text>
+        </view>
+        <view class="member-sub">{{starTip}}</view>
+      </view>
+      <view class="{{stars.stars >= stars.need ? 'btn-gold' : 'btn-ghost'}} btn-small">{{stars.stars >= stars.need ? '去兑换' : '看看'}}</view>
+    </view>
+
     <!-- 领券中心 -->
     <view class="coupon-card" bindtap="goCoupons" hover-class="btn-hover">
       <image class="coupon-icon" src="/images/home/coupon.png" />
