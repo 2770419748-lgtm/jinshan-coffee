@@ -1,0 +1,61 @@
+# 进山服务器的日常运维，在 Actions 里手动运行：
+#   status 看状态  logs 看日志  restart 重启  backup 马上备份数据库  rollback 退回上一版
+name: 服务器运维
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: '要做什么'
+        type: choice
+        options:
+          - status
+          - logs
+          - restart
+          - backup
+          - rollback
+        default: status
+      lines:
+        description: '看日志时显示最近多少行'
+        required: false
+        default: '200'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jinshan-server
+  cancel-in-progress: false
+
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+
+      - name: 公开仓库不显示日志
+        if: inputs.action == 'logs' && !github.event.repository.private
+        run: |
+          echo "::error::仓库现在是公开的，服务器日志里有店里的数据，不在这里显示。把仓库改成私有后再看。"
+          exit 1
+
+      - name: 连接服务器
+        env:
+          SERVER_SSH: ${{ secrets.SERVER_SSH }}
+        run: bash .github/scripts/server.sh setup
+
+      - name: 执行 ${{ inputs.action }}
+        env:
+          ACTION: ${{ inputs.action }}
+          LOG_LINES: ${{ inputs.lines }}
+        run: |
+          case $LOG_LINES in '' | *[!0-9]*) LOG_LINES=200 ;; esac
+          if [ "$ACTION" = logs ]; then
+            bash .github/scripts/server.sh logs "$LOG_LINES"
+          else
+            bash .github/scripts/server.sh "$ACTION" 2>&1 | tee "$RUNNER_TEMP/out.log"
+            { echo "### $ACTION"; echo '```'; cat "$RUNNER_TEMP/out.log"; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
+          fi
