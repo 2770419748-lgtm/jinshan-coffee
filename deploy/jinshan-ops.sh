@@ -15,10 +15,18 @@ set -euo pipefail
 umask 022
 export TZ=Asia/Shanghai
 
+CONF_FILE=/etc/jinshan-ops.conf
 APP_ROOT=/www/wwwroot/jinshan
-SERVER_DIR=$APP_ROOT/server
-ADMIN_DIR=$APP_ROOT/admin-web/dist
-VERSION_FILE=$APP_ROOT/.deploy-version
+# 程序不在默认目录时，install 会把实际目录记在 CONF_FILE 里
+if [ -f "$CONF_FILE" ]; then
+  APP_ROOT=$(sed -n 's/^APP_ROOT=//p' "$CONF_FILE" | head -n 1)
+fi
+set_paths() {
+  SERVER_DIR=$APP_ROOT/server
+  ADMIN_DIR=$APP_ROOT/admin-web/dist
+  VERSION_FILE=$APP_ROOT/.deploy-version
+}
+set_paths
 BACKUP_ROOT=/www/backup/jinshan
 HISTORY_FILE=$BACKUP_ROOT/history.log
 SERVICE=jinshan
@@ -404,6 +412,29 @@ find_node() {
   printf '%s\n' "$best"
 }
 
+# 默认目录里没有程序时，看正在跑的服务器程序在哪个目录
+find_app_root() {
+  local pid cwd
+  if [ ! -f "$SERVER_DIR/app.js" ]; then
+    load_cfg_fallback
+    for pid in $(port_pids); do
+      cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)
+      if [ -f "$cwd/app.js" ] && [ "${cwd##*/}" = server ]; then
+        APP_ROOT=${cwd%/server}
+        set_paths
+        say "服务器程序实际在 $SERVER_DIR"
+        break
+      fi
+    done
+  fi
+  [ -f "$SERVER_DIR/app.js" ] || die "找不到服务器程序：$SERVER_DIR/app.js 不存在，端口上也没有正在跑的进山服务器"
+  if [ "$APP_ROOT" = /www/wwwroot/jinshan ]; then
+    rm -f "$CONF_FILE"
+  else
+    printf 'APP_ROOT=%s\n' "$APP_ROOT" >"$CONF_FILE"
+  fi
+}
+
 # 装 Node 之前读不了 config.json，先按默认端口找
 load_cfg_fallback() {
   PORT=$(grep -o '"port"[[:space:]]*:[[:space:]]*[0-9]*' "$SERVER_DIR/config.json" 2>/dev/null | grep -o '[0-9]*$' || true)
@@ -490,7 +521,7 @@ install_all() {
   local ip_arg=${1:-} self node ip ssh_port hostkey known work
   [ "$(id -u)" = 0 ] || die "要用 root 运行：sudo bash $0 install"
   command -v systemctl >/dev/null 2>&1 || die "这台服务器没有 systemd"
-  [ -f "$SERVER_DIR/app.js" ] || die "找不到 $SERVER_DIR/app.js，服务器程序要先放到 $APP_ROOT"
+  find_app_root
   [ -f "$SERVER_DIR/config.json" ] || die "找不到 $SERVER_DIR/config.json，先按 README 填好配置文件"
   id "$RUN_USER" >/dev/null 2>&1 || die "没有 $RUN_USER 用户（宝塔装好后会有）"
   ip=$(public_ip "$ip_arg")
@@ -555,13 +586,10 @@ install_all() {
 
   say ""
   say "================ 设置完成，还差最后一步 ================"
-  say "打开 GitHub 仓库 → Settings → Secrets and variables → Actions → New repository secret："
-  say "  Name 填：SERVER_SSH"
-  say "  Secret 填：下面两条虚线之间的全部内容（从 host 那行到 END OPENSSH PRIVATE KEY 那行）"
-  say "  也可以在宝塔「文件」里打开 $SECRET_FILE，全选复制"
-  say "- - - - - - - - - - - - - - - - - - - - - - - - - - - -"
-  cat "$SECRET_FILE"
-  say "- - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  say "钥匙存在 $SECRET_FILE（只有 root 能看，这里不显示，免得被截图）。"
+  say "1. 宝塔「文件」打开 $SECRET_FILE，Ctrl+A 全选，Ctrl+C 复制"
+  say "2. GitHub 仓库 → Settings → Secrets and variables → Actions → New repository secret"
+  say "   Name 填 SERVER_SSH，Secret 粘贴刚才复制的全部内容，点 Add secret"
   say "这把钥匙只能用来部署和运维进山服务器，不能登录终端。不要发到聊天里。"
   say "GitHub 第一次连上服务器后，$SECRET_FILE 会自动删除。"
   say "宝塔「Node 项目」里那个项目现在会显示已停止，这是正常的，不要再点启动；"

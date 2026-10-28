@@ -32,11 +32,12 @@
    它会：
    - 把服务器程序改成系统服务 `jinshan`，用 `www` 用户运行，开机自动启动，程序崩了 3 秒后自动拉起来。宝塔「Node 项目」里原来那个项目会被停掉，以后不要再在宝塔里启动它，可以把它的「开机启动」关掉或者删掉这个项目条目（删的时候**不要**勾选删除文件）。
    - 建一个专用账号 `jinshan-deploy` 和一把部署钥匙。这把钥匙只能调用 `jinshan-ops` 的几个动作，不能登录终端、不能转发端口。
-   - 最后打印一段以 `host` 开头、以 `-----END OPENSSH PRIVATE KEY-----` 结尾的内容，同样的内容也存在 `/root/jinshan-github-secret.txt`。
+   - 把要填到 GitHub 的内容（以 `host` 开头、以 `-----END OPENSSH PRIVATE KEY-----` 结尾）存到 `/root/jinshan-github-secret.txt`，只有 root 能看，终端里不显示。
+   - 程序如果不在 `/www/wwwroot/jinshan`，会按正在跑的进程找到实际目录，记在 `/etc/jinshan-ops.conf`。
 
    如果中途报错，程序会撤销改动，按提示到宝塔「Node 项目」把项目重新启动，再把报错截图发给 Claude。
 
-3. **填到 GitHub**：仓库 **Settings → Secrets and variables → Actions → New repository secret**，Name 填 `SERVER_SSH`，Secret 粘贴上一步那一整段，点 Add secret。GitHub 第一次连上服务器后，`/root/jinshan-github-secret.txt` 会自动删除。
+3. **填到 GitHub**：宝塔「文件」打开 `/root/jinshan-github-secret.txt`，全选复制。仓库 **Settings → Secrets and variables → Actions → New repository secret**，Name 填 `SERVER_SSH`，Secret 粘贴，点 Add secret。GitHub 第一次连上服务器后，`/root/jinshan-github-secret.txt` 会自动删除。
 
 腾讯云轻量服务器的防火墙默认放行 22 端口（SSH），GitHub 就是从这个端口连进来的，不要关掉它。
 
