@@ -5,7 +5,7 @@
 const { AsyncLocalStorage } = require('async_hooks')
 
 const context = new AsyncLocalStorage()
-const parts = { db: null, wechat: null, pay: null, storage: null, carwash: null }
+const parts = { db: null, wechat: null, pay: null, storage: null, carwash: null, env: null }
 // 洗车小程序还没配置时用的空壳：不能登录、不能付款
 const NOT_READY = {
   wechat: { ready: () => false },
@@ -27,6 +27,11 @@ module.exports = {
 
   database() {
     return need('db')
+  },
+
+  // 测试版服务器（config.json 里 env 是 test）：数据是从正式版复制来的，里面有真顾客，不能给他们发消息
+  isTest() {
+    return parts.env === 'test'
   },
 
   // 当前请求是哪位微信用户。OPENID 是用户 id（两个小程序绑了开放平台时，同一个人在两边是同一个 id，见 lib/identity.js）；

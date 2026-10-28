@@ -12,6 +12,15 @@
     <view class="btn-ghost btn-block cancel" bindtap="cancel">取消</view>
   </block>
 
+  <block wx:elif="{{state === 'switch'}}">
+    <view class="card hero">
+      <view class="title">这是{{target === 'test' ? '测试版' : '正式版'}}后台的登录码</view>
+      <view class="muted">手机上现在连的是{{target === 'test' ? '正式' : '测试'}}服务器。切到{{target === 'test' ? '测试' : '正式'}}服务器再确认登录（以后在「我的」页面最下面可以切回来）。</view>
+    </view>
+    <view class="btn-gold btn-block" bindtap="switchServer">切到{{target === 'test' ? '测试' : '正式'}}服务器</view>
+    <view class="btn-ghost btn-block cancel" bindtap="back">返回</view>
+  </block>
+
   <block wx:else>
     <view class="card hero">
       <view class="title" wx:if="{{state === 'done'}}">已登录，回到电脑上继续</view>

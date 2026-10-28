@@ -22,6 +22,14 @@
   font-size: 24rpx;
   margin-top: 6rpx;
 }
+.server-switch {
+  text-align: center;
+  color: var(--text-3);
+  font-size: 24rpx;
+  margin-top: 40rpx;
+}
+.server-test { color: #d03050; font-weight: 600; }
+.server-prod { color: var(--gold); font-weight: 600; }
 .staff-link {
   text-align: center;
   color: var(--text-3);

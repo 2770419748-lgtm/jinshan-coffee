@@ -4,7 +4,7 @@
 // 再按字段类型（thing 20 个字以内、phrase 5 个汉字以内……）截成微信接受的格式。
 // 微信的规矩：顾客点一次「允许」只能收一条，所以每次下单、借书时都要问一次。
 const cloud = require('../platform')
-const { BizError } = require('./base')
+const { BizError, getStaff } = require('./base')
 const { appOpenid } = require('../lib/identity')
 
 const SHOP_NAME = '进山咖啡'
@@ -168,11 +168,17 @@ function rentalValues(rental) {
 
 // 发一条通知；没配模板、顾客没允许、微信报错都只记日志，不影响出餐和借书。
 // uid 是用户 id；先洗车后咖啡的顾客，用户 id 是洗车小程序的 openid，要换成咖啡小程序的才能发
+// 测试版的数据是从正式版复制来的，只发给店主和店员（测试的人），点开的是体验版
 async function send(db, kind, uid, values, page) {
   const s = await readSettings(db)
   const tpl = s[kind]
   if (!tpl || !uid) return false
+  const test = cloud.isTest()
   try {
+    if (test && !(await getStaff(db, uid))) {
+      console.log('测试版不给顾客发通知', kind)
+      return false
+    }
     const openid = await appOpenid(db, 'coffee', uid)
     if (!openid) return false
     await cloud.openapi.subscribeMessage.send({
@@ -180,7 +186,7 @@ async function send(db, kind, uid, values, page) {
       templateId: tpl.templateId,
       page,
       data: buildData(tpl.fields, values),
-      miniprogramState: s.state
+      miniprogramState: test && s.state === 'formal' ? 'trial' : s.state
     })
     return true
   } catch (e) {

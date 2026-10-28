@@ -154,3 +154,59 @@ test('扫码登录：从小程序码的 scene 和扫码 path 里取登录码', (
   assert.equal(loginScene.parsePath('pages/menu/menu?scene=t%3D7'), '')
   assert.equal(loginScene.parsePath(''), '')
 })
+
+test('扫码登录：测试服务器发的码带 s=t，认得出是哪台服务器的', () => {
+  const id = 'Ab3dEf6hIj9kLm2nOp5q'
+  assert.equal(loginScene.parseQuery({ scene: encodeURIComponent('w=' + id + '&s=t') }), id)
+  assert.equal(loginScene.parseServer({ scene: encodeURIComponent('w=' + id + '&s=t') }), 'test')
+  assert.equal(loginScene.parseServer({ scene: encodeURIComponent('w=' + id) }), 'prod', '旧的码和正式服务器的码都没有 s')
+  assert.equal(loginScene.parseServer({ id, s: 't' }), 'test')
+  assert.equal(loginScene.parseServer({ id }), 'prod')
+  assert.equal(loginScene.parseServer(null), 'prod')
+  const p = 'admin/pages/web-login/web-login?scene=' + encodeURIComponent('w=' + id + '&s=t')
+  assert.equal(loginScene.parsePath(p), id)
+  assert.equal(loginScene.parsePathServer(p), 'test')
+  assert.equal(loginScene.parsePathServer('admin/pages/web-login/web-login?scene=' + encodeURIComponent('w=' + id)), 'prod')
+})
+
+test('连哪台服务器：正式版连正式服务器；开发版、体验版默认连测试服务器，可以切到正式', () => {
+  const config = require('../miniprogram/config')
+  const server = require('../miniprogram/utils/server')
+  let env = 'release'
+  global.wx.getAccountInfoSync = () => ({ miniProgram: { envVersion: env } })
+
+  assert.equal(server.canSwitch(), false)
+  assert.equal(server.current(), 'prod')
+  assert.equal(server.base(), config.apiBase)
+  server.set('test')
+  assert.equal(server.current(), 'prod', '正式版切不了')
+
+  for (env of ['develop', 'trial']) {
+    assert.equal(server.canSwitch(), true)
+    assert.equal(server.current(), 'test', env)
+    assert.equal(server.base(), config.testApiBase)
+    server.set('prod')
+    assert.equal(server.current(), 'prod')
+    assert.equal(server.base(), config.apiBase)
+    server.set('test')
+    assert.equal(server.current(), 'test')
+  }
+
+  env = 'release'
+  server.set('prod')
+  env = 'trial'
+  assert.equal(server.current(), 'test', '正式版里点了也不会存下来')
+
+  // 没填测试服务器时都连正式服务器
+  const saved = config.testApiBase
+  config.testApiBase = ''
+  assert.equal(server.canSwitch(), false)
+  assert.equal(server.base(), config.apiBase)
+  config.testApiBase = saved
+
+  // 读不到版本（老基础库）时当正式版
+  global.wx.getAccountInfoSync = () => { throw new Error('no api') }
+  assert.equal(server.current(), 'prod')
+  delete global.wx.getAccountInfoSync
+  assert.notEqual(config.apiBase.replace(/\/+$/, ''), config.testApiBase.replace(/\/+$/, ''), '正式和测试不能是同一台')
+})

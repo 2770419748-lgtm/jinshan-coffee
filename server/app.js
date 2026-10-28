@@ -1,5 +1,6 @@
 // 进山咖啡的服务器：咖啡小程序、洗车小程序和电脑网页后台都调这里。
 // 启动：node app.js（读同目录的 config.json，照着 config.example.json 填；也可以用环境变量 JINSHAN_CONFIG 指定别的路径）
+// config.json 里 env 填 test 就是测试版：不收真钱、只给店员发订阅消息、网页后台顶上标「测试版」
 //
 //   POST /api/login                 小程序 wx.login 的 code 换登录状态；body 里 app 是 coffee（默认）或 carwash
 //   POST /api/common|coffee|book|member|carwash  调业务模块，body 是 { action, ...参数 }
@@ -53,6 +54,7 @@ function loadConfig(file) {
   })
   const carwash = raw.carwash || {}
   return {
+    env: raw.env === 'test' ? 'test' : 'prod',
     port: Number(raw.port || 3000),
     host: raw.host || '127.0.0.1',
     publicUrl: String(raw.publicUrl || '').replace(/\/+$/, ''),
@@ -85,7 +87,8 @@ function readKey(file) {
 // 装好各部分，返回 http 服务器。extraRoutes(req, res, url) 返回 true 表示已经处理（本地预览用）
 // wechat、pay 是咖啡小程序的；carwash: { wechat, pay } 是洗车小程序的，不传就是还没配置
 function createApp({ config, db, wechat, pay, storage, carwash, extraRoutes }) {
-  platform.configure({ db, wechat, pay, storage, carwash: carwash || null })
+  const isTest = config.env === 'test'
+  platform.configure({ db, wechat, pay, storage, carwash: carwash || null, env: isTest ? 'test' : 'prod' })
   if (config.ownerCode) process.env.OWNER_CODE = config.ownerCode
   const modules = {}
   MODULES.forEach((name) => { modules[name] = require('./functions/' + name) })
@@ -201,7 +204,7 @@ function createApp({ config, db, wechat, pay, storage, carwash, extraRoutes }) {
       if (n && PAY_MODULES.indexOf(n[1]) !== -1) return payNotify(n[1], req, res)
     }
     if (req.method === 'GET' || req.method === 'HEAD') {
-      if (p === '/healthz') return sendJson(res, 200, { ok: true })
+      if (p === '/healthz') return sendJson(res, 200, { ok: true, env: isTest ? 'test' : 'prod' })
       if (p === '/' || p === '/admin') {
         res.writeHead(302, { location: '/admin/' })
         return res.end()
@@ -212,6 +215,7 @@ function createApp({ config, db, wechat, pay, storage, carwash, extraRoutes }) {
       }
       if (p.indexOf('/admin/') === 0) {
         const rel = decodeURIComponent(p.slice('/admin/'.length)) || 'index.html'
+        if (isTest && rel === 'index.html' && sendTestIndex(req, res, config.adminDir)) return
         // 打包出来的文件名带哈希，可以长期缓存；index.html 和 config.js 每次都要新的
         const cache = /^assets\//.test(rel) ? 'public, max-age=31536000, immutable' : 'no-cache'
         if (sendFile(req, res, config.adminDir, rel, cache)) return
@@ -229,6 +233,24 @@ function createApp({ config, db, wechat, pay, storage, carwash, extraRoutes }) {
     })
   })
   return { server, modules }
+}
+
+// 测试版的网页后台：页面顶上一条红色的「测试版」，标题前面也加上，免得和正式后台搞混
+const TEST_BANNER = '<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#d03050;color:#fff;' +
+  'text-align:center;font-size:13px;line-height:22px;pointer-events:none">测试版 · 数据和正式版分开，随便试</div>' +
+  '<style>body{padding-top:22px;box-sizing:border-box}</style>'
+
+function sendTestIndex(req, res, adminDir) {
+  let html
+  try {
+    html = fs.readFileSync(path.join(adminDir, 'index.html'), 'utf8')
+  } catch (e) {
+    return false
+  }
+  html = html.replace(/<title>/i, '<title>【测试版】').replace(/<body([^>]*)>/i, (m) => m + TEST_BANNER)
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' })
+  res.end(req.method === 'HEAD' ? undefined : html)
+  return true
 }
 
 // 每天凌晨 4 点以后备份一次数据库到 data/backups，保留 14 天
@@ -277,13 +299,16 @@ function main() {
       notifyBase: config.publicUrl
     })
   }
-  const pay = makePay(config.appId, config.pay)
+  // 测试版不收真钱：就算配置里填了商户号也不用
+  const noPay = (p) => (config.env === 'test' ? {} : p)
+  const pay = makePay(config.appId, noPay(config.pay))
   const carwash = {
     wechat: createWechat({ appId: config.carwash.appId, appSecret: config.carwash.appSecret }),
-    pay: makePay(config.carwash.appId, config.carwash.pay)
+    pay: makePay(config.carwash.appId, noPay(config.carwash.pay))
   }
   const storage = createStorage({ dir: config.uploadDir })
   const { server, modules } = createApp({ config, db, wechat, pay, storage, carwash })
+  if (config.env === 'test') console.log('这是测试版：微信支付关闭，订阅消息只发给店员')
   if (!wechat.ready()) console.warn('注意：配置文件里还没填 appId / appSecret，小程序登录和小程序码用不了')
   console.log(pay.ready() ? '微信支付已配置，商户号 ' + config.pay.mchId : '微信支付没配置（商户号下来以后按 README 填配置）')
   if (!carwash.wechat.ready()) console.warn('注意：配置文件里还没填洗车小程序的 carwash.appId / appSecret，洗车小程序登录不了')
