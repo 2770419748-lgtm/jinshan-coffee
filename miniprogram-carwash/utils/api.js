@@ -9,8 +9,14 @@ const UPLOADS = '/uploads/'
 let token = wx.getStorageSync(TOKEN_KEY) || ''
 let loggingIn = null
 
+// 正式版连 apiBase；开发版、体验版连测试服务器 testApiBase（没填就也连 apiBase）
 function base() {
-  return String(config.apiBase || '').replace(/\/+$/, '')
+  let env = 'release'
+  try {
+    env = wx.getAccountInfoSync().miniProgram.envVersion || 'release'
+  } catch (e) {}
+  const url = env !== 'release' && config.testApiBase ? config.testApiBase : config.apiBase
+  return String(url || '').replace(/\/+$/, '')
 }
 
 class ApiError extends Error {

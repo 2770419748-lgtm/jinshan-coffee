@@ -1,16 +1,28 @@
 // 调自己的服务器：POST 服务器地址/api/模块名，body 是 { action, ...参数 }，返回 { ok, data, msg, code }
 // 第一次调用前先 wx.login 换登录状态（存在本地，30 天有效），过期了自动重新登录一次再调。
 // 服务器存的图片地址是 /uploads/ 开头的，这里收到时补上服务器地址，发出去时再去掉，换域名也不受影响。
-const config = require('../config')
+// 连正式还是测试服务器见 utils/server.js；两台服务器的登录状态分开存。
+const server = require('./server')
 
-const TOKEN_KEY = 'jinshan_session'
+const TOKEN_KEYS = { prod: 'jinshan_session', test: 'jinshan_session_test' }
 const UPLOADS = '/uploads/'
 
-let token = wx.getStorageSync(TOKEN_KEY) || ''
+const tokens = {}
 let loggingIn = null
 
-function base() {
-  return String(config.apiBase || '').replace(/\/+$/, '')
+const base = server.base
+
+function getToken() {
+  const name = server.current()
+  if (tokens[name] === undefined) tokens[name] = wx.getStorageSync(TOKEN_KEYS[name]) || ''
+  return tokens[name]
+}
+
+function setToken(t) {
+  const name = server.current()
+  tokens[name] = t
+  if (t) wx.setStorageSync(TOKEN_KEYS[name], t)
+  else wx.removeStorageSync(TOKEN_KEYS[name])
 }
 
 class ApiError extends Error {
@@ -58,9 +70,8 @@ function login() {
       wx.login({ success: (r) => resolve(r.code), fail: reject })
     }).then((code) => request('/api/login', { code })).then((res) => {
       if (!res.ok) throw new ApiError(res.msg || '登录失败', res.code)
-      token = res.data.token
-      wx.setStorageSync(TOKEN_KEY, token)
-      return token
+      setToken(res.data.token)
+      return res.data.token
     })
     loggingIn.then(() => { loggingIn = null }, () => { loggingIn = null })
   }
@@ -68,12 +79,11 @@ function login() {
 }
 
 function call(name, action, data, retried) {
-  const ready = token ? Promise.resolve(token) : login()
+  const ready = getToken() ? Promise.resolve(getToken()) : login()
   return ready.then((t) => request('/api/' + name, fixUrls(Object.assign({ action }, data || {}), toPath), { 'x-session': t })).then((result) => {
     if (!result.ok) {
       if (result.code === 'NEED_WX_LOGIN' && !retried) {
-        token = ''
-        wx.removeStorageSync(TOKEN_KEY)
+        setToken('')
         return call(name, action, data, true)
       }
       throw new ApiError(result.msg || '操作失败', result.code)
@@ -84,7 +94,7 @@ function call(name, action, data, retried) {
 
 // 员工上传图片，返回能直接显示的完整地址；folder 是 products（商品图）或 covers（书封面）
 function upload(filePath, folder) {
-  const ready = token ? Promise.resolve(token) : login()
+  const ready = getToken() ? Promise.resolve(getToken()) : login()
   return ready.then((t) => new Promise((resolve, reject) => {
     if (!base()) return reject(new ApiError('还没填服务器地址：打开 miniprogram/config.js 填 apiBase', 'NO_SERVER'))
     wx.uploadFile({

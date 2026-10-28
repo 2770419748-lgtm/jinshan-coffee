@@ -45,4 +45,9 @@
   </view>
 
   <view class="staff-link" wx:if="{{user && !user.staff && user.hasOwner}}" bindtap="bindStaff">我是店员，用邀请码绑定</view>
+
+  <view class="server-switch" wx:if="{{server}}" bindtap="switchServer">
+    <text class="{{server === 'test' ? 'server-test' : 'server-prod'}}">{{server === 'test' ? '测试服务器' : '正式服务器'}}</text>
+    <text>{{server === 'test' ? '（数据和正式版分开）· 切到正式' : '（店里的真数据）· 切回测试'}}</text>
+  </view>
 </view>

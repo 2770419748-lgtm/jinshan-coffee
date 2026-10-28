@@ -73,8 +73,13 @@ async function createSession(staff) {
   return { token, expiresAt, staff: publicStaff(staff) }
 }
 
-// 扫码登录用的小程序码。小程序还没发布（或者发布的版本里还没有确认页）时，正式版会报 41030，改用体验版
+// 扫码登录用的小程序码。小程序还没发布（或者发布的版本里还没有确认页）时，正式版会报 41030，改用体验版。
+// 测试版直接用体验版（体验版默认连测试服务器），scene 里加 s=t，体验版切到正式服务器时扫到了会提示切回来
 async function loginCode(id) {
+  if (cloud.isTest()) {
+    const params = { scene: 'w=' + id + '&s=t', page: LOGIN_PAGE, width: 430, checkPath: false, envVersion: 'trial' }
+    return { envVersion: 'trial', result: await cloud.openapi.wxacode.getUnlimited(params) }
+  }
   const base = { scene: 'w=' + id, page: LOGIN_PAGE, width: 430 }
   try {
     const result = await cloud.openapi.wxacode.getUnlimited(Object.assign({ checkPath: true, envVersion: 'release' }, base))

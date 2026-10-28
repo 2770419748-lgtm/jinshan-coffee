@@ -36,7 +36,8 @@ Page({
           wx.showToast({ title: '这不是网页后台的登录码', icon: 'none' })
           return
         }
-        wx.navigateTo({ url: '/admin/pages/web-login/web-login?id=' + id })
+        const s = loginScene.parsePathServer(res.path) === 'test' ? '&s=t' : ''
+        wx.navigateTo({ url: '/admin/pages/web-login/web-login?id=' + id + s })
       }
     })
   }

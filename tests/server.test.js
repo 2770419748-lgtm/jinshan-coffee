@@ -70,7 +70,7 @@ function upload(headers, buf, filename, folder) {
 const tokens = {}
 
 test('首页跳到网页后台；网页后台的文件能打开，目录外面的打不开', async () => {
-  assert.deepEqual(await (await fetch(base + '/healthz')).json(), { ok: true })
+  assert.deepEqual(await (await fetch(base + '/healthz')).json(), { ok: true, env: 'prod' })
   const home = await fetch(base + '/', { redirect: 'manual' })
   assert.equal(home.status, 302)
   assert.equal(home.headers.get('location'), '/admin/')

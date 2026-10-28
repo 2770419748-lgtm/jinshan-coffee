@@ -49,7 +49,7 @@
 
 ## 三、部署到服务器
 
-> 现在服务器已经改成系统服务 `jinshan`，代码合进 `main` 就由 GitHub 自动部署，不用再上传压缩包、不用在宝塔里重启，见 [deploy/README.md](deploy/README.md)。下面是最初第一次手动部署的做法，留着备查；**不要再在宝塔里添加或启动 Node 项目**，会和系统服务抢 3000 端口。HTTPS 也改按 deploy/README.md 的「备案下来以后配 HTTPS」做。
+> 现在服务器已经改成系统服务 `jinshan`，代码合进 `main` 就由 GitHub 自动部署到测试版（同一台服务器的 3001 端口，数据和正式版分开），试过没问题再部署到正式版，不用再上传压缩包、不用在宝塔里重启，见 [deploy/README.md](deploy/README.md)。下面是最初第一次手动部署的做法，留着备查；**不要再在宝塔里添加或启动 Node 项目**，会和系统服务抢 3000 端口。HTTPS 也改按 deploy/README.md 的「备案下来以后配 HTTPS」做。
 
 ### 1. 上传代码
 
@@ -102,8 +102,8 @@ Node 项目列表里点这个项目的「设置」→「SSL」→「Let's Encryp
 
 ### 5. 配小程序
 
-1. **服务器域名**：公众平台「开发管理 → 开发设置 → 服务器域名」，在 `request 合法域名`、`uploadFile 合法域名`、`downloadFile 合法域名` 三处都填 `https://你的域名`。
-2. **服务器地址**：用记事本打开 `miniprogram/config.js`，把 `apiBase` 改成 `'https://你的域名'`。
+1. **服务器域名**：公众平台「开发管理 → 开发设置 → 服务器域名」，在 `request 合法域名`、`uploadFile 合法域名`、`downloadFile 合法域名` 三处都填 `https://你的域名`（有测试版的话，`https://test.你的域名` 也填上）。
+2. **服务器地址**：用记事本打开 `miniprogram/config.js`，把 `apiBase` 改成 `'https://你的域名'`，`testApiBase` 改成测试版的地址（比如 `'https://test.你的域名'`）。正式发布的版本连 `apiBase`，开发者工具和体验版连 `testApiBase`；`testApiBase` 留空就都连正式服务器。两个域名都要加到下面的合法域名里。
 3. **导入项目**：微信开发者工具 → 导入 → 目录选 `D:\进山咖啡小程序`（选外层这个文件夹，不是里面的 `miniprogram`）→ AppID 已经写在 `project.config.json` 里。
 4. **绑定店主**：点「编译」运行 →「我的」→「店主绑定」，填称呼和配置文件里的 `ownerCode`。第一个绑定的人就是店主，绑定后这个入口会消失。
 5. **建菜单**：「我的」→「管理后台」→「商品管理」→「导入示例菜单试试」，再把示例改成店里的真实商品。也可以先在「分类管理」建分类，再新增商品。
@@ -180,7 +180,7 @@ Node 项目列表里点这个项目的「设置」→「SSL」→「Let's Encryp
 - **数据**都在 `/www/wwwroot/jinshan/server/data`：`jinshan.db` 是数据库，`uploads/` 是商品图、书封面和桌码，`backups/` 是每天凌晨 4 点以后自动备份的数据库，保留 14 天。
 - **多一层保险**：轻量应用服务器控制台 →「快照」设置定期快照；也可以隔一阵把 `backups` 里最新的文件下载到电脑上。
 - **从备份恢复**：见 [deploy/README.md](deploy/README.md) 的「从备份恢复数据库」。
-- **更新代码**：合进 `main` 就自动部署（部署前自动备份数据库和旧代码，启动不了自动退回上一版），见 [deploy/README.md](deploy/README.md)。`config.json`、`data/`、`cert/` 不会被覆盖，不要手动删掉它们。
+- **更新代码**：合进 `main` 就自动部署到测试版，试过以后再部署到正式版（部署前自动备份数据库和旧代码，启动不了自动退回上一版），见 [deploy/README.md](deploy/README.md)。`config.json`、`data/`、`cert/` 不会被覆盖，不要手动删掉它们。
 - **看报错**：宝塔终端里 `sudo jinshan-ops logs 200` 或 `journalctl -u jinshan -f`。
 
 ## 八、收银电脑打小票
@@ -377,7 +377,8 @@ deploy/                 服务器运维脚本 jinshan-ops.sh 和自动部署说�
 
 ## 开发
 
-- 分支：`main` 就是服务器上跑的版本。新改动从 `main` 拉分支、开 PR，合进 `main` 后 `server/` 或 `admin-web/dist/` 有变化就自动部署；小程序还是在开发者工具里上传。
+- 分支：新改动从 `main` 拉分支、开 PR，合进 `main` 后 `server/` 或 `admin-web/dist/` 有变化就自动部署到测试版，试过再手动部署到正式版；小程序还是在开发者工具里上传。
+- 测试版：服务器 `config.json` 里 `env` 填 `test` 就是测试版，不收真钱（不读商户号）、订阅消息只发给店主和店员、扫码登录出体验版的码、网页后台顶上标「测试版」。小程序按版本连哪台服务器见 `miniprogram/utils/server.js`。
 - `npm test`：在内存数据库里把点单、借书计时、赠饮券、会员储值和余额付款、集星、出餐通知和到期提醒、网页登录、在线支付和退款，洗车预约（防超约、上门费、取消规则、技师接单）、洗车储值和次卡（防重复扣）、送咖啡券、两个小程序认同一个人等流程跑一遍，也测数据库、微信接口（含订阅消息）、微信支付 v3 签名和解密、整个 HTTP 服务器。需要 Node 22.13 以上，不用安装依赖。
 - 本地跑服务器：`cd server`，复制 `config.example.json` 为 `config.json`，`npm start`，打开 http://127.0.0.1:3000/admin/ 。
 - 网页后台：`cd admin-web && npm install`，`npm run build` 打包到 `dist`；`npm run mock` 用假数据预览（打开 http://localhost:8787 ，账号 boss，密码 jinshan2026，扫码登录页下面有「预览模式：模拟手机确认」）；`npm run dev` 开发时配合 `npm run mock` 一起用。

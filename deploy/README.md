@@ -1,10 +1,11 @@
 # 自动部署和运维
 
-设置好以后，服务器程序和电脑网页后台的更新都由 GitHub 自动完成，不用再上传 zip、不用去宝塔点重启：
+设置好以后，服务器程序和电脑网页后台的更新都由 GitHub 自动完成，不用再上传 zip、不用去宝塔点重启。同一台服务器上跑两份：**正式版**（3000 端口，店里真用的）和**测试版**（3001 端口，数据从正式版复制，随便试），见下面「测试版」一节。
 
-- `main` 分支上 `server/` 或 `admin-web/dist/` 有改动，就自动部署到服务器。
-- 也可以在 GitHub 仓库的 **Actions → 部署到服务器 → Run workflow** 手动部署任意分支或提交。
-- 日常运维在 **Actions → 服务器运维 → Run workflow** 里选：`status` 看状态、`logs` 看日志、`restart` 重启、`backup` 马上备份数据库、`rollback` 退回上一版。
+- `main` 分支上 `server/` 或 `admin-web/dist/` 有改动，就自动部署到**测试版**。
+- 测试版试过没问题，在 GitHub 仓库的 **Actions → 部署到服务器 → Run workflow** 里「部署到哪里」选 `prod`、分支留空，就把测试版现在跑的那个版本部署到**正式版**。
+- 也可以在这里手动部署任意分支或提交到测试版（选 `test`，填分支名）。
+- 日常运维在 **Actions → 服务器运维 → Run workflow** 里先选对哪个做（`prod` 正式版 / `test` 测试版），再选：`status` 看状态、`logs` 看日志、`restart` 重启、`backup` 马上备份数据库、`rollback` 退回上一版、`refresh-data` 把正式版现在的数据重新复制到测试版（只能对测试版做）。
 
 小程序本身（`miniprogram/`、`miniprogram-carwash/`）不在这里，改了以后还是在微信开发者工具里上传、提交审核。
 
@@ -41,6 +42,56 @@
 
 腾讯云轻量服务器的防火墙默认放行 22 端口（SSH），GitHub 就是从这个端口连进来的，不要关掉它。
 
+## 测试版
+
+和正式版在同一台服务器上，完全分开：
+
+| | 正式版 | 测试版 |
+|---|---|---|
+| 目录 | `/www/wwwroot/jinshan` | `/www/wwwroot/jinshan-test` |
+| 端口 | 3000 | 3001 |
+| 系统服务 | `jinshan` | `jinshan-test` |
+| 数据库和图片 | 自己的 `server/data` | 自己的 `server/data`，安装时从正式版复制 |
+| 部署前备份 | `/www/backup/jinshan` | `/www/backup/jinshan-test` |
+| 微信支付 | 按 `config.json` | 关闭（配置里不填商户号，程序也不读） |
+| 订阅消息 | 发给顾客 | 只发给店主和店员（复制来的数据里有真顾客） |
+| 小程序 | 正式发布的版本连这里 | 开发者工具和体验版连这里 |
+
+测试版的 `config.json` 里多了 `"env": "test"`，程序看到它才按测试版跑：网页后台顶上有一条红色「测试版」，扫码登录出体验版的码，`/healthz` 返回 `"env":"test"`。部署和启动前会检查测试版配置：`env` 是 `test`、端口不是 3000、数据目录在测试版自己的目录里、没填商户号，不对就不动。
+
+**小程序连哪台**：`miniprogram/config.js` 里 `apiBase` 是正式版地址，`testApiBase` 是测试版地址。正式发布的版本连正式版；开发者工具和体验版默认连测试版，要用体验版管店里的真数据（比如还没发布时在手机上改菜单、扫正式后台的登录码），在「我的」页面最下面点一下切到正式服务器，只对这台手机有效。扫到另一台服务器后台的登录码时，确认页会提示先切过去。
+
+**数据旧了**：测试版的数据只在安装时复制一次。想换成正式版现在的数据，运行「服务器运维」选 `test` + `refresh-data`（测试版原来的数据库会先备份到 `/www/backup/jinshan-test/db`），或者终端里 `sudo jinshan-ops test refresh-data`。
+
+### 装测试版（只做一次）
+
+正式版的自动部署装好以后，在服务器上用 root 运行一次（腾讯云轻量控制台「执行命令」或宝塔终端都行），先把本文件夹里新的 `jinshan-ops.sh` 放到服务器上：
+
+```
+sudo bash /www/wwwroot/jinshan/jinshan-ops.sh install-test 139.155.154.80
+```
+
+它会：
+
+1. 把运维脚本升级成新版（部署钥匙不变，GitHub 上的 `SERVER_SSH` 不用改）。
+2. 把正式版现在的代码复制到 `/www/wwwroot/jinshan-test`。
+3. 照正式版的 `config.json` 生成测试版的：端口 3001、`env` 是 `test`、去掉商户号、数据放测试版自己的目录。
+4. 复制正式版的数据库和图片（导出一致的副本，正式版不用停）。
+5. 建系统服务 `jinshan-test`。正式版现在的代码还不认得测试版的话先不启动，GitHub 第一次部署测试版时会自动启动。
+6. firewalld 放行 3001。
+
+正式版全程不重启、不改动。装完还要在**腾讯云轻量服务器控制台 →「防火墙」**添加规则放行 TCP `3001`，然后在 GitHub 部署一次测试版（Actions → 部署到服务器，选 `test`）。测试版的网页后台是 `http://139.155.154.80:3001/admin/`，账号和正式版一样（安装时复制过来的）。
+
+再运行一次 `install-test` 也没关系：已经有的代码、配置和数据都不动，只升级运维脚本、重写系统服务并重启测试版。以后改了 `jinshan-ops.sh`，也用这条命令升级，不用重新运行 `install`、不用换钥匙。
+
+### 备案下来以后
+
+测试版用 `test.pigkun.com`（主域名备案了，子域名不用另外备案）：宝塔反向代理 `test.pigkun.com` → `http://127.0.0.1:3001`，申请证书；测试版 `config.json` 的 `host` 改成 `"127.0.0.1"`、`publicUrl` 改成 `https://test.pigkun.com`，重启测试版；`miniprogram/config.js` 的 `testApiBase` 改成 `https://test.pigkun.com`，公众平台合法域名加上它；最后删掉两处防火墙里的 3001。
+
+### 不要测试版了
+
+`systemctl disable --now jinshan-test`，删掉 `/etc/systemd/system/jinshan-test.service`，`firewall-cmd --permanent --remove-port=3001/tcp && firewall-cmd --reload`，腾讯云防火墙删掉 3001。`/www/wwwroot/jinshan-test` 确认不要了再删。`miniprogram/config.js` 的 `testApiBase` 改成空，小程序就都连正式版；`deploy.yml` 里 push 自动部署的目标也要改回正式版。
+
 ## 在服务器上直接操作
 
 宝塔「终端」里也能用同样的命令：
@@ -51,9 +102,11 @@ sudo jinshan-ops logs 200        # 最近 200 行日志
 sudo jinshan-ops restart         # 重启
 sudo jinshan-ops backup          # 马上备份数据库
 sudo jinshan-ops rollback        # 退回上一版代码
+sudo jinshan-ops test status     # 前面加 test 就是对测试版做，比如看测试版的状态
+sudo jinshan-ops test refresh-data   # 把正式版现在的数据重新复制到测试版
 ```
 
-也可以用系统自带的命令：`systemctl status jinshan`、`journalctl -u jinshan -f`。
+也可以用系统自带的命令：`systemctl status jinshan`、`journalctl -u jinshan -f`（测试版是 `jinshan-test`）。
 
 - 现在线上是哪个版本：`/www/wwwroot/jinshan/.deploy-version`
 - 部署记录：`/www/backup/jinshan/history.log`
@@ -85,4 +138,4 @@ deploy/jinshan-ops.sh            服务器上的运维脚本（install 时装到
 .github/scripts/server.sh        GitHub 上连服务器用的小工具（读 SERVER_SSH、断线重试）
 ```
 
-改了 `jinshan-ops.sh` 以后，要在服务器上重新运行一次 install 才生效（这个脚本有 root 权限，所以故意不让 GitHub 自动更新它）。
+改了 `jinshan-ops.sh` 以后，要在服务器上重新运行一次 `install-test`（或 `install`，会换钥匙）才生效（这个脚本有 root 权限，所以故意不让 GitHub 自动更新它）。

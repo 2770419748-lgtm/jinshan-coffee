@@ -1,10 +1,18 @@
-# 进山服务器的日常运维，在 Actions 里手动运行：
+# 进山服务器的日常运维，在 Actions 里手动运行（目标选 test 就是对测试版做）：
 #   status 看状态  logs 看日志  restart 重启  backup 马上备份数据库  rollback 退回上一版
+#   refresh-data 把正式版现在的数据重新复制到测试版（只能对测试版做，测试版原来的数据库会先备份）
 name: 服务器运维
 
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: '对哪个做：prod 正式版，test 测试版'
+        type: choice
+        options:
+          - prod
+          - test
+        default: prod
       action:
         description: '要做什么'
         type: choice
@@ -14,6 +22,7 @@ on:
           - restart
           - backup
           - rollback
+          - refresh-data
         default: status
       lines:
         description: '看日志时显示最近多少行'
@@ -31,6 +40,10 @@ jobs:
   ops:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # 指明 bash 才会带上 pipefail，失败时 | tee 后面这一步也算失败
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,20 +55,29 @@ jobs:
           echo "::error::仓库现在是公开的，服务器日志里有店里的数据，不在这里显示。把仓库改成私有后再看。"
           exit 1
 
+      - name: 正式版不能复制数据
+        if: inputs.action == 'refresh-data' && inputs.target != 'test'
+        run: |
+          echo "::error::refresh-data 是把正式版的数据复制到测试版，目标要选 test"
+          exit 1
+
       - name: 连接服务器
         env:
           SERVER_SSH: ${{ secrets.SERVER_SSH }}
         run: bash .github/scripts/server.sh setup
 
-      - name: 执行 ${{ inputs.action }}
+      - name: 执行 ${{ inputs.action }}（${{ inputs.target }}）
         env:
+          TARGET: ${{ inputs.target }}
           ACTION: ${{ inputs.action }}
           LOG_LINES: ${{ inputs.lines }}
         run: |
           case $LOG_LINES in '' | *[!0-9]*) LOG_LINES=200 ;; esac
+          if [ "$TARGET" = test ]; then name=测试版; prefix="test"; else name=正式版; prefix=""; fi
+          # shellcheck disable=SC2086 # prefix 为空时不传
           if [ "$ACTION" = logs ]; then
-            bash .github/scripts/server.sh logs "$LOG_LINES"
+            bash .github/scripts/server.sh $prefix logs "$LOG_LINES"
           else
-            bash .github/scripts/server.sh "$ACTION" 2>&1 | tee "$RUNNER_TEMP/out.log"
-            { echo "### $ACTION"; echo '```'; cat "$RUNNER_TEMP/out.log"; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
+            bash .github/scripts/server.sh $prefix "$ACTION" 2>&1 | tee "$RUNNER_TEMP/out.log"
+            { echo "### $name $ACTION"; echo '```'; cat "$RUNNER_TEMP/out.log"; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
           fi

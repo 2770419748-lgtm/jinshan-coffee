@@ -1,12 +1,19 @@
 const api = require('../../../utils/api')
 const guard = require('../../../utils/guard')
 const config = require('../../../config')
+const server = require('../../../utils/server')
+
+// 电脑后台网址：config 里填了就用它（那是正式的）；连测试服务器时用测试服务器的
+function webUrl() {
+  if (config.webAdminUrl && server.current() === 'prod') return config.webAdminUrl
+  return api.base() ? api.base() + '/admin/' : ''
+}
 
 Page({
   data: {
     ready: false,
     current: '', // 已经设好的账号
-    webUrl: config.webAdminUrl || (api.base() ? api.base() + '/admin/' : ''),
+    webUrl: '',
     username: '',
     password: '',
     password2: '',
@@ -14,6 +21,7 @@ Page({
   },
 
   onLoad() {
+    this.setData({ webUrl: webUrl() })
     guard.loadStaff().then((staff) => {
       if (!staff) return
       api.common('getWebAccount').then(({ username }) => {
