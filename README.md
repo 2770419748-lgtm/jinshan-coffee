@@ -49,6 +49,8 @@
 
 ## 三、部署到服务器
 
+> 现在服务器已经改成系统服务 `jinshan`，代码合进 `main` 就由 GitHub 自动部署，不用再上传压缩包、不用在宝塔里重启，见 [deploy/README.md](deploy/README.md)。下面是最初第一次手动部署的做法，留着备查；**不要再在宝塔里添加或启动 Node 项目**，会和系统服务抢 3000 端口。HTTPS 也改按 deploy/README.md 的「备案下来以后配 HTTPS」做。
+
 ### 1. 上传代码
 
 服务器上只需要 `server` 和 `admin-web/dist` 两个文件夹，放成这个样子：
@@ -177,9 +179,9 @@ Node 项目列表里点这个项目的「设置」→「SSL」→「Let's Encryp
 
 - **数据**都在 `/www/wwwroot/jinshan/server/data`：`jinshan.db` 是数据库，`uploads/` 是商品图、书封面和桌码，`backups/` 是每天凌晨 4 点以后自动备份的数据库，保留 14 天。
 - **多一层保险**：轻量应用服务器控制台 →「快照」设置定期快照；也可以隔一阵把 `backups` 里最新的文件下载到电脑上。
-- **从备份恢复**：在宝塔里停止 Node 项目 → 把 `data/jinshan.db` 改名留底，同时删掉旁边的 `jinshan.db-wal`、`jinshan.db-shm` → 把要恢复的备份复制成 `data/jinshan.db` → 启动项目。
-- **更新代码**：把新的 `server` 和 `admin-web` 压缩上传，解压时覆盖。`config.json`、`data/`、`cert/` 不在压缩包里，不会被覆盖，但不要手动删掉它们。更新完在宝塔里重启 Node 项目。
-- **看报错**：宝塔 Node 项目的「日志」。
+- **从备份恢复**：见 [deploy/README.md](deploy/README.md) 的「从备份恢复数据库」。
+- **更新代码**：合进 `main` 就自动部署（部署前自动备份数据库和旧代码，启动不了自动退回上一版），见 [deploy/README.md](deploy/README.md)。`config.json`、`data/`、`cert/` 不会被覆盖，不要手动删掉它们。
+- **看报错**：宝塔终端里 `sudo jinshan-ops logs 200` 或 `journalctl -u jinshan -f`。
 
 ## 八、收银电脑打小票
 
@@ -332,6 +334,8 @@ admin-web/              电脑网页后台（Vue 3 + Element Plus）
   src/                  源代码
   mock/                 本地预览用：真正的服务器代码 + 内存里的假数据
 tests/                  本地测试（不参与小程序打包）
+deploy/                 服务器运维脚本 jinshan-ops.sh 和自动部署说明
+.github/                GitHub Actions：部署到服务器、服务器运维
 ```
 
 ## 数据集合
@@ -373,6 +377,7 @@ tests/                  本地测试（不参与小程序打包）
 
 ## 开发
 
+- 分支：`main` 就是服务器上跑的版本。新改动从 `main` 拉分支、开 PR，合进 `main` 后 `server/` 或 `admin-web/dist/` 有变化就自动部署；小程序还是在开发者工具里上传。
 - `npm test`：在内存数据库里把点单、借书计时、赠饮券、会员储值和余额付款、集星、出餐通知和到期提醒、网页登录、在线支付和退款，洗车预约（防超约、上门费、取消规则、技师接单）、洗车储值和次卡（防重复扣）、送咖啡券、两个小程序认同一个人等流程跑一遍，也测数据库、微信接口（含订阅消息）、微信支付 v3 签名和解密、整个 HTTP 服务器。需要 Node 22.13 以上，不用安装依赖。
 - 本地跑服务器：`cd server`，复制 `config.example.json` 为 `config.json`，`npm start`，打开 http://127.0.0.1:3000/admin/ 。
 - 网页后台：`cd admin-web && npm install`，`npm run build` 打包到 `dist`；`npm run mock` 用假数据预览（打开 http://localhost:8787 ，账号 boss，密码 jinshan2026，扫码登录页下面有「预览模式：模拟手机确认」）；`npm run dev` 开发时配合 `npm run mock` 一起用。
