@@ -14,6 +14,7 @@
           <text class="faint mode">{{f.mode(item.mode)}}{{item.tableNo ? ' · ' + item.tableNo + ' 号桌' : ''}}</text>
         </view>
         <text class="tag danger" wx:if="{{item.awaitingPay && item.payStatus === 'unpaid' && item.status === 'pending'}}">待付款</text>
+        <text class="tag {{item.delivery.status === 'delivered' ? 'ok' : 'gold'}}" wx:elif="{{item.delivery && item.status !== 'cancelled' && item.delivery.status !== 'waiting' && item.delivery.status !== 'cancelled'}}">{{item.delivery.statusText}}</text>
         <text class="tag {{item.status === 'done' ? 'ok' : item.status === 'cancelled' ? '' : 'gold'}}" wx:else>{{f.status(item.status)}}</text>
       </view>
       <view class="muted brief">{{f.itemsBrief(item.items)}}</view>

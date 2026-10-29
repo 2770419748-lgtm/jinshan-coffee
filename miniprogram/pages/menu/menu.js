@@ -2,12 +2,14 @@ const api = require('../../utils/api')
 const cart = require('../../utils/cart')
 const table = require('../../utils/table')
 const reserve = require('../../utils/reserve')
+const delivery = require('../../utils/delivery')
 
 Page({
   data: {
     loading: true,
     tableNo: '',
     reserving: false,
+    delivering: false, // 外送点单：结算时选收货地址
     scrollTo: '',
     focusId: '',
     categories: [],
@@ -29,7 +31,7 @@ Page({
   },
 
   onShow() {
-    this.setData({ tableNo: table.get(), reserving: reserve.active() })
+    this.setData({ tableNo: table.get(), reserving: reserve.active(), delivering: delivery.active() })
     this.refreshCart()
     this.applyFocus()
   },
@@ -54,6 +56,11 @@ Page({
   stopReserve() {
     reserve.off()
     this.setData({ reserving: false })
+  },
+
+  stopDelivery() {
+    delivery.off()
+    this.setData({ delivering: false })
   },
 
   onPullDownRefresh() {

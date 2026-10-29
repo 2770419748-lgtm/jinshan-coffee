@@ -39,7 +39,7 @@
   </view>
 
   <view class="body">
-    <!-- 三个入口 -->
+    <!-- 入口：吧台自取、桌面扫码、预约；店里开了外送再多一个外送 -->
     <view class="entries">
       <view class="entry" bindtap="pickup" hover-class="btn-hover">
         <image class="entry-icon" src="/images/home/pickup.png" />
@@ -55,6 +55,11 @@
         <image class="entry-icon" src="/images/home/reserve.png" />
         <view class="entry-title">预约</view>
         <view class="entry-sub">{{reserveEnabled ? '提前点，到点取' : '暂未开放'}}</view>
+      </view>
+      <view class="entry {{delivery.inHours ? '' : 'off'}}" wx:if="{{delivery}}" bindtap="deliver" hover-class="btn-hover">
+        <image class="entry-icon" src="/images/home/delivery.png" />
+        <view class="entry-title">外送</view>
+        <view class="entry-sub">{{delivery.inHours ? (delivery.minOrder ? f.yuan(delivery.minOrder) + ' 元起送' : '送到家') : delivery.hours.open + ' 开始送'}}</view>
       </view>
     </view>
 

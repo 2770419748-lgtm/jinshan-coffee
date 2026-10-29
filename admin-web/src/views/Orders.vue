@@ -22,6 +22,7 @@
       <el-table-column label="桌号" width="90">
         <template #default="{ row }">
           <el-tag v-if="row.tableNo" size="small">{{ row.tableNo }} 号桌</el-tag>
+          <el-tag v-else-if="row.delivery" size="small" type="warning" effect="dark">外送</el-tag>
           <el-tag v-else size="small" type="info">{{ MODE[row.mode] }}</el-tag>
         </template>
       </el-table-column>
@@ -31,6 +32,20 @@
             {{ line.name }}<span class="muted" v-if="line.specs.length">（{{ specText(line.specs) }}）</span> × <b>{{ line.qty }}</b>
           </div>
           <div v-if="row.remark" class="gold">备注：{{ row.remark }}</div>
+          <div v-if="row.delivery" class="delivery">
+            <div>
+              <el-tag size="small" :type="DELIVERY_TAG[row.delivery.status]">{{ row.delivery.statusText }}</el-tag>
+              <span v-if="row.delivery.carrierName" class="sep">{{ row.delivery.carrierName }}</span>
+              <span v-if="row.delivery.sandbox" class="muted sep">测试单</span>
+              <span class="muted sep">{{ row.delivery.distanceKm }} 公里</span>
+            </div>
+            <div class="addr">{{ row.delivery.address.place }} {{ row.delivery.address.detail }}</div>
+            <div>{{ row.delivery.address.name }} {{ row.delivery.address.phone }}</div>
+            <div v-if="row.delivery.rider">骑手 {{ row.delivery.rider.name }} {{ row.delivery.rider.phone }}</div>
+            <div v-if="row.delivery.fetchCode">取货码 <b>{{ row.delivery.fetchCode }}</b></div>
+            <div v-if="row.delivery.error" class="danger small">{{ row.delivery.error }}</div>
+            <div v-else-if="row.delivery.note" class="muted small">{{ row.delivery.note }}</div>
+          </div>
         </template>
       </el-table-column>
       <el-table-column label="金额" width="140">
@@ -39,6 +54,10 @@
           <div v-if="row.discountFee - (row.couponFee || 0) - (row.starFee || 0)" class="muted small">赠饮券 -¥{{ yuan(row.discountFee - (row.couponFee || 0) - (row.starFee || 0)) }}</div>
           <div v-if="row.starRedeem" class="gold small">集星换{{ row.starRedeem.name }} -¥{{ yuan(row.starFee) }}</div>
           <div v-if="row.couponFee" class="muted small">代金券 -¥{{ yuan(row.couponFee) }}</div>
+          <div v-if="row.delivery" class="muted small">含配送费 ¥{{ yuan(row.deliveryFee) }}</div>
+          <div v-if="row.delivery && (row.delivery.courierFee || row.delivery.deductTotal)" class="muted small">
+            运费 ¥{{ yuan(row.delivery.status === 'cancelled' ? 0 : row.delivery.courierFee) }}<span v-if="row.delivery.deductTotal">，违约金 ¥{{ yuan(row.delivery.deductTotal) }}</span>
+          </div>
           <el-tag size="small" :type="row.payStatus === 'paid' ? 'success' : row.payStatus === 'refunded' ? 'info' : 'danger'">
             {{ PAY[row.payStatus] }}{{ METHOD[row.payMethod] && row.payStatus !== 'unpaid' ? '（' + METHOD[row.payMethod] + '）' : '' }}
           </el-tag>
@@ -49,6 +68,14 @@
       </el-table-column>
       <el-table-column label="操作" width="300">
         <template #default="{ row }">
+          <div v-if="deliveryOps(row)" class="courier-ops">
+            <el-button v-if="deliveryOps(row).call" size="small" type="warning" @click="callRider(row)">叫骑手</el-button>
+            <el-button v-if="deliveryOps(row).self" size="small" @click="courierAct(row, 'self')">店员送出</el-button>
+            <el-button v-if="deliveryOps(row).delivered" size="small" type="success" @click="courierAct(row, 'delivered')">已送达</el-button>
+            <el-button v-if="deliveryOps(row).refresh" size="small" @click="courierAct(row, 'refresh')">刷新进度</el-button>
+            <el-button v-if="deliveryOps(row).mock" size="small" @click="courierAct(row, 'mock')">模拟{{ MOCK_TEXT[deliveryOps(row).mock] }}</el-button>
+            <el-button v-if="deliveryOps(row).cancel" size="small" link type="danger" @click="courierAct(row, 'cancel')">取消配送</el-button>
+          </div>
           <el-button size="small" link @click="printOne(row)">打印</el-button>
           <el-button v-if="row.payStatus === 'unpaid' && row.status !== 'cancelled'" size="small" @click="act(row, 'paid')">已收款</el-button>
           <el-button v-if="row.status === 'pending'" size="small" type="primary" @click="act(row, 'making')">开始制作</el-button>
@@ -102,12 +129,18 @@ const tabs = [
   { key: 'cancelled', name: '已取消' }
 ]
 const PAY = { unpaid: '未收款', paid: '已收款', refunded: '已退款' }
+const DELIVERY_TAG = { waiting: 'warning', calling: 'warning', accepted: 'primary', arrived: 'primary', delivering: 'primary', delivered: 'success', cancelled: 'info', abnormal: 'danger' }
+const LIVE = ['calling', 'accepted', 'arrived', 'delivering', 'abnormal']
+// 测试单模拟骑手：下一步
+const MOCK_NEXT = { calling: 'accepted', accepted: 'arrived', arrived: 'delivering', delivering: 'delivered' }
+const MOCK_TEXT = { accepted: '骑手接单', arrived: '骑手到店', delivering: '骑手取货', delivered: '送达' }
 const METHOD = { wechat: '微信', balance: '余额', member: '会员免费' }
 
 const status = ref('pending')
 const day = ref(cnDay())
 const orders = ref([])
 const counts = ref({})
+const courier = ref(null) // 外送设置里选的配送方式：{ provider, name, external, ready, sandbox }
 const loading = ref(false)
 const autoRefresh = ref(true)
 const audio = new Audio('./new-order.wav')
@@ -128,6 +161,7 @@ async function load(silent) {
     if (st === status.value) {
       orders.value = res.orders
       counts.value = res.counts
+      courier.value = res.courier
     }
   } catch (e) {
     if (!silent) ElMessage.error(e.message)
@@ -191,9 +225,78 @@ function reload() {
   load()
 }
 
+// 外送单现在能点哪些配送按钮
+function deliveryOps(row) {
+  const d = row.delivery
+  if (!d || row.status === 'cancelled' || row.payStatus !== 'paid') return null
+  const c = courier.value
+  const ops = {}
+  if (d.status === 'waiting' || d.status === 'cancelled') {
+    ops.call = !!(c && c.external && c.ready)
+    ops.self = true
+  }
+  if (['calling', 'accepted', 'arrived', 'abnormal'].indexOf(d.status) !== -1) ops.cancel = true
+  if (d.provider === 'self' ? d.status === 'delivering' : d.status === 'delivering' || d.status === 'abnormal') ops.delivered = true
+  if (d.provider !== 'self' && LIVE.indexOf(d.status) !== -1) ops.refresh = true
+  if (d.sandbox && MOCK_NEXT[d.status]) ops.mock = MOCK_NEXT[d.status]
+  return Object.keys(ops).some((k) => ops[k]) ? ops : null
+}
+
+// 叫骑手：先估运费，店员确认了再叫
+async function callRider(row) {
+  let q
+  try {
+    q = await api.coffee('courierQuote', { id: row._id })
+  } catch (e) {
+    return ElMessage.error(e.message)
+  }
+  try {
+    await ElMessageBox.confirm('预计运费 ¥' + yuan(q.fee) + (q.carrierName ? '（' + q.carrierName + '）' : '') + '，从门店的运费余额里扣。骑手接单后再取消可能扣违约金。', '叫骑手', { confirmButtonText: '叫骑手', cancelButtonText: '先不叫' })
+  } catch (e) {
+    return
+  }
+  try {
+    await api.coffee('callCourier', { id: row._id, provider: courier.value.provider })
+    ElMessage.success('已叫骑手，等骑手接单')
+  } catch (e) {
+    ElMessage.error(e.message)
+  }
+  load(true)
+}
+
+const COURIER_CONFIRM = {
+  self: ['确定由店员自己送这单吗？东西出门后点，送到了再点「已送达」。', '店员送', '送出了'],
+  delivered: ['确定已经送到顾客手上了吗？', '已送达', '已送达'],
+  cancel: ['订单不取消，只是不让这个骑手送了，之后可以重新叫或者店员送。骑手已经接单的，配送公司可能扣违约金。', '取消配送', '取消配送']
+}
+
+// 店员送出、已送达、取消配送、刷新进度、测试单模拟骑手
+async function courierAct(row, op) {
+  const ask = COURIER_CONFIRM[op]
+  if (ask) {
+    try {
+      await ElMessageBox.confirm(ask[0], ask[1], { confirmButtonText: ask[2], cancelButtonText: '先不', type: op === 'cancel' ? 'warning' : undefined })
+    } catch (e) {
+      return
+    }
+  }
+  try {
+    if (op === 'self') await api.coffee('callCourier', { id: row._id, provider: 'self' })
+    else if (op === 'delivered') await api.coffee('markDelivered', { id: row._id })
+    else if (op === 'cancel') await api.coffee('cancelCourier', { id: row._id })
+    else if (op === 'refresh') await api.coffee('refreshCourier', { id: row._id })
+    else if (op === 'mock') await api.coffee('mockCourier', { id: row._id, status: MOCK_NEXT[row.delivery.status] })
+  } catch (e) {
+    ElMessage.error(e.message)
+  }
+  load(true)
+}
+
 function cancelText(row) {
-  // 用星换的单，取消后星星退回
-  const stars = row.starRedeem ? '用掉的 ' + row.starRedeem.stars + ' 颗星会退回给顾客。' : ''
+  // 用星换的单，取消后星星退回；已经叫了骑手的外送单先取消骑手
+  const d = row.delivery
+  const rider = d && d.provider !== 'self' && LIVE.indexOf(d.status) !== -1 ? '会先取消骑手，骑手接单后取消可能扣违约金。' : ''
+  const stars = rider + (row.starRedeem ? '用掉的 ' + row.starRedeem.stars + ' 颗星会退回给顾客。' : '')
   if (row.payStatus !== 'paid') return '确定取消这单？' + stars
   if (row.payMethod === 'wechat') return '这单是微信支付的，取消后钱会原路退回顾客的微信。' + stars
   if (row.payMethod === 'voucher') return '这单全部用券或星星抵扣，取消后券和星星会退回给顾客。'
@@ -242,6 +345,18 @@ onBeforeUnmount(stopTimer)
   font-size: 12px;
 }
 .small { font-size: 12px; }
+.delivery {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  line-height: 1.7;
+}
+.delivery .addr { font-weight: 600; }
+.delivery .sep { margin-left: 6px; }
+.danger { color: var(--el-color-danger); }
+.courier-ops { margin-bottom: 6px; }
+.courier-ops .el-button { margin: 0 6px 4px 0; }
 .sep { margin-left: 10px; }
 .print-on { margin-left: 6px; }
 .tip code { font-size: 12px; }

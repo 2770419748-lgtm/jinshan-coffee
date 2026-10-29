@@ -30,6 +30,9 @@
     <view class="cell cell-arrow" bindtap="goCoupons" hover-class="btn-hover">
       <text class="flex-1">领券中心</text>
     </view>
+    <view class="cell cell-arrow" wx:if="{{delivery}}" bindtap="goAddresses" hover-class="btn-hover">
+      <text class="flex-1">收货地址</text>
+    </view>
     <view class="cell cell-arrow" wx:if="{{user && user.staff}}" bindtap="goAdmin" hover-class="btn-hover">
       <text class="flex-1 gold">管理后台</text>
     </view>

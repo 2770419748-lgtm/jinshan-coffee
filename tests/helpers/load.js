@@ -5,7 +5,14 @@ const { Database } = require('../../server/lib/db')
 const fakes = require('./fakes')
 
 const db = new Database(':memory:')
-platform.configure({ db, wechat: fakes.wechat, pay: fakes.pay, storage: fakes.storage, carwash: { wechat: fakes.carwashWechat, pay: fakes.carwashPay } })
+platform.configure({
+  db,
+  wechat: fakes.wechat,
+  pay: fakes.pay,
+  storage: fakes.storage,
+  carwash: { wechat: fakes.carwashWechat, pay: fakes.carwashPay },
+  couriers: { wechat: fakes.courier }
+})
 
 const root = path.join(__dirname, '..', '..', 'server', 'functions')
 const common = require(path.join(root, 'common.js'))
@@ -45,4 +52,4 @@ function setDoc(collection, id, data) {
 
 const cloud = { __db: db, __state: fakes.state }
 
-module.exports = { cloud, db, state: fakes.state, as, unwrap, getDoc, setDoc, modules: { common, coffee, book, member, carwash } }
+module.exports = { cloud, db, state: fakes.state, as, unwrap, getDoc, setDoc, courierStatus: fakes.courierStatus, modules: { common, coffee, book, member, carwash } }

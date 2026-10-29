@@ -54,6 +54,11 @@
         <div class="value">换 {{ coffee.totals.starCups || 0 }} 杯</div>
         <div class="sub">抵扣 ¥{{ yuan(coffee.totals.starFee || 0) }} · 发出 {{ coffee.totals.starsIssued || 0 }} 颗星</div>
       </div>
+      <div class="stat" v-if="hasDelivery">
+        <div class="label">外送</div>
+        <div class="value">{{ coffee.totals.deliveryOrders }} 单</div>
+        <div class="sub">顾客付配送费 ¥{{ yuan(coffee.totals.deliveryFee) }} · 付给配送公司 ¥{{ yuan(coffee.totals.courierFee) }}</div>
+      </div>
       <div class="stat">
         <div class="label">收款方式（含充值）</div>
         <div class="value small">吧台 ¥{{ yuan(coffee.totals.counterFee + book.totals.counterFee + member.totals.counterFee) }}</div>
@@ -84,6 +89,9 @@
         <el-table-column label="赠饮抵扣"><template #default="{ row }">¥{{ yuan(row.discount) }}</template></el-table-column>
         <el-table-column label="代金券抵扣"><template #default="{ row }">¥{{ yuan(row.coupon) }}</template></el-table-column>
         <el-table-column label="集星兑换"><template #default="{ row }">¥{{ yuan(row.star) }}</template></el-table-column>
+        <el-table-column v-if="hasDelivery" label="外送单数" prop="deliveryOrders" />
+        <el-table-column v-if="hasDelivery" label="配送费"><template #default="{ row }">¥{{ yuan(row.deliveryFee) }}</template></el-table-column>
+        <el-table-column v-if="hasDelivery" label="付配送公司"><template #default="{ row }">¥{{ yuan(row.courierFee) }}</template></el-table-column>
         <el-table-column label="借书次数" prop="rentals" />
         <el-table-column label="租金实收"><template #default="{ row }">¥{{ yuan(row.bookPaid) }}</template></el-table-column>
         <el-table-column label="超时费"><template #default="{ row }">¥{{ yuan(row.overtime) }}</template></el-table-column>
@@ -113,7 +121,7 @@
       </el-card>
     </div>
 
-    <div class="tip">金额按下单日期统计；“实收”只算已经收款的单，取消的单不算。用会员余额付的单不算进实收，钱在顾客充值那天已经算过了（充值只算本金，送的不算）。</div>
+    <div class="tip">金额按下单日期统计；“实收”只算已经收款的单，取消的单不算。用会员余额付的单不算进实收，钱在顾客充值那天已经算过了（充值只算本金，送的不算）。<template v-if="hasDelivery">外送单的配送费含在咖啡实收里；“付配送公司”是叫骑手的运费和取消扣的违约金，从门店的运费余额里扣，不在实收里减。</template></div>
   </div>
 </template>
 
@@ -145,6 +153,7 @@ const bookCash = computed(() => book.value.totals.paidFee - (book.value.totals.b
 const rechargeCash = computed(() => member.value.totals.onlineFee + member.value.totals.counterFee)
 const balanceSpent = computed(() => (coffee.value.totals.balanceFee || 0) + (book.value.totals.balanceFee || 0) + (book.value.totals.overtimeBalance || 0))
 const totalPaid = computed(() => coffeeCash.value + bookCash.value + rechargeCash.value)
+const hasDelivery = computed(() => !!coffee.value && !!(coffee.value.totals.deliveryOrders || coffee.value.totals.courierFee))
 const totalUnpaid = computed(() => coffee.value.totals.unpaidFee + book.value.totals.unpaidFee + book.value.totals.overtimeUnpaid)
 
 const rows = computed(() => {
@@ -163,6 +172,9 @@ const rows = computed(() => {
       discount: c.discountFee - (c.couponFee || 0) - (c.starFee || 0),
       coupon: c.couponFee || 0,
       star: c.starFee || 0,
+      deliveryOrders: c.deliveryOrders || 0,
+      deliveryFee: c.deliveryFee || 0,
+      courierFee: c.courierFee || 0,
       rentals: b.rentals,
       bookPaid,
       overtime,
@@ -195,6 +207,11 @@ async function load() {
 function exportCsv() {
   const header = ['日期', '咖啡单数', '咖啡实收(元)', '赠饮抵扣(元)', '代金券抵扣(元)', '集星兑换(元)', '借书次数', '租金实收(元)', '超时费(元)', '充值(元)', '余额消费(元)', '合计实收(元)']
   const body = rows.value.map((r) => [r.day, r.orders, yuan(r.coffeePaid), yuan(r.discount), yuan(r.coupon), yuan(r.star), r.rentals, yuan(r.bookPaid), yuan(r.overtime), yuan(r.recharge), yuan(r.balance), yuan(r.total)])
+  // 有外送时在后面多三列
+  if (hasDelivery.value) {
+    header.push('外送单数', '配送费(元)', '付配送公司(元)')
+    rows.value.forEach((r, i) => body[i].push(r.deliveryOrders, yuan(r.deliveryFee), yuan(r.courierFee)))
+  }
   const products = coffee.value.products.map((p) => [p.name, p.qty, yuan(p.amount)])
   downloadCsv('进山汇总_' + range.value[0] + '_' + range.value[1] + '.csv', [header].concat(body, [[], ['商品', '杯数', '金额(元)']], products))
 }

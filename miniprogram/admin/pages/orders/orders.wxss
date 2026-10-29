@@ -72,3 +72,28 @@
   font-weight: 600;
   border: 1rpx solid var(--gold);
 }
+
+/* 外送 */
+.delivery {
+  margin-top: 16rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  background: var(--card-2);
+  font-size: 26rpx;
+}
+.delivery .addr {
+  margin-top: 8rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+.delivery .small {
+  font-size: 24rpx;
+  margin-top: 6rpx;
+}
+.courier-ops {
+  flex-wrap: wrap;
+  margin-top: 12rpx;
+}
+.courier-ops .btn-small {
+  margin: 8rpx 16rpx 0 0;
+}

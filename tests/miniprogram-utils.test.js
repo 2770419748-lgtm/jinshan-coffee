@@ -44,6 +44,19 @@ test('预约点单：2 小时后失效；扫了桌码就不是预约了', () => 
   table.clear()
 })
 
+test('外送点单：2 小时后失效；扫了桌码就不是外送了', () => {
+  const delivery = require('../miniprogram/utils/delivery')
+  delivery.on()
+  assert.equal(delivery.active(), true)
+  table.set('3')
+  assert.equal(delivery.active(), false)
+  delivery.on()
+  storage.jinshan_delivery.at -= 2 * 3600 * 1000 + 1
+  assert.equal(delivery.active(), false)
+  delivery.off()
+  table.clear()
+})
+
 const latte = {
   _id: 'p1',
   name: '拿铁',

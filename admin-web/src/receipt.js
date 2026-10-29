@@ -41,6 +41,7 @@ function payText(o) {
 }
 
 function where(o) {
+  if (o.delivery) return MODE.delivery
   if (o.reserveAt) return '预约 ' + clock(o.reserveAt) + ' 取' + (o.tableNo ? ' · ' + o.tableNo + ' 号桌' : '')
   if (o.tableNo) return MODE.dine_in + ' · ' + o.tableNo + ' 号桌'
   return MODE[o.mode] || MODE.takeaway
@@ -59,6 +60,7 @@ function receiptBody(o) {
     <div class="label">取餐号</div>
     <div class="no">${esc(o.pickupNo)}</div>
     <div class="where">${esc(where(o))}</div>
+    ${o.delivery ? `<div class="remark">${esc(o.delivery.address.place)} ${esc(o.delivery.address.detail)}<br>${esc(o.delivery.address.name)} ${esc(o.delivery.address.phone)}</div>` : ''}
     <div class="muted">下单 ${esc(time(o.createdAt))}</div>
     <div class="hr"></div>
     ${lines}
@@ -68,6 +70,7 @@ function receiptBody(o) {
     ${drink > 0 ? `<div class="row"><span>赠饮券</span><span>-¥${yuan(drink)}</span></div>` : ''}
     ${o.starRedeem ? `<div class="row"><span>集星换${esc(o.starRedeem.name)}</span><span>-¥${yuan(o.starFee)}</span></div>` : ''}
     ${o.couponFee ? `<div class="row"><span>代金券</span><span>-¥${yuan(o.couponFee)}</span></div>` : ''}
+    ${o.delivery ? `<div class="row"><span>配送费</span><span>¥${yuan(o.deliveryFee)}</span></div>` : ''}
     <div class="row total"><span>实付</span><span>¥${yuan(o.payFee)}</span></div>
     <div class="pay">${esc(payText(o))}</div>
     <div class="muted">单号 ${esc(o.orderNo)}</div>

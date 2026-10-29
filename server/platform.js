@@ -2,14 +2,16 @@
 // 原来这些由微信云开发提供（wx-server-sdk），现在换成自己服务器上的实现，接口保持一样，业务代码基本不用改。
 // 启动时先 configure() 装好各部分，再加载 functions/ 里的模块。
 // 咖啡和洗车是两个小程序、两个商户号：wechat、pay 是咖啡的，carwash: { wechat, pay } 是洗车的。
+// couriers 是第三方配送（现在只有 wechat：微信同城配送，见 lib/intracity.js）。
 const { AsyncLocalStorage } = require('async_hooks')
 
 const context = new AsyncLocalStorage()
-const parts = { db: null, wechat: null, pay: null, storage: null, carwash: null, env: null }
+const parts = { db: null, wechat: null, pay: null, storage: null, carwash: null, couriers: null, env: null }
 // 洗车小程序还没配置时用的空壳：不能登录、不能付款
 const NOT_READY = {
   wechat: { ready: () => false },
-  pay: { mchId: '', ready: () => false }
+  pay: { mchId: '', ready: () => false },
+  courier: { ready: () => false }
 }
 
 function need(name) {
@@ -66,6 +68,12 @@ module.exports = {
   payOf(shop) {
     if (shop !== 'carwash') return need('pay')
     return (parts.carwash && parts.carwash.pay) || NOT_READY.pay
+  },
+
+  // 第三方配送：name 是 wechat（微信同城配送）；服务器没配密钥时 ready() 是 false。
+  // 带着 sandbox（测试单，不叫真骑手）、notifyUrl（配送状态回调地址，没有 HTTPS 域名时为空）、notifyToken（验回调签名）
+  courierOf(name) {
+    return (parts.couriers && parts.couriers[name]) || NOT_READY.courier
   },
 
   wechatOf(shop) {

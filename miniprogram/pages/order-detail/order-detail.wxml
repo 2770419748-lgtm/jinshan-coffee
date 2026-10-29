@@ -2,14 +2,24 @@
 
 <view class="page" wx:if="{{order}}">
   <view class="card pickup-card">
-    <view class="muted">取餐号</view>
+    <view class="muted">{{order.delivery ? '外送单号' : '取餐号'}}</view>
     <view class="pickup-no">{{order.pickupNo}}</view>
     <view class="reserve-at" wx:if="{{order.reserveAt}}">预约 {{f.time(order.reserveAt)}} 取</view>
-    <view class="status {{order.status}}">{{order.payDeadline ? '待付款' : f.status(order.status)}}</view>
+    <view class="status {{order.delivery && order.delivery.status === 'delivered' ? 'done' : order.status}}" wx:if="{{order.delivery}}">{{order.payDeadline ? '待付款' : statusText}}</view>
+    <view class="status {{order.status}}" wx:else>{{order.payDeadline ? '待付款' : f.status(order.status)}}</view>
     <view class="faint cancel-reason" wx:if="{{order.status === 'cancelled' && order.cancelReason}}">{{order.cancelReason}}，已自动取消</view>
     <view class="faint cancel-reason" wx:if="{{order.notifyReady && (order.status === 'pending' || order.status === 'making')}}">做好了会在微信里通知你</view>
 
-    <view class="steps" wx:if="{{order.status !== 'cancelled'}}">
+    <view class="steps" wx:if="{{order.delivery && order.status !== 'cancelled'}}">
+      <view class="step {{step >= 1 ? 'on' : ''}}">已下单</view>
+      <view class="step-line short {{step >= 2 ? 'on' : ''}}"></view>
+      <view class="step {{step >= 2 ? 'on' : ''}}">制作中</view>
+      <view class="step-line short {{step >= 3 ? 'on' : ''}}"></view>
+      <view class="step {{step >= 3 ? 'on' : ''}}">配送中</view>
+      <view class="step-line short {{step >= 4 ? 'on' : ''}}"></view>
+      <view class="step {{step >= 4 ? 'on' : ''}}">已送达</view>
+    </view>
+    <view class="steps" wx:elif="{{order.status !== 'cancelled'}}">
       <view class="step {{step >= 1 ? 'on' : ''}}">已下单</view>
       <view class="step-line {{step >= 2 ? 'on' : ''}}"></view>
       <view class="step {{step >= 2 ? 'on' : ''}}">制作中</view>
@@ -18,7 +28,7 @@
     </view>
 
     <block wx:if="{{order.payStatus === 'unpaid' && order.status !== 'cancelled'}}">
-      <view class="pay-tip" wx:if="{{order.payDeadline}}">预约要先付款 <text class="price">{{f.yuan(order.payFee)}}</text>，请在 <text class="gold">{{f.clock(order.payDeadline)}}</text> 前付，过时自动取消</view>
+      <view class="pay-tip" wx:if="{{order.payDeadline}}">{{order.delivery ? '外送' : '预约'}}要先付款 <text class="price">{{f.yuan(order.payFee)}}</text>，请在 <text class="gold">{{f.clock(order.payDeadline)}}</text> 前付，过时自动取消</view>
       <view class="pay-tip" wx:elif="{{order.pay.enabled && !order.pay.allowCounter}}">还没付款 <text class="price">{{f.yuan(order.payFee)}}</text>，付款后开始制作</view>
       <view class="pay-tip" wx:elif="{{order.pay.enabled}}">还没付款 <text class="price">{{f.yuan(order.payFee)}}</text>，可以微信支付，也可以到吧台报取餐号付</view>
       <view class="pay-tip" wx:else>请到吧台报取餐号付款 <text class="price">{{f.yuan(order.payFee)}}</text></view>
@@ -27,6 +37,30 @@
     </block>
     <view class="pay-tip ok" wx:elif="{{order.payStatus === 'paid'}}">已付款{{f.payMethod(order.payMethod)}}</view>
     <view class="pay-tip ok" wx:elif="{{order.payStatus === 'refunded'}}">{{order.payMethod === 'balance' ? '钱已退回会员余额' : '已原路退款'}}</view>
+  </view>
+
+  <view class="card" wx:if="{{order.delivery}}">
+    <view class="rider" wx:if="{{order.delivery.rider && order.status !== 'cancelled' && order.delivery.status !== 'delivered'}}">
+      <view class="flex-1">
+        <view>骑手 {{order.delivery.rider.name}}</view>
+        <view class="faint small">{{order.delivery.carrierName ? order.delivery.carrierName + '配送' : ''}}</view>
+      </view>
+      <view class="btn-ghost btn-small" wx:if="{{order.delivery.rider.phone}}" bindtap="callRider">联系骑手</view>
+    </view>
+    <view class="addr">
+      <view class="addr-place">{{order.delivery.address.place}} {{order.delivery.address.detail}}</view>
+      <view class="muted small">{{order.delivery.address.name}} {{order.delivery.address.phone}}</view>
+    </view>
+    <view class="log" wx:if="{{order.delivery.log.length}}">
+      <view class="log-line" wx:for="{{order.delivery.log}}" wx:key="at">
+        <text class="faint log-time">{{f.clock(item.at)}}</text>
+        <text class="{{index === order.delivery.log.length - 1 ? 'gold' : 'muted'}}">{{item.text}}</text>
+      </view>
+    </view>
+    <view class="shop-call" wx:if="{{order.shopPhone}}" bindtap="callShop">
+      <text class="muted small flex-1">有问题打店里电话</text>
+      <text class="gold small">{{order.shopPhone}}</text>
+    </view>
   </view>
 
   <view class="card">
@@ -42,10 +76,14 @@
       <text class="faint qty">×{{item.qty}}</text>
       <text class="price">{{f.yuan(item.subtotal)}}</text>
     </view>
-    <block wx:if="{{order.discountFee}}">
+    <block wx:if="{{order.discountFee || order.delivery}}">
       <view class="row-between sub-row">
         <text class="muted">商品合计</text>
         <text>¥{{f.yuan(order.totalFee)}}</text>
+      </view>
+      <view class="row-between sub-row" wx:if="{{order.delivery}}">
+        <text class="muted">配送费</text>
+        <text>{{order.deliveryFee ? '¥' + f.yuan(order.deliveryFee) : '免配送费'}}</text>
       </view>
       <view class="row-between sub-row" wx:for="{{order.vouchers}}" wx:key="id">
         <text class="muted">赠饮券（{{item.name}}）</text>
@@ -61,7 +99,7 @@
       </view>
     </block>
     <view class="row-between total-row">
-      <text class="muted">{{order.discountFee ? '实付' : '合计'}}</text>
+      <text class="muted">{{order.discountFee || order.delivery ? '实付' : '合计'}}</text>
       <text class="price big">{{f.yuan(order.payFee)}}</text>
     </view>
     <view class="star-note" wx:if="{{order.starsEarn && order.status !== 'cancelled'}}" bindtap="goStars">

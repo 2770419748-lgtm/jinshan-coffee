@@ -1,7 +1,8 @@
-// 咖啡模块：菜单、下单（含预约）、微信支付、余额支付、订单处理、商品分类桌台管理、代金券、集星。
+// 咖啡模块：菜单、下单（含预约、外送）、微信支付、余额支付、订单处理、商品分类桌台管理、代金券、集星、外送配送。
 // 读写 coffee_ 开头的集合；vouchers 里是顾客的券：赠饮券（书籍模块包天时发放）和在领券中心领的代金券，下单时核销；
 // 用会员余额付款时通过 wallet.js 扣、退余额；集星通过 stars.js 给星、扣星（星星记在 members 上）；
-// 读 settings 里的支付设置、营业时间、会员设置和集星设置。
+// 读 settings 里的支付设置、营业时间、会员设置、集星设置和外送设置。
+// 外送：设置和配送费见 delivery.js，叫骑手（店员自己送、微信同城配送）见 couriers.js，顾客的收货地址存在 coffee_addresses。
 const cloud = require('../platform')
 const {
   COFFEE_ROLES,
@@ -22,12 +23,17 @@ const { readShop, hoursOf, reserveSlots } = require('./shop')
 const wallet = require('./wallet')
 const stars = require('./stars')
 const notify = require('./notify')
+const delivery = require('./delivery')
+const couriers = require('./couriers')
+const { publicAddress, createAddressBook } = require('./address-book')
 const DEMO_MENU = require('./coffee-demo')
 
 const db = cloud.database()
 const _ = db.command
+const addressBook = createAddressBook(db, 'coffee_addresses')
 
 const STATUSES = ['pending', 'making', 'done', 'cancelled']
+const MODES = ['dine_in', 'takeaway', 'delivery']
 // 订单状态只能按这个方向走
 const NEXT_STATUS = {
   pending: ['making', 'cancelled'],
@@ -46,6 +52,12 @@ const MAX_COUPON_AMOUNT = 20000
 const MAX_COUPON_DAYS = 365
 const MAX_COUPON_PER_USER = 10
 const MAX_COUPON_TOTAL = 100000
+// 外送：顾客看不到的配送内部信息（运费、违约金、配送公司单号、给店员看的备注）
+const PRIVATE_DELIVERY = ['courierFee', 'deductTotal', 'storeOrderId', 'courierOrderId', 'waybillId', 'fetchCode', 'error', 'note', 'sandbox', 'syncedAt']
+// 微信同城配送的门店编号（自己定的），开通门店时用
+const WECHAT_OUT_STORE_ID = 'jinshan-coffee'
+// 每分钟最多查几单配送进度
+const SYNC_BATCH = 20
 
 const col = (name) => db.collection(name)
 
@@ -61,6 +73,18 @@ function makeOrderNo() {
 function formatOrder(order) {
   const out = Object.assign({}, order)
   delete out._openid
+  if (order.delivery) out.delivery = Object.assign({ statusText: couriers.STATUS_TEXT[order.delivery.status] || '' }, order.delivery)
+  return out
+}
+
+// 顾客自己看的订单：去掉配送的运费等内部信息
+function customerOrder(order) {
+  const out = formatOrder(order)
+  if (out.delivery) {
+    out.delivery = Object.assign({}, out.delivery)
+    PRIVATE_DELIVERY.forEach((k) => { delete out.delivery[k] })
+    out.delivery.log = (out.delivery.log || []).map((l) => ({ status: l.status, at: l.at, text: couriers.STATUS_TEXT[l.status] || '' }))
+  }
   return out
 }
 
@@ -279,6 +303,162 @@ async function expireStars() {
   return stars.expireAll(db)
 }
 
+// ---------- 外送 ----------
+
+// 收货地址存一份到订单上，地址簿里改了删了也不影响这单
+function addressSnapshot(a) {
+  return { name: a.name, phone: a.phone, place: a.place, detail: a.detail || '', location: a.location }
+}
+
+// 改配送信息：现在的配送状态在 from 里才改（防止两位店员同时点、定时查单和回调撞上）
+async function setDelivery(order, from, patch) {
+  const where = { _id: order._id }
+  if (from) where['delivery.status'] = _.in(from)
+  const res = await col('coffee_orders').where(where).update({ data: { delivery: patch, updatedAt: db.serverDate() } })
+  return res.stats.updated > 0
+}
+
+// 配送进度的记录，最多留 20 条
+function logEntry(order, status, note) {
+  const log = ((order.delivery && order.delivery.log) || []).slice(-19)
+  log.push({ status, at: new Date(), note: note || '' })
+  return log
+}
+
+// 东西已经离店了：还在待制作、制作中的单改成已完成，给星
+async function markOut(order) {
+  const res = await col('coffee_orders')
+    .where({ _id: order._id, status: _.in(['pending', 'making']) })
+    .update({ data: { status: 'done', doneAt: db.serverDate(), updatedAt: db.serverDate() } })
+  if (res.stats.updated) await creditStars(order._id)
+}
+
+// 配送公司报来的进度（查单或者回调）记到订单上：状态、骑手、运费、违约金
+async function applyCourierUpdate(order, upd) {
+  const d = order.delivery
+  const patch = { syncedAt: new Date() }
+  if (upd.rider) patch.rider = upd.rider
+  if (upd.carrier) {
+    patch.carrier = upd.carrier
+    patch.carrierName = upd.carrierName
+  }
+  if (upd.courierFee) patch.courierFee = upd.courierFee
+  const changed = !!upd.status && upd.status !== d.status
+  if (changed) {
+    patch.status = upd.status
+    patch.note = upd.note || ''
+    patch.log = logEntry(order, upd.status, upd.note)
+    if (upd.status === 'delivered') patch.deliveredAt = new Date()
+    if (upd.status === 'cancelled' && upd.deductFee) patch.deductTotal = (d.deductTotal || 0) + upd.deductFee
+  }
+  const ok = await setDelivery(order, [d.status], patch)
+  if (ok && changed && (upd.status === 'delivering' || upd.status === 'delivered')) await markOut(order)
+  return ok && changed
+}
+
+// 叫骑手（或者店员自己送）：先把配送状态占住，叫失败了退回原来的状态并记下原因
+async function callCourier(order, provider, settings) {
+  const adapter = couriers.adapterOf(provider)
+  const d = order.delivery
+  if (adapter.external) {
+    if (!adapter.ready()) throw new BizError('服务器上还没配置' + adapter.name + '的密钥', 'COURIER_NOT_READY')
+    if (provider === 'wechat' && !settings.wechatStoreId) throw new BizError('还没在微信同城配送开通门店，先到「外送设置」里开通', 'COURIER_NOT_READY')
+  }
+  const from = d.status
+  const claimed = await setDelivery(order, [from], { status: 'calling', provider, error: '', note: '' })
+  if (!claimed) throw new BizError('配送状态刚刚变了，请刷新', 'DELIVERY_CHANGED')
+  let result
+  try {
+    result = await adapter.create({ settings, order, db })
+  } catch (e) {
+    await setDelivery(order, ['calling'], { status: from, error: e.message || '叫骑手失败' })
+    throw e
+  }
+  await setDelivery(order, ['calling'], Object.assign({}, result, {
+    provider,
+    rider: null,
+    calledAt: new Date(),
+    log: logEntry(order, result.status),
+    syncedAt: new Date()
+  }))
+  if (result.status === 'delivering') await markOut(order)
+  return result
+}
+
+// 开始制作时自动叫骑手（外送设置里打开了、用第三方配送的）；叫不到不影响制作，原因记在订单上，店员可以再手动叫
+async function autoCall(order) {
+  try {
+    const settings = await delivery.readSettings(db)
+    if (!settings.autoCall || !couriers.adapterOf(settings.provider).external || order.payStatus !== 'paid') return
+    const fresh = await findOne('coffee_orders', { _id: order._id })
+    if (!fresh || !fresh.delivery || fresh.delivery.status !== 'waiting') return
+    await callCourier(fresh, settings.provider, settings).catch((e) => setDelivery(fresh, ['waiting'], { error: e.message || '自动叫骑手失败' }))
+  } catch (e) {
+    console.warn('自动叫骑手失败', order.orderNo, e.message)
+  }
+}
+
+// 服务器每分钟跑一次：查第三方还在送的单的进度（有回调时主要靠回调，这里兜底）
+async function syncDeliveries() {
+  const external = delivery.PROVIDERS.filter((k) => couriers.adapterOf(k).external)
+  const list = await safeList(col('coffee_orders')
+    .where({ day: _.in([cnDay(Date.now() - DAY_MS), cnDay()]), 'delivery.provider': _.in(external), 'delivery.status': _.in(couriers.LIVE) })
+    .orderBy('delivery.syncedAt', 'asc')
+    .limit(SYNC_BATCH))
+  if (!list.length) return 0
+  const settings = await delivery.readSettings(db)
+  let count = 0
+  for (const order of list) {
+    const adapter = couriers.adapterOf(order.delivery.provider)
+    if (!adapter.ready()) continue
+    try {
+      if (await applyCourierUpdate(order, await adapter.query({ settings, order }))) count++
+    } catch (e) {
+      console.warn('查配送进度失败', order.orderNo, e.message)
+      await setDelivery(order, [order.delivery.status], { syncedAt: new Date() })
+    }
+  }
+  return count
+}
+
+// 微信同城配送的状态回调（服务器收到 /delivery/notify/wechat 后调用）：验过签名再更新。签名不对返回 false
+async function onCourierNotify(body) {
+  const api = cloud.courierOf('wechat')
+  if (!api.ready() || !api.verifyNotify(body, api.notifyToken)) return false
+  const storeOrderId = String(body.store_order_id || '')
+  const order = await findOne('coffee_orders', { orderNo: storeOrderId.replace(/-\d+$/, '') })
+  // 重新叫过骑手的，以前那次的回调不管
+  if (!order || !order.delivery || order.delivery.storeOrderId !== storeOrderId) return true
+  await applyCourierUpdate(order, couriers.wechat.fromStatus(body))
+  return true
+}
+
+// 门店信息（开通微信同城配送时传过去的那些）改了没有
+function storeChanged(a, b) {
+  const pick = (x) => JSON.stringify([x.store, x.location, x.wechatPattern, x.wechatPrefer])
+  return pick(a) !== pick(b)
+}
+
+// 店员叫骑手用：外送设置里选的配送方式，第三方配送现在能不能叫
+async function courierInfo() {
+  const s = await delivery.readSettings(db)
+  const a = couriers.adapterOf(s.provider)
+  return { provider: s.provider, name: a.name, external: a.external, ready: !a.external || (a.ready() && !!s.wechatStoreId), sandbox: a.sandbox() }
+}
+
+// 外送设置页要的东西：设置、还差哪几项、营业时间、微信同城配送配好没有
+async function deliverySettingsView() {
+  const st = await delivery.readState(db)
+  const wx = cloud.courierOf('wechat')
+  return {
+    settings: st.settings,
+    problems: st.problems,
+    open: st.open,
+    hours: st.hours,
+    wechat: { ready: wx.ready(), sandbox: !!wx.sandbox, notify: !!wx.notifyUrl, carriers: couriers.WX_CARRIERS }
+  }
+}
+
 async function coffeeCategories() {
   return (await safeList(col('coffee_categories').orderBy('sort', 'asc').limit(100))).map((c) => ({ _id: c._id, name: c.name }))
 }
@@ -379,6 +559,45 @@ async function deleteFiles(fileIds) {
   }
 }
 
+// 店员操作外送单时取订单：不是外送单就报错
+async function deliveryOrder(id) {
+  const order = await findOne('coffee_orders', { _id: String(id || '') })
+  if (!order) throw new BizError('订单不存在')
+  if (!order.delivery) throw new BizError('这单不是外送单')
+  return order
+}
+
+// 取消配送：第三方的调接口取消；店员送的直接改回来。已经送到的、没在送的不用管
+async function stopDelivery(order) {
+  const d = order.delivery
+  if (['waiting', 'cancelled', 'delivered'].indexOf(d.status) !== -1) return
+  const adapter = couriers.adapterOf(d.provider || 'self')
+  let deductFee = 0
+  if (adapter.external) {
+    const settings = await delivery.readSettings(db)
+    try {
+      deductFee = (await adapter.cancel({ settings, order })).deductFee
+    } catch (e) {
+      // 取消失败时看看是不是那边已经取消或者送到了
+      let upd = null
+      try {
+        upd = await adapter.query({ settings, order })
+      } catch (e2) {
+        upd = null
+      }
+      if (upd && (upd.status === 'cancelled' || upd.status === 'delivered')) {
+        await applyCourierUpdate(order, upd)
+        if (upd.status === 'delivered') throw new BizError('骑手已经送到了，不能取消配送')
+        return
+      }
+      throw e
+    }
+  }
+  const patch = { status: 'cancelled', note: deductFee ? '骑手接单后取消，配送公司扣了违约金 ¥' + yuan(deductFee) : '', log: logEntry(order, 'cancelled'), rider: null }
+  if (deductFee) patch.deductTotal = (d.deductTotal || 0) + deductFee
+  if (!(await setDelivery(order, [d.status], patch))) throw new BizError('配送状态刚刚变了，请刷新', 'DELIVERY_CHANGED')
+}
+
 const handlers = {
   // ---------- 顾客端 ----------
 
@@ -414,7 +633,8 @@ const handlers = {
   // 再挑一张代金券（couponId 传 '' 表示不用）。
   // 预约时 reserve 传 true，返回能选的时间；reserveAt 是选中的那一档，没选或者选的不能约了就用最早的一档。
   // useStars 为 true 时用星免费换一杯（星星够才换得了）。
-  async quote({ items, couponId, reserve, reserveAt, noVouchers, useStars }, openid) {
+  // 外送时 delivery 传 true，addressId 是选的收货地址（不传用默认地址），返回配送费、起送价、能不能送。
+  async quote({ items, couponId, reserve, reserveAt, noVouchers, useStars, delivery: deliver, addressId }, openid) {
     const { lines, total } = await loadLines(items)
     const [settings, walletInfo, templates, starSettings, member] = await Promise.all([
       pay.getSettings(db),
@@ -440,6 +660,35 @@ const handlers = {
     const coupons = await usableCoupons(openid)
     const picked = pickCoupon(coupons, left, couponId)
     const couponFee = picked.discount
+    let delivering = null
+    if (deliver) {
+      const st = await delivery.readState(db)
+      const a = await addressBook.pick(openid, addressId)
+      delivering = {
+        enabled: st.open,
+        inHours: st.inHours,
+        rules: delivery.publicRules(st.settings, st.hours),
+        address: a ? publicAddress(a) : null,
+        distanceKm: null,
+        fee: 0,
+        // 还差多少钱起送
+        short: Math.max(0, (st.settings.minOrder || 0) - total),
+        error: '',
+        errorCode: ''
+      }
+      if (st.open && a) {
+        try {
+          const c = delivery.charge(st.settings, a.location, total)
+          delivering.distanceKm = c.distanceKm
+          delivering.fee = c.fee
+        } catch (e) {
+          if (!(e instanceof BizError)) throw e
+          delivering.error = e.message
+          delivering.errorCode = e.code
+        }
+      }
+    }
+    const deliveryFee = delivering ? delivering.fee : 0
     return {
       total,
       vouchers: vouchers.length,
@@ -452,27 +701,48 @@ const handlers = {
       coupon: picked.coupon ? { id: picked.coupon._id, title: picked.coupon.title, discount: couponFee } : null,
       couponFee,
       discountFee: discount + starFee + couponFee,
-      payFee: left - couponFee,
+      deliveryFee,
+      payFee: left - couponFee + deliveryFee,
       pay: pay.publicPay(settings),
       // 会员余额：enabled 是店里开没开储值，余额有钱时没开也能用
       wallet: { enabled: walletInfo.enabled, balance: walletInfo.balance, memberNo: walletInfo.memberNo },
       reserve: reservation,
-      // 取餐通知的订阅消息模板：有的话下单时请顾客允许
-      notifyTemplate: templates.orderReady
+      // 外送：没选外送时是 null
+      delivery: delivering,
+      // 取餐通知的订阅消息模板：有的话下单时请顾客允许（外送单不用取餐，不问）
+      notifyTemplate: delivering ? '' : templates.orderReady
     }
   },
 
   // payBy 传 'balance' 表示用会员余额付，下单时直接扣；subscribed 为 true 表示顾客允许了取餐通知；
-  // useStars 为 true 表示用星免费换一杯，下单时扣星
-  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, reserveAt, payBy, subscribed, useStars }, openid) {
-    if (mode !== 'dine_in' && mode !== 'takeaway') throw new BizError('请选择堂食或外带')
+  // useStars 为 true 表示用星免费换一杯，下单时扣星。
+  // 外送：mode 是 delivery，addressId 是收货地址；要在线付款（微信或余额），付完店员才看得到
+  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, reserveAt, payBy, subscribed, useStars, addressId }, openid) {
+    if (MODES.indexOf(mode) === -1) throw new BizError('请选择堂食、外带或外送')
     const { lines, total } = await loadLines(items)
     const reserving = reserveAt !== undefined && reserveAt !== null
+    const delivering = mode === 'delivery'
+    if (delivering && reserving) throw new BizError('外送不能预约，请直接下单', 'DELIVERY_CLOSED')
     const paySettings = await pay.getSettings(db)
     if (reserving) {
       if (!reserveOpen(paySettings, await wallet.readSettings(db))) throw new BizError('店里暂时没开放预约', 'RESERVE_DISABLED')
       await checkReserveAt(reserveAt)
     }
+
+    // 外送：开放了、在外送时间、够起送价、地址在范围里
+    let dropoff = null
+    if (delivering) {
+      const st = await delivery.readState(db)
+      if (!st.open) throw new BizError('店里暂时没开放外送', 'DELIVERY_CLOSED')
+      if (!st.inHours) throw new BizError('现在不在外送时间（' + st.hours.open + '–' + st.hours.close + '），可以到店自取', 'DELIVERY_CLOSED')
+      const min = st.settings.minOrder || 0
+      if (total < min) throw new BizError('商品满 ¥' + yuan(min) + ' 起送，还差 ¥' + yuan(min - total), 'DELIVERY_MIN')
+      const a = await addressBook.find(openid, addressId)
+      if (!a) throw new BizError('请选收货地址', 'ADDRESS_NEEDED')
+      const c = delivery.charge(st.settings, a.location, total)
+      dropoff = { address: addressSnapshot(a), distanceKm: c.distanceKm, fee: c.fee }
+    }
+    const deliveryFee = dropoff ? dropoff.fee : 0
 
     // 预约的人还没到店，不带桌号
     let table = ''
@@ -507,10 +777,13 @@ const handlers = {
       coupon = { id: found._id, title: found.title, discount: fee }
     }
     const couponFee = coupon ? coupon.discount : 0
-    const payFee = total - discount - starFee - couponFee
+    const payFee = total - discount - starFee - couponFee + deliveryFee
     const byBalance = payBy === 'balance' && payFee > 0
     if (reserving && payFee > 0 && !byBalance && !paySettings.payEnabled) {
       throw new BizError('店里还没开通微信支付，预约请用会员余额付款', 'RESERVE_DISABLED')
+    }
+    if (delivering && payFee > 0 && !byBalance && !paySettings.payEnabled) {
+      throw new BizError('店里还没开通微信支付，外送请用会员余额付款', 'DELIVERY_PAY')
     }
     if (byBalance) {
       const member = await wallet.findMember(db, openid)
@@ -593,7 +866,14 @@ const handlers = {
         updatedAt: db.serverDate()
       }
       if (byBalance) order.paidAt = db.serverDate()
-      if (subscribed === true) order.notifyReady = true
+      if (subscribed === true && !delivering) order.notifyReady = true
+      if (delivering) {
+        order.deliveryFee = deliveryFee
+        // 配送：status 见 couriers.js；provider 是叫骑手时选的配送方式
+        order.delivery = { status: 'waiting', provider: '', attempts: 0, address: dropoff.address, distanceKm: dropoff.distanceKm, log: [] }
+        // 外送要先在线付款，付完店员才看得到
+        order.awaitingPay = order.payStatus === 'unpaid'
+      }
       if (reserving) {
         order.reserveAt = new Date(reserveAt)
         // 预约要先在线付款，付完店员才看得到
@@ -632,7 +912,9 @@ const handlers = {
     if (order._openid !== openid) await requireRole(db, openid, COFFEE_ROLES)
     order = await freshOrder(order)
     const settings = await pay.getSettings(db)
-    const out = Object.assign(formatOrder(order), { pay: pay.publicPay(settings) })
+    const out = Object.assign(order._openid === openid ? customerOrder(order) : formatOrder(order), { pay: pay.publicPay(settings) })
+    // 外送单：顾客有事能打店里电话
+    if (order.delivery) out.shopPhone = (await delivery.readSettings(db)).store.phone
     if (order.awaitingPay && order.payStatus === 'unpaid' && order.status === 'pending') out.payDeadline = payDeadline(order)
     // 自己没付的单：带上余额，详情页可以直接用余额付
     if (order._openid === openid && order.payStatus === 'unpaid' && order.status !== 'cancelled') {
@@ -652,7 +934,7 @@ const handlers = {
     let timeExpire
     if (order.awaitingPay) {
       const deadline = payDeadline(order)
-      if (Date.now() >= deadline) throw new BizError('超过 ' + RESERVE_PAY_MINUTES + ' 分钟没付款，这单预约会自动取消，请重新下单', 'RESERVE_EXPIRED')
+      if (Date.now() >= deadline) throw new BizError('超过 ' + RESERVE_PAY_MINUTES + ' 分钟没付款，这单会自动取消，请重新下单', 'RESERVE_EXPIRED')
       timeExpire = Math.max(deadline, Date.now() + 70 * 1000)
     }
     const settings = await pay.getSettings(db)
@@ -675,7 +957,7 @@ const handlers = {
     if (order.status === 'cancelled') throw new BizError('订单已经取消了')
     if (order.payStatus !== 'unpaid') throw new BizError('这单已经付过了')
     if (order.awaitingPay && Date.now() >= payDeadline(order)) {
-      throw new BizError('超过 ' + RESERVE_PAY_MINUTES + ' 分钟没付款，这单预约会自动取消，请重新下单', 'RESERVE_EXPIRED')
+      throw new BizError('超过 ' + RESERVE_PAY_MINUTES + ' 分钟没付款，这单会自动取消，请重新下单', 'RESERVE_EXPIRED')
     }
     // 拉起过微信支付的，先查一下是不是其实已经付了
     if (order.payOutTradeNo && (await markWechatPaid(order, await pay.queryPaid(order.payOutTradeNo)))) return { payStatus: 'paid' }
@@ -714,7 +996,7 @@ const handlers = {
         .limit(size)
         .get()
       const orders = []
-      for (const o of res.data) orders.push(formatOrder(await freshOrder(o)))
+      for (const o of res.data) orders.push(customerOrder(await freshOrder(o)))
       return { orders, hasMore: res.data.length === size }
     } catch (e) {
       if (isMissingCollection(e)) return { orders: [], hasMore: false }
@@ -732,6 +1014,9 @@ const handlers = {
     await releaseDiscounts(order)
     return true
   },
+
+  // 收货地址簿（外送用）：listAddresses、saveAddress、deleteAddress
+  ...addressBook.handlers,
 
   // ---------- 咖啡后台：订单 ----------
 
@@ -758,7 +1043,8 @@ const handlers = {
       day: d,
       orders: orders.map(formatOrder),
       counts: countMap,
-      pendingIds: pending.data.map((o) => o._id)
+      pendingIds: pending.data.map((o) => o._id),
+      courier: await courierInfo()
     }
   },
 
@@ -788,6 +1074,8 @@ const handlers = {
     if (!order) throw new BizError('订单不存在')
     const allowed = NEXT_STATUS[order.status] || []
     if (allowed.indexOf(status) === -1) throw new BizError('订单状态已经变了，请刷新')
+    // 外送单已经叫了骑手的，先取消配送（取消不了就不取消订单）
+    if (status === 'cancelled' && order.delivery) await stopDelivery(order)
     // 微信付过款的单先原路退款，退款成功才取消；余额付的退回余额
     if (status === 'cancelled' && order.payStatus === 'paid' && order.payMethod === 'wechat') await refundOrder(order)
     if (status === 'cancelled' && order.payStatus === 'paid' && order.payMethod === 'balance') await refundToBalance(order)
@@ -801,23 +1089,108 @@ const handlers = {
     if (status === 'done') await creditStars(order._id)
     // 做好了通知顾客取餐；不等微信回复，发不出去也不影响出餐
     if (status === 'done' && order.notifyReady) notify.orderReady(db, order).catch((e) => console.warn('取餐通知失败', e.message))
+    // 外送单开始制作时自动叫骑手（外送设置里打开了的话）
+    if (status === 'making' && order.delivery) await autoCall(order)
     return true
   },
 
-  // 店主看账：每天的单数、收款（微信、吧台、会员余额）、赠饮券、代金券和集星兑换抵扣，以及这段时间卖得最多的商品
+  // ---------- 咖啡后台：外送配送 ----------
+
+  // 叫骑手之前先估一下这单的运费（第三方配送才有）
+  async courierQuote({ id, provider }, openid) {
+    await requireRole(db, openid, COFFEE_ROLES)
+    const order = await deliveryOrder(id)
+    const settings = await delivery.readSettings(db)
+    const adapter = couriers.adapterOf(provider || settings.provider)
+    if (!adapter.external) return { fee: 0, carrierName: adapter.name }
+    if (!adapter.ready()) throw new BizError('服务器上还没配置' + adapter.name + '的密钥', 'COURIER_NOT_READY')
+    if (!settings.wechatStoreId) throw new BizError('还没在微信同城配送开通门店，先到「外送设置」里开通', 'COURIER_NOT_READY')
+    return adapter.quote({ settings, order })
+  },
+
+  // 叫骑手；provider 是 self（店员自己送）或 wechat（微信同城配送），不传用外送设置里选的
+  async callCourier({ id, provider }, openid) {
+    await requireRole(db, openid, COFFEE_ROLES)
+    const order = await deliveryOrder(id)
+    if (order.status === 'cancelled') throw new BizError('订单已经取消了')
+    if (order.payStatus !== 'paid') throw new BizError('这单还没付款，付了款再送')
+    if (['waiting', 'cancelled'].indexOf(order.delivery.status) === -1) throw new BizError('这单已经在配送了，要换人送先取消配送', 'DELIVERY_CHANGED')
+    const settings = await delivery.readSettings(db)
+    const key = provider || settings.provider
+    if (delivery.PROVIDERS.indexOf(key) === -1) throw new BizError('不认识的配送方式')
+    await callCourier(order, key, settings)
+    return formatOrder(await findOne('coffee_orders', { _id: order._id }))
+  },
+
+  // 取消配送（订单不取消）：叫不到骑手、要换店员送的时候用。骑手接单后取消，配送公司可能扣违约金
+  async cancelCourier({ id }, openid) {
+    await requireRole(db, openid, COFFEE_ROLES)
+    const order = await deliveryOrder(id)
+    await stopDelivery(order)
+    return formatOrder(await findOne('coffee_orders', { _id: order._id }))
+  },
+
+  // 店员自己送到了点「已送达」；第三方配送出了异常、确认已经送到的，也能手动点
+  async markDelivered({ id }, openid) {
+    await requireRole(db, openid, COFFEE_ROLES)
+    const order = await deliveryOrder(id)
+    const d = order.delivery
+    const ok = d.provider === 'self' ? d.status === 'delivering' : ['delivering', 'abnormal'].indexOf(d.status) !== -1
+    if (!ok) throw new BizError(d.provider === 'self' ? '这单还没送出' : '骑手还没取走，不能点已送达', 'DELIVERY_CHANGED')
+    if (!(await applyCourierUpdate(order, { status: 'delivered', note: d.provider === 'self' ? '' : '店员确认已送达' }))) {
+      throw new BizError('配送状态刚刚变了，请刷新', 'DELIVERY_CHANGED')
+    }
+    return formatOrder(await findOne('coffee_orders', { _id: order._id }))
+  },
+
+  // 马上查一次配送进度（平时服务器每分钟查一次）
+  async refreshCourier({ id }, openid) {
+    await requireRole(db, openid, COFFEE_ROLES)
+    const order = await deliveryOrder(id)
+    const adapter = couriers.adapterOf(order.delivery.provider || 'self')
+    if (adapter.external && couriers.LIVE.indexOf(order.delivery.status) !== -1) {
+      await applyCourierUpdate(order, await adapter.query({ settings: await delivery.readSettings(db), order }))
+    }
+    return formatOrder(await findOne('coffee_orders', { _id: order._id }))
+  },
+
+  // 沙箱测试单（测试版服务器叫的骑手）：模拟骑手接单、到店、取货、送达
+  async mockCourier({ id, status }, openid) {
+    await requireRole(db, openid, COFFEE_ROLES)
+    const order = await deliveryOrder(id)
+    const adapter = couriers.adapterOf(order.delivery.provider || 'self')
+    if (!adapter.external || !order.delivery.sandbox) throw new BizError('只有测试单能模拟骑手')
+    const settings = await delivery.readSettings(db)
+    await adapter.mock({ settings, order }, status)
+    // 微信那边改了状态，查一次；查到的还没变就先按模拟的记上
+    let upd = null
+    try {
+      upd = await adapter.query({ settings, order })
+    } catch (e) {
+      upd = null
+    }
+    if (!upd || upd.status !== status) upd = { status }
+    await applyCourierUpdate(order, upd)
+    return formatOrder(await findOne('coffee_orders', { _id: order._id }))
+  },
+
+  // 店主看账：每天的单数、收款（微信、吧台、会员余额）、赠饮券、代金券和集星兑换抵扣、外送的配送费和付给骑手的运费，
+  // 以及这段时间卖得最多的商品
   async daySummary({ from, to }, openid) {
     await requireRole(db, openid, ['owner'])
     const days = dayRange(from, to)
     const orders = await fetchAll(col('coffee_orders').where({ day: _.in(days) }).orderBy('createdAt', 'asc'))
     const rows = {}
     days.forEach((d) => {
-      rows[d] = { day: d, orders: 0, cancelled: 0, totalFee: 0, discountFee: 0, couponFee: 0, starFee: 0, paidFee: 0, unpaidFee: 0, wechatFee: 0, counterFee: 0, balanceFee: 0, vouchersUsed: 0, couponsUsed: 0, starCups: 0, starsIssued: 0, cancelledPaidFee: 0 }
+      rows[d] = { day: d, orders: 0, cancelled: 0, totalFee: 0, discountFee: 0, couponFee: 0, starFee: 0, paidFee: 0, unpaidFee: 0, wechatFee: 0, counterFee: 0, balanceFee: 0, vouchersUsed: 0, couponsUsed: 0, starCups: 0, starsIssued: 0, cancelledPaidFee: 0, deliveryOrders: 0, deliveryFee: 0, courierFee: 0 }
     })
     const products = {}
     orders.forEach((o) => {
       const r = rows[o.day]
-      // 没付款的预约单（包括超时取消的）不算
+      // 没付款的预约单、外送单（包括超时取消的）不算
       if (!r || o.awaitingPay) return
+      // 付给配送公司的运费：这次叫的骑手的运费（没取消的），加上取消时扣的违约金；取消了的单也算
+      if (o.delivery) r.courierFee += (o.delivery.status !== 'cancelled' ? o.delivery.courierFee || 0 : 0) + (o.delivery.deductTotal || 0)
       if (o.status === 'cancelled') {
         r.cancelled++
         if (o.payStatus === 'paid') r.cancelledPaidFee += o.payFee // 收了钱、还没在线退款的
@@ -828,6 +1201,10 @@ const handlers = {
       r.discountFee += o.discountFee || 0
       r.couponFee += o.couponFee || 0
       r.starFee += o.starFee || 0
+      if (o.delivery) {
+        r.deliveryOrders++
+        r.deliveryFee += o.deliveryFee || 0 // 顾客付的配送费，含在实收里
+      }
       r.vouchersUsed += (o.vouchers || []).length
       if (o.coupon) r.couponsUsed++
       if (o.starRedeem) r.starCups++
@@ -916,6 +1293,68 @@ const handlers = {
     data.updatedAt = db.serverDate()
     await col('settings').doc('stars').set({ data })
     return stars.readSettings(db)
+  },
+
+  // ---------- 外送设置（店主） ----------
+
+  async getDeliverySettings(event, openid) {
+    await requireRole(db, openid, ['owner'])
+    return deliverySettingsView()
+  },
+
+  async saveDeliverySettings({ settings }, openid) {
+    await requireRole(db, openid, ['owner'])
+    const old = await delivery.readSettings(db)
+    const data = delivery.cleanSettings(settings)
+    data.wechatStoreId = old.wechatStoreId
+    data.wechatStoreAt = old.wechatStoreAt
+    data.updatedBy = openid
+    data.updatedAt = db.serverDate()
+    await col('settings').doc(delivery.SETTINGS_ID).set({ data })
+    const view = await deliverySettingsView()
+    // 已经开通了微信同城配送门店的：店名、地址、派单方式改了就同步过去
+    if (old.wechatStoreId && couriers.wechat.ready() && storeChanged(old, view.settings)) {
+      try {
+        await couriers.wechat.setupStore(view.settings, WECHAT_OUT_STORE_ID)
+      } catch (e) {
+        view.storeSyncError = e.message
+      }
+    }
+    return view
+  },
+
+  // 在微信同城配送开通门店；已经开通过的，按现在的设置更新门店信息
+  async setupWechatStore(event, openid) {
+    await requireRole(db, openid, ['owner'])
+    const s = await delivery.readSettings(db)
+    if (!couriers.wechat.ready()) throw new BizError('服务器上还没配置微信同城配送的密钥', 'COURIER_NOT_READY')
+    const missing = s.location ? [] : ['店的位置']
+    ;[['name', '店名'], ['province', '省'], ['city', '市'], ['area', '区县'], ['house', '详细地址'], ['phone', '店里电话']].forEach(([k, label]) => {
+      if (!s.store[k]) missing.push(label)
+    })
+    if (missing.length) throw new BizError('先填好并保存：' + missing.join('、'))
+    const id = await couriers.wechat.setupStore(s, WECHAT_OUT_STORE_ID)
+    await col('settings').doc(delivery.SETTINGS_ID).update({ data: { wechatStoreId: id, wechatStoreAt: db.serverDate() } })
+    return deliverySettingsView()
+  },
+
+  // 微信同城配送门店的运费余额（各家配送公司分开）
+  async courierBalance(event, openid) {
+    await requireRole(db, openid, ['owner'])
+    const s = await delivery.readSettings(db)
+    if (!s.wechatStoreId || !couriers.wechat.ready()) throw new BizError('还没开通微信同城配送门店')
+    return couriers.wechat.balance(s)
+  },
+
+  // 给某家配送公司充运费：返回充值页面地址，店主用微信扫码付款。amount 是分，50 元起
+  async courierCharge({ carrier, amount }, openid) {
+    await requireRole(db, openid, ['owner'])
+    const s = await delivery.readSettings(db)
+    if (!s.wechatStoreId || !couriers.wechat.ready()) throw new BizError('还没开通微信同城配送门店')
+    if (delivery.WECHAT_CARRIERS.indexOf(carrier) === -1) throw new BizError('请选给哪家配送公司充')
+    const fen = Number(amount)
+    if (!Number.isInteger(fen) || fen < 5000 || fen > 1000000) throw new BizError('充值金额请填 50 到 10000 元')
+    return { payurl: await couriers.wechat.charge(s, carrier, fen) }
   },
 
   // ---------- 领券中心（顾客） ----------
@@ -1254,3 +1693,5 @@ exports.main = createMain(cloud, handlers)
 exports.onPayNotify = onPayNotify
 exports.expireReservations = expireReservations
 exports.expireStars = expireStars
+exports.syncDeliveries = syncDeliveries
+exports.onCourierNotify = onCourierNotify

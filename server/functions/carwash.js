@@ -25,6 +25,7 @@ const membership = require('./membership')
 const link = require('./voucher-link')
 const redeem = require('./redeem')
 const wallet = require('./wallet')
+const { PHONE_RE, publicAddress, createAddressBook } = require('./address-book')
 
 const db = cloud.database()
 const _ = db.command
@@ -53,9 +54,7 @@ const PAY_MINUTES = 15
 const PAY_GRACE = 2 * 60000
 const MAX_SERVICES = 50
 const MAX_PRICE = 1000000
-const MAX_ADDRESSES = 20
 const INVITE_TTL = 24 * 3600 * 1000
-const PHONE_RE = /^(1\d{10}|0\d{2,3}-?\d{7,8})$/
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
 
 const col = (name) => db.collection(name)
@@ -181,35 +180,9 @@ function priceFor(service, mode, settings, member, place) {
   }
 }
 
-// ---------- 地址 ----------
+// ---------- 地址（上门地址簿，见 address-book.js） ----------
 
-function cleanAddress(a) {
-  const name = cleanText(a.name, 10)
-  if (!name) throw new BizError('请填联系人')
-  const phone = String(a.phone || '').trim()
-  if (!PHONE_RE.test(phone)) throw new BizError('联系电话格式不对')
-  const place = cleanText(a.place, 60)
-  if (!place) throw new BizError('请在地图上选位置')
-  const lat = Number(a.location && a.location.lat)
-  const lng = Number(a.location && a.location.lng)
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new BizError('请在地图上选位置')
-  return {
-    name,
-    phone,
-    place,
-    detail: cleanText(a.detail, 40),
-    location: { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6 },
-    isDefault: !!a.isDefault
-  }
-}
-
-function publicAddress(a) {
-  return { _id: a._id, name: a.name, phone: a.phone, place: a.place, detail: a.detail || '', location: a.location, isDefault: !!a.isDefault }
-}
-
-function myAddresses(openid) {
-  return safeList(col('cw_addresses').where({ _openid: openid }).orderBy('updatedAt', 'desc').limit(MAX_ADDRESSES))
-}
+const addresses = createAddressBook(db, 'cw_addresses')
 
 // ---------- 订单 ----------
 
@@ -417,9 +390,9 @@ const handlers = {
     const service = await usableService(serviceId)
     const modes = modesFor(service, s)
     const days = shop.slotDays(s)
-    const [taken, addresses, cards, member] = await Promise.all([
+    const [taken, saved, cards, member] = await Promise.all([
       takenSlots(days.map((d) => d.day)),
-      myAddresses(openid),
+      addresses.list(openid),
       membership.usableCards(openid, service._id),
       ledger.findMember(db, openid)
     ])
@@ -432,7 +405,7 @@ const handlers = {
         label: d.label,
         slots: d.slots.map((x) => ({ start: x.start, label: x.label, left: { store: left(x.start, 'store'), door: left(x.start, 'door') } }))
       })),
-      addresses: addresses.map(publicAddress),
+      addresses: saved.map(publicAddress),
       cards: cards.map((c) => membership.publicCard(c)),
       wallet: { enabled: state.ways.member, balance: member ? member.balance || 0 : 0, isMember: wallet.isMember(member) },
       pay: { wechat: state.ways.wechat, later: s.payLater },
@@ -450,7 +423,7 @@ const handlers = {
     if (modesFor(service, s).indexOf(mode) === -1) throw new BizError('这个项目现在不能' + (MODES[mode] || '这样') + '做')
     let place = null
     if (mode === 'door') {
-      const a = await findOne('cw_addresses', { _id: String(addressId || ''), _openid: openid })
+      const a = await addresses.find(openid, addressId)
       if (!a) throw new BizError('请选上门地址', 'ADDRESS_NEEDED')
       place = a.location
     }
@@ -479,7 +452,7 @@ const handlers = {
     let phone = String(contactPhone || '').trim()
     let name = cleanText(contactName, 10)
     if (mode === 'door') {
-      const a = await findOne('cw_addresses', { _id: String(addressId || ''), _openid: openid })
+      const a = await addresses.find(openid, addressId)
       if (!a) throw new BizError('请选上门地址', 'ADDRESS_NEEDED')
       address = publicAddress(a)
       phone = a.phone
@@ -695,35 +668,7 @@ const handlers = {
 
   // ---------- 顾客的地址簿 ----------
 
-  async listAddresses(event, openid) {
-    return (await myAddresses(openid)).map(publicAddress)
-  },
-
-  async saveAddress({ address }, openid) {
-    const a = address || {}
-    const data = cleanAddress(a)
-    data.updatedAt = db.serverDate()
-    let id = a._id ? String(a._id) : ''
-    if (id) {
-      const res = await col('cw_addresses').where({ _id: id, _openid: openid }).update({ data })
-      if (!res.stats.updated) throw new BizError('这个地址不存在了')
-    } else {
-      const count = (await col('cw_addresses').where({ _openid: openid }).count()).total
-      if (count >= MAX_ADDRESSES) throw new BizError('地址最多存 ' + MAX_ADDRESSES + ' 个，先删掉一些不用的')
-      if (!count) data.isDefault = true
-      data._openid = openid
-      data.createdAt = db.serverDate()
-      id = (await col('cw_addresses').add({ data }))._id
-    }
-    // 只有一个默认地址
-    if (data.isDefault) await col('cw_addresses').where({ _openid: openid, _id: _.neq(id), isDefault: true }).update({ data: { isDefault: false } })
-    return { id }
-  },
-
-  async deleteAddress({ id }, openid) {
-    await col('cw_addresses').where({ _id: String(id || ''), _openid: openid }).remove()
-    return true
-  },
+  ...addresses.handlers,
 
   // ---------- 店员（店长、技师） ----------
 

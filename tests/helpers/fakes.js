@@ -1,4 +1,4 @@
-// 测试用的替身：微信接口（小程序码、登录、订阅消息）、微信支付、图片存储。数据库用真的 SQLite（内存里）。
+// 测试用的替身：微信接口（小程序码、登录、订阅消息）、微信支付、图片存储、微信同城配送。数据库用真的 SQLite（内存里）。
 // 洗车小程序有自己的一套（carwashWechat、carwashPay），状态在 state.cw 里，和咖啡的分开记
 const state = {
   files: [],
@@ -14,7 +14,9 @@ const state = {
   templates: [],
   sent: [],
   sendError: 0,
-  cw: { payReady: true, payOrders: {}, refunds: [] }
+  cw: { payReady: true, payOrders: {}, refunds: [] },
+  // 微信同城配送：orders 按门店订单号记叫过的骑手单；calls 是调过的接口；fail 不为空时下一个接口报这个错误码
+  courier: { ready: true, sandbox: false, orders: {}, calls: [], stores: [], fail: 0, fee: 850, deductFee: 0, balance: [] }
 }
 
 const wechat = {
@@ -112,4 +114,77 @@ const storage = {
   }
 }
 
-module.exports = { state, wechat, pay, storage, carwashPay, carwashWechat }
+// 微信同城配送：和 lib/intracity.js 一样的方法，测试里用 courierStatus(门店订单号, 状态码, 骑手) 假装骑手动了
+const courier = {
+  get sandbox() { return state.courier.sandbox },
+  notifyToken: 'TOKEN',
+  notifyUrl: '',
+  ready: () => state.courier.ready,
+  verifyNotify: require('../../server/lib/intracity').createIntracity({}).verifyNotify
+}
+const c = state.courier
+function courierCall(name, fn) {
+  return async (body) => {
+    c.calls.push({ name, body })
+    if (c.fail) {
+      const e = new Error('intracity errCode: ' + c.fail)
+      e.errCode = c.fail
+      e.errMsg = 'mock fail'
+      c.fail = 0
+      throw e
+    }
+    return fn(body || {})
+  }
+}
+Object.assign(courier, {
+  apply: courierCall('apply', () => ({ errcode: 0 })),
+  queryStore: courierCall('querystore', (b) => ({ total: 0, store_list: c.stores.filter((x) => x.out_store_id === b.out_store_id) })),
+  createStore: courierCall('createstore', (b) => {
+    const store = Object.assign({ wx_store_id: 'WXSTORE' + (c.stores.length + 1) }, b)
+    c.stores.push(store)
+    return { wx_store_id: store.wx_store_id }
+  }),
+  updateStore: courierCall('updatestore', (b) => {
+    const store = c.stores.find((x) => x.wx_store_id === b.keys.wx_store_id)
+    Object.assign(store, b.content)
+    return {}
+  }),
+  balance: courierCall('balancequery', () => ({ balance_list: c.balance })),
+  charge: courierCall('storecharge', (b) => ({ payurl: 'https://pay.example/charge?amount=' + b.amount })),
+  preAddOrder: courierCall('preaddorder', () => ({ service_trans_id: 'DADA', est_fee: c.fee, distance: 1800 })),
+  addOrder: courierCall('addorder', (b) => {
+    const prev = c.orders[b.store_order_id]
+    if (prev) return prev.created // 同一个门店订单号会「重入」，原样返回
+    const created = { wx_order_id: 'WX' + b.store_order_id, store_order_id: b.store_order_id, service_trans_id: 'DADA', fee: c.fee, distance: 1800, fetch_code: '' }
+    c.orders[b.store_order_id] = { body: b, created, status: 10000, rider: null }
+    return created
+  }),
+  queryOrder: courierCall('queryorder', (b) => {
+    const o = Object.values(c.orders).find((x) => x.created.wx_order_id === b.wx_order_id || x.created.store_order_id === b.store_order_id)
+    if (!o) {
+      const e = new Error('no order')
+      e.errCode = 9300507
+      throw e
+    }
+    const out = { wx_order_id: o.created.wx_order_id, order_status: o.status, service_trans_id: 'DADA', actualfee: c.fee }
+    if (o.rider) out.transporter_info = { transporter_name: o.rider.name, transporter_phone: o.rider.phone }
+    return out
+  }),
+  cancelOrder: courierCall('cancelorder', (b) => {
+    const o = Object.values(c.orders).find((x) => x.created.wx_order_id === b.wx_order_id)
+    o.status = 20000
+    return { deductfee: c.deductFee }
+  }),
+  mockNotify: courierCall('mocknotify', (b) => {
+    c.orders[b.store_order_id].status = b.order_status
+    return {}
+  })
+})
+
+function courierStatus(storeOrderId, status, rider) {
+  const o = c.orders[storeOrderId]
+  o.status = status
+  if (rider) o.rider = rider
+}
+
+module.exports = { state, wechat, pay, storage, carwashPay, carwashWechat, courier, courierStatus }

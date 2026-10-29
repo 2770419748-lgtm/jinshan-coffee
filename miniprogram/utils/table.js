@@ -1,5 +1,6 @@
-// 桌号：扫桌码后记在本地，4 小时内有效。扫了桌码就不是预约了
+// 桌号：扫桌码后记在本地，4 小时内有效。扫了桌码就不是预约、也不是外送了
 const reserve = require('./reserve')
+const delivery = require('./delivery')
 
 const KEY = 'jinshan_table'
 const TTL = 4 * 3600 * 1000
@@ -34,6 +35,7 @@ function parsePath(path) {
 function set(tableNo) {
   wx.setStorageSync(KEY, { tableNo: String(tableNo), at: Date.now() })
   reserve.off()
+  delivery.off()
 }
 
 function get() {

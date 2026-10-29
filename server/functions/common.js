@@ -21,6 +21,7 @@ const { readShop, hoursOf, checkHours } = require('./shop')
 const wallet = require('./wallet')
 const stars = require('./stars')
 const notify = require('./notify')
+const delivery = require('./delivery')
 
 const db = cloud.database()
 const _ = db.command
@@ -332,7 +333,13 @@ const handlers = {
   // ---------- 顾客首页 ----------
 
   async getHome(event, openid) {
-    const [saved, memberSettings, member, starSettings] = await Promise.all([readShop(db), wallet.readSettings(db), wallet.findMember(db, openid), stars.readSettings(db)])
+    const [saved, memberSettings, member, starSettings, deliveryState] = await Promise.all([
+      readShop(db),
+      wallet.readSettings(db),
+      wallet.findMember(db, openid),
+      stars.readSettings(db),
+      delivery.readState(db)
+    ])
     const configured = await safeGet(db.collection('banners').where({ enabled: true }).orderBy('sort', 'asc').limit(MAX_BANNERS))
     let banners
     if (configured.length) {
@@ -349,7 +356,14 @@ const handlers = {
       claimableCoupons: await claimableCoupons(openid),
       member: await homeMember(memberSettings, member),
       // 集星卡：没开集星时是 null
-      stars: starSettings.enabled ? { stars: stars.liveStars(member, starSettings).stars, need: starSettings.need } : null
+      stars: starSettings.enabled ? { stars: stars.liveStars(member, starSettings).stars, need: starSettings.need } : null,
+      // 外送：enabled 店里开没开，inHours 现在在不在外送时间
+      delivery: {
+        enabled: deliveryState.open,
+        inHours: deliveryState.inHours,
+        hours: deliveryState.hours,
+        minOrder: deliveryState.settings.minOrder || 0
+      }
     }
   },
 

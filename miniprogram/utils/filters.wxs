@@ -7,7 +7,7 @@ function yuan(fen) {
 }
 
 var STATUS = { pending: '待制作', making: '制作中', done: '已完成', cancelled: '已取消' }
-var MODE = { dine_in: '堂食', takeaway: '外带' }
+var MODE = { dine_in: '堂食', takeaway: '外带', delivery: '外送' }
 var RENTAL_STATUS = { pending: '待取书', reading: '阅读中', returned: '已归还', cancelled: '已取消' }
 var RULE_TYPE = { hourly: '按小时', day: '包天' }
 var BANNER_TAG = { product: '新品', book: '新书', coupons: '领券', none: '进山' }
@@ -85,6 +85,19 @@ function rentalBrief(r) {
   return r.ruleName
 }
 
+// 外送的配送费规则：起步 3 公里 5 元，超出每公里加 2 元；商品满 100 元免配送费
+function deliveryRule(r) {
+  if (!r) return ''
+  var parts = []
+  if (!r.baseFee && !r.perKmFee) parts.push('免配送费')
+  else if (r.perKmFee && r.baseKm) parts.push(r.baseKm + ' 公里内' + (r.baseFee ? ' ' + yuan(r.baseFee) + ' 元' : '免费') + '，超出每公里加 ' + yuan(r.perKmFee) + ' 元')
+  else if (r.perKmFee) parts.push((r.baseFee ? '起步 ' + yuan(r.baseFee) + ' 元，' : '') + '每公里 ' + yuan(r.perKmFee) + ' 元')
+  else parts.push('配送费 ' + yuan(r.baseFee) + ' 元')
+  if (r.freeAbove && (r.baseFee || r.perKmFee)) parts.push('商品满 ' + yuan(r.freeAbove) + ' 元免配送费')
+  parts.push('送 ' + r.radiusKm + ' 公里内')
+  return parts.join('；')
+}
+
 function specText(specs) {
   var out = []
   for (var i = 0; i < (specs || []).length; i++) out.push(specs[i].option)
@@ -144,6 +157,7 @@ module.exports = {
   time: time,
   clock: clock,
   specText: specText,
+  deliveryRule: deliveryRule,
   itemsBrief: itemsBrief,
   rentalStatus: rentalStatus,
   ruleType: ruleType,

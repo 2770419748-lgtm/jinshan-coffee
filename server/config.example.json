@@ -25,5 +25,15 @@
       "publicKeyFile": "",
       "publicKeyId": ""
     }
+  },
+  "delivery": {
+    "wechat": {
+      "aesKeySn": "",
+      "aesKey": "",
+      "rsaKeySn": "",
+      "rsaPrivateKeyFile": "cert/wx-api-rsa-private.pem",
+      "notifyToken": "",
+      "sandbox": false
+    }
   }
 }

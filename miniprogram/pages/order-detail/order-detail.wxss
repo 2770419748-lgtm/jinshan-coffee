@@ -93,3 +93,43 @@
 .star-note .muted {
   flex: 1;
 }
+
+/* 外送 */
+.step-line.short {
+  width: 48rpx;
+  margin: 0 10rpx;
+}
+.small {
+  font-size: 24rpx;
+}
+.rider {
+  display: flex;
+  align-items: center;
+  padding-bottom: 20rpx;
+  margin-bottom: 20rpx;
+  border-bottom: 1rpx solid var(--line);
+}
+.addr-place {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.log {
+  margin-top: 20rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--line);
+}
+.log-line {
+  padding: 6rpx 0;
+  font-size: 26rpx;
+}
+.log-time {
+  display: inline-block;
+  width: 100rpx;
+}
+.shop-call {
+  display: flex;
+  align-items: center;
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--line);
+}
