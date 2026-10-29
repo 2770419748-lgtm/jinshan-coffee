@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="narrow">
     <div class="cards" v-if="stats">
       <div class="stat primary">
         <div class="label">顾客手里的星星</div>

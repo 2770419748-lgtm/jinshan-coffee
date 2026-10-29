@@ -16,6 +16,11 @@ html.dark {
   --el-text-color-primary: #f2ecdf;
   --el-text-color-regular: #d8d1c2;
   --el-fill-color-blank: #141312;
+  /* 和小程序同一套颜色：卡片、分隔线、浅金底 */
+  --card: #171615;
+  --card-2: #1d1b18;
+  --line: #2c2925;
+  --gold-soft: rgba(214, 178, 94, 0.12);
 }
 html, body, #app {
   margin: 0;
@@ -46,12 +51,43 @@ html, body, #app {
   font-weight: 700;
   color: var(--el-color-primary);
 }
+/* 设置类的页面（表单为主）统一这个宽度，大屏上输入框不会拉得老长 */
+.narrow { max-width: 960px; }
 .tip {
   color: var(--el-text-color-secondary);
   font-size: 13px;
   line-height: 1.7;
 }
 .el-table .cell { line-height: 1.6; }
+/* 卡片和表格：和小程序的卡片一样，深色底、细边、圆角 */
+html.dark .el-card {
+  --el-card-bg-color: var(--card);
+  --el-card-border-color: var(--line);
+  --el-card-border-radius: 12px;
+}
+html.dark .el-card__header {
+  font-weight: 600;
+  border-bottom-color: var(--line);
+}
+html.dark .el-table {
+  --el-table-bg-color: var(--card);
+  --el-table-tr-bg-color: var(--card);
+  --el-table-header-bg-color: var(--card-2);
+  --el-table-header-text-color: var(--el-text-color-secondary);
+  --el-table-row-hover-bg-color: #221f1a;
+  --el-table-border-color: var(--line);
+  --el-table-current-row-bg-color: var(--gold-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+html.dark .el-table th.el-table__cell { font-weight: 500; }
+/* 表格最后一行下面不再多一条线（外框已经有了） */
+html.dark .el-table__inner-wrapper::before { display: none; }
+/* 卡片里的小表格不用再套一层框 */
+html.dark .el-card .el-table { border: none; border-radius: 0; }
+html.dark .el-dialog { --el-dialog-bg-color: var(--card); --el-dialog-border-radius: 14px; }
+html.dark .el-drawer { --el-drawer-bg-color: var(--card); }
+html.dark .el-alert { border-radius: 10px; }
 /* 金色按钮上用深色字，看得清 */
 html.dark .el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
   --el-button-text-color: #1a1408;
@@ -62,10 +98,13 @@ html.dark .el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
 html.dark .el-radio-button {
   --el-radio-button-checked-text-color: #1a1408;
 }
-/* 手机上对话框占满宽度，表单标签放到上面 */
+/* 手机上对话框占满宽度，表单标签放到上面（设置页的表单也一样，免得标签占掉半屏） */
 @media (max-width: 760px) {
   .el-dialog { width: 94vw !important; }
-  .el-dialog .el-form-item { display: block; }
-  .el-dialog .el-form-item__label { width: auto !important; justify-content: flex-start; }
+  .el-dialog .el-form-item,
+  .el-card .el-form:not(.el-form--inline) .el-form-item { display: block; }
+  .el-dialog .el-form-item__label,
+  .el-card .el-form:not(.el-form--inline) .el-form-item__label { width: auto !important; justify-content: flex-start; }
+  .el-card .el-form:not(.el-form--inline) .el-form-item__content { line-height: 1.7; }
   .el-message-box { max-width: 92vw; }
 }

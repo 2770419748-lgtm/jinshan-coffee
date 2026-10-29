@@ -1,15 +1,24 @@
 <view class="page" wx:if="{{staff}}">
   <view class="who">
-    <text class="who-name">{{staff.name}}</text>
-    <text class="tag gold">{{staff.roleName}}</text>
+    <image class="avatar" src="/images/logo.jpg" mode="aspectFill" />
+    <view class="flex-1">
+      <view class="who-line">
+        <text class="who-name">{{staff.name}}</text>
+        <text class="tag gold">{{staff.roleName}}</text>
+      </view>
+      <view class="faint who-sub">进山咖啡 · 管理后台</view>
+    </view>
   </view>
 
   <block wx:if="{{canCoffee}}">
     <view class="section-title">咖啡后台</view>
     <view class="grid">
       <view class="tile primary" data-url="/admin/pages/orders/orders" bindtap="go" hover-class="btn-hover">
-        <view class="tile-title">订单处理</view>
-        <view class="tile-sub">新订单响铃，收款、出餐</view>
+        <view class="flex-1">
+          <view class="tile-title">订单处理</view>
+          <view class="tile-sub">新订单响铃，收款、出餐</view>
+        </view>
+        <text class="tile-go">›</text>
       </view>
       <view class="tile" data-url="/admin/pages/products/products" bindtap="go" hover-class="btn-hover">
         <view class="tile-title">商品管理</view>
@@ -34,8 +43,11 @@
     <view class="section-title">书籍后台</view>
     <view class="grid">
       <view class="tile primary" data-url="/admin/pages/rentals/rentals" bindtap="go" hover-class="btn-hover">
-        <view class="tile-title">借阅处理</view>
-        <view class="tile-sub">收款、交书计时、还书</view>
+        <view class="flex-1">
+          <view class="tile-title">借阅处理</view>
+          <view class="tile-sub">收款、交书计时、还书</view>
+        </view>
+        <text class="tile-go">›</text>
       </view>
       <view class="tile" data-url="/admin/pages/books/books" bindtap="go" hover-class="btn-hover">
         <view class="tile-title">书目管理</view>

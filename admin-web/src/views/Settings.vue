@@ -89,7 +89,6 @@ onMounted(load)
 </script>
 
 <style scoped>
-.narrow { max-width: 760px; }
 .block { margin-bottom: 16px; }
 .hint {
   margin-left: 12px;
