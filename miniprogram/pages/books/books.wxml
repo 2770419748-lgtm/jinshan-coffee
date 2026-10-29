@@ -28,7 +28,7 @@
       <view wx:else class="cover cover-text">{{item.title}}</view>
       <view class="title">{{item.title}}</view>
       <view class="faint author">{{item.author || ' '}}</view>
-      <view class="row">
+      <view class="book-tags">
         <text class="tag {{item.available ? 'gold' : ''}}">{{item.available ? '可借 ' + item.available + ' 本' : '都借出了'}}</text>
         <text class="tag member-free" wx:if="{{item.memberFree}}">会员免费</text>
       </view>

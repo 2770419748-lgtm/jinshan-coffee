@@ -30,14 +30,15 @@
 .cat-bar .chip {
   flex-shrink: 0;
 }
+/* 一行三本；最后一行不满时也从左排，不会两本分到两边 */
 .grid {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
+  margin-right: -20rpx;
 }
 .book {
-  width: 31.5%;
-  margin-bottom: 28rpx;
+  width: calc(33.33% - 20rpx);
+  margin: 0 20rpx 32rpx 0;
 }
 .cover {
   width: 100%;
@@ -81,8 +82,15 @@
   font-size: 24rpx;
   color: var(--text-2);
 }
+.book-tags {
+  display: flex;
+  flex-wrap: wrap;
+}
+.book-tags .tag {
+  white-space: nowrap;
+  margin: 0 8rpx 8rpx 0;
+}
 .member-free {
-  margin-left: 8rpx;
   border: 1rpx solid rgba(214, 178, 94, 0.5);
   background: transparent;
   color: var(--gold);

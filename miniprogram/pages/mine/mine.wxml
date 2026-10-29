@@ -3,27 +3,37 @@
 <view class="page">
   <view class="profile">
     <image class="avatar" src="/images/logo.jpg" mode="aspectFill" />
-    <view>
+    <view class="flex-1">
       <view class="hello">欢迎来进山</view>
-      <view class="muted" wx:if="{{user && user.staff}}">{{user.staff.name}} · {{user.staff.roleName}}</view>
+      <view class="muted sub" wx:if="{{user && user.staff}}">{{user.staff.name}} · {{user.staff.roleName}}</view>
+      <view class="muted sub" wx:elif="{{member && member.isMember}}">进山会员 · {{member.memberUntil}} 到期</view>
+      <view class="faint sub" wx:else>咖啡和书，慢慢来</view>
+    </view>
+  </view>
+
+  <!-- 余额和集星：点进会员中心、集星页 -->
+  <view class="assets" wx:if="{{member || stars}}">
+    <view class="asset" wx:if="{{member}}" bindtap="goMember" hover-class="btn-hover">
+      <view class="asset-num"><text class="asset-unit">¥</text>{{f.yuan(member.balance)}}</view>
+      <view class="asset-label">{{member.isMember ? '会员余额' : '余额'}} ›</view>
+    </view>
+    <view class="asset-split" wx:if="{{member && stars}}"></view>
+    <view class="asset" wx:if="{{stars}}" bindtap="goStars" hover-class="btn-hover">
+      <view class="asset-num">{{stars.stars}}<text class="asset-unit"> / {{stars.need}}</text></view>
+      <view class="asset-label">集星 ›</view>
     </view>
   </view>
 
   <view class="card list">
-    <view class="cell cell-arrow" wx:if="{{member}}" bindtap="goMember" hover-class="btn-hover">
-      <text class="flex-1 gold">会员中心</text>
-      <text class="muted">{{member.balance ? '余额 ¥' + f.yuan(member.balance) : (member.isMember ? '会员' : '充值')}}</text>
-    </view>
-    <view class="cell cell-arrow" wx:if="{{stars}}" bindtap="goStars" hover-class="btn-hover">
-      <text class="flex-1 gold">集星</text>
-      <text class="muted">{{stars.stars}} / {{stars.need}} 颗</text>
-    </view>
     <view class="cell cell-arrow" bindtap="goOrders" hover-class="btn-hover">
       <text class="flex-1">咖啡订单</text>
     </view>
     <view class="cell cell-arrow" bindtap="goRentals" hover-class="btn-hover">
       <text class="flex-1">借书记录</text>
     </view>
+  </view>
+
+  <view class="card list">
     <view class="cell cell-arrow" bindtap="goVouchers" hover-class="btn-hover">
       <text class="flex-1">我的券</text>
     </view>
@@ -33,8 +43,12 @@
     <view class="cell cell-arrow" wx:if="{{delivery}}" bindtap="goAddresses" hover-class="btn-hover">
       <text class="flex-1">收货地址</text>
     </view>
-    <view class="cell cell-arrow" wx:if="{{user && user.staff}}" bindtap="goAdmin" hover-class="btn-hover">
+  </view>
+
+  <view class="card list" wx:if="{{user && user.staff}}">
+    <view class="cell cell-arrow" bindtap="goAdmin" hover-class="btn-hover">
       <text class="flex-1 gold">管理后台</text>
+      <text class="faint small">{{user.staff.roleName}}</text>
     </view>
   </view>
 

@@ -52,7 +52,7 @@
   font-size: 28rpx;
 }
 .go {
-  margin-bottom: 8rpx;
+  margin-bottom: 32rpx;
 }
 .rule {
   font-size: 26rpx;
