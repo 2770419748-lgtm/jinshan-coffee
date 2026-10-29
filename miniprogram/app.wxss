@@ -24,7 +24,7 @@ view, text, input, textarea, button, scroll-view {
 }
 
 .page {
-  padding: 24rpx 24rpx 48rpx;
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
 }
 
 .card {
@@ -146,7 +146,7 @@ view, text, input, textarea, button, scroll-view {
   margin-bottom: 24rpx;
 }
 .sheet-title { font-size: 34rpx; font-weight: 600; }
-.sheet-close { font-size: 44rpx; color: var(--text-3); padding: 0 8rpx; }
+.sheet-close { font-size: 44rpx; line-height: 1; color: var(--text-3); padding: 8rpx 8rpx 8rpx 32rpx; }
 
 /* 数量加减 */
 .stepper {
@@ -177,6 +177,7 @@ view, text, input, textarea, button, scroll-view {
 .field:last-child { border-bottom: none; }
 .field-label {
   width: 160rpx;
+  padding-right: 16rpx;
   color: var(--text-2);
   flex-shrink: 0;
 }

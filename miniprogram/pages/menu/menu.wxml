@@ -49,8 +49,8 @@
   </scroll-view>
 </view>
 
-<!-- 购物车栏 -->
-<view class="cart-bar" wx:if="{{cartCount}}">
+<!-- 购物车栏；选规格的弹层盖住整个页面，这时先藏起来，免得挡住「加入购物车」 -->
+<view class="cart-bar" wx:if="{{cartCount && !spec}}">
   <view class="cart-info" bindtap="toggleCart">
     <view class="cart-icon">{{cartCount}}</view>
     <text class="price big">{{f.yuan(cartTotal)}}</text>
@@ -82,11 +82,17 @@
 
 <!-- 选规格 -->
 <view class="mask" wx:if="{{spec}}" bindtap="closeSpec"></view>
-<view class="sheet" wx:if="{{spec}}">
-  <view class="sheet-head">
-    <text class="sheet-title">{{spec.product.name}}</text>
+<view class="sheet spec-sheet" wx:if="{{spec}}">
+  <view class="spec-head">
+    <image class="spec-img" src="{{spec.product.image || '/images/logo.jpg'}}" mode="aspectFill" />
+    <view class="flex-1">
+      <view class="sheet-title">{{spec.product.name}}</view>
+      <view class="spec-desc" wx:if="{{spec.product.desc}}">{{spec.product.desc}}</view>
+    </view>
     <text class="sheet-close" bindtap="closeSpec">×</text>
   </view>
+  <!-- 规格多、屏幕小时只滚这一段，价格和「加入购物车」一直钉在底部 -->
+  <view class="spec-body">
   <view wx:for="{{spec.product.specs}}" wx:for-item="g" wx:for-index="gi" wx:key="name" class="spec-group">
     <view class="spec-name">{{g.name}}</view>
     <view class="chips">
@@ -102,8 +108,12 @@
       >{{o.name}}<text wx:if="{{o.price}}"> +{{f.yuan(o.price)}}</text></view>
     </view>
   </view>
+  </view>
   <view class="spec-foot">
-    <text class="price big flex-1">{{f.yuan(spec.unitPrice * spec.qty)}}</text>
+    <view class="flex-1">
+      <text class="price big">{{f.yuan(spec.unitPrice * spec.qty)}}</text>
+      <view class="spec-picked"><text wx:for="{{spec.product.specs}}" wx:for-item="g" wx:for-index="gi" wx:key="name">{{gi ? ' / ' : ''}}{{g.options[spec.selected[gi]].name}}</text></view>
+    </view>
     <view class="stepper">
       <view class="stepper-btn" data-delta="-1" bindtap="changeSpecQty">−</view>
       <text class="stepper-num">{{spec.qty}}</text>

@@ -109,6 +109,7 @@ page {
   align-items: center;
   justify-content: space-between;
   padding: 0 10rpx 0 24rpx;
+  box-shadow: 0 12rpx 40rpx rgba(0, 0, 0, 0.6);
   z-index: 110;
 }
 .cart-info {
@@ -141,15 +142,63 @@ page {
 .cart-line-price {
   margin: 0 24rpx;
 }
+.spec-sheet {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.spec-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.spec-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  padding-bottom: 28rpx;
+  margin-bottom: 28rpx;
+  border-bottom: 1rpx solid var(--line);
+}
+.spec-img {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 16rpx;
+  background: var(--card-2);
+  margin-right: 24rpx;
+  flex-shrink: 0;
+}
+.spec-desc {
+  color: var(--text-3);
+  font-size: 24rpx;
+  margin-top: 8rpx;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .spec-group {
-  margin-bottom: 16rpx;
+  margin-bottom: 12rpx;
 }
 .spec-name {
   color: var(--text-2);
-  margin-bottom: 12rpx;
+  font-size: 26rpx;
+  margin-bottom: 16rpx;
 }
 .spec-foot {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
-  margin: 16rpx 0 28rpx;
+  margin: 12rpx 0 28rpx;
+  padding-top: 24rpx;
+  border-top: 1rpx solid var(--line);
+}
+.spec-picked {
+  color: var(--text-3);
+  font-size: 24rpx;
+  margin-top: 4rpx;
+}
+.spec-confirm {
+  flex-shrink: 0;
 }
