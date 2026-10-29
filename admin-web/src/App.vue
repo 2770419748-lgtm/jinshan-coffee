@@ -2,17 +2,31 @@
   <router-view v-if="route.meta.public" />
   <el-container v-else class="layout">
     <el-aside width="200px" class="aside">
-      <div class="brand">
-        <img :src="shop.key === 'carwash' ? carwashLogo : logo" alt="" />
-        <div>
+      <!-- 能管两家店的：点左上角头像弹出门店列表切换 -->
+      <el-popover v-if="shops.length > 1" v-model:visible="shopsOpen" trigger="click" placement="bottom-start" :width="236" :show-arrow="false" :offset="6" popper-class="shop-pop">
+        <template #reference>
+          <div class="brand switchable" title="切换门店">
+            <img :src="logoOf(shop.key)" alt="" />
+            <div class="brand-text">
+              <div class="brand-name" :class="{ mono: shop.key === 'carwash' }">{{ shop.name }}</div>
+              <div class="brand-sub">管理后台</div>
+            </div>
+            <svg class="brand-caret" :class="{ open: shopsOpen }" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </div>
+        </template>
+        <div class="shop-pop-title">切换门店</div>
+        <div v-for="s in shops" :key="s.key" class="shop-item" :class="{ on: s.key === current.shop }" @click="switchShop(s.key)">
+          <img :src="logoOf(s.key)" alt="" />
+          <span class="shop-item-name">{{ s.name }}</span>
+          <span v-if="s.key === current.shop" class="shop-item-now">当前</span>
+        </div>
+      </el-popover>
+      <div v-else class="brand">
+        <img :src="logoOf(shop.key)" alt="" />
+        <div class="brand-text">
           <div class="brand-name" :class="{ mono: shop.key === 'carwash' }">{{ shop.name }}</div>
           <div class="brand-sub">管理后台</div>
         </div>
-      </div>
-      <div class="switch" v-if="shops.length > 1">
-        <el-radio-group :model-value="current.shop" size="small" @change="switchShop">
-          <el-radio-button v-for="s in shops" :key="s.key" :value="s.key">{{ s.short }}</el-radio-button>
-        </el-radio-group>
       </div>
       <el-menu :default-active="route.path" router class="menu">
         <template v-for="g in visibleMenu" :key="g.group">
@@ -40,7 +54,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, session, setToken, isMock } from './api'
 import { MENU, allowed, current, myShops, shopOf, firstPage } from './router'
@@ -66,9 +80,16 @@ watch(() => route.path, () => {
   })
 }, { immediate: true })
 
+const shopsOpen = ref(false)
+
+function logoOf(key) {
+  return key === 'carwash' ? carwashLogo : logo
+}
+
 // 切到另一家店：打开那家能进的第一页
 function switchShop(key) {
-  router.push(firstPage(key))
+  shopsOpen.value = false
+  if (key !== current.shop) router.push(firstPage(key))
 }
 
 async function logout() {
@@ -110,12 +131,23 @@ async function logout() {
   font-size: 16px;
 }
 .brand-name.mono { color: #fff; }
-.switch {
-  padding: 12px 16px 0;
+.brand-text { flex: 1; min-width: 0; }
+.brand.switchable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
 }
-.switch .el-radio-group { display: flex; }
-.switch :deep(.el-radio-button) { flex: 1; }
-.switch :deep(.el-radio-button__inner) { width: 100%; }
+.brand.switchable:hover { background: rgba(255, 255, 255, 0.04); }
+.brand.switchable:hover img { box-shadow: 0 0 0 2px var(--el-color-primary); }
+.brand-caret {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--el-text-color-secondary);
+  transition: transform 0.15s, color 0.15s;
+}
+.brand.switchable:hover .brand-caret { color: var(--el-color-primary); }
+.brand-caret.open { transform: rotate(180deg); color: var(--el-color-primary); }
 .brand-sub {
   color: var(--el-text-color-secondary);
   font-size: 12px;
@@ -182,7 +214,6 @@ async function logout() {
   .aside { width: auto !important; border-right: none; border-bottom: 1px solid var(--el-border-color); }
   .brand { padding: 10px 16px; border-bottom: none; }
   .brand img { width: 32px; height: 32px; }
-  .switch { padding: 0 16px 8px; }
   .menu { display: flex; overflow-x: auto; padding: 0 8px; }
   .menu-group { display: none; }
   .menu { padding-bottom: 6px; }

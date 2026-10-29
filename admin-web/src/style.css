@@ -108,3 +108,25 @@ html.dark .el-radio-button {
   .el-card .el-form:not(.el-form--inline) .el-form-item__content { line-height: 1.7; }
   .el-message-box { max-width: 92vw; }
 }
+/* 左上角点头像弹出的门店列表（弹层挂在 body 上，所以样式写在这里） */
+.el-popover.shop-pop { padding: 6px; border-radius: 12px; }
+.shop-pop-title {
+  padding: 6px 10px 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.shop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--el-text-color-primary);
+}
+.shop-item:hover { background: rgba(255, 255, 255, 0.05); }
+.shop-item.on { background: var(--gold-soft); }
+.shop-item img { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; }
+.shop-item-name { flex: 1; min-width: 0; font-size: 14px; }
+.shop-item.on .shop-item-name { color: var(--el-color-primary); font-weight: 600; }
+.shop-item-now { font-size: 12px; color: var(--el-color-primary); }
