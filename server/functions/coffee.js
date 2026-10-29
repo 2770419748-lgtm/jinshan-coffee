@@ -52,8 +52,8 @@ const MAX_COUPON_AMOUNT = 20000
 const MAX_COUPON_DAYS = 365
 const MAX_COUPON_PER_USER = 10
 const MAX_COUPON_TOTAL = 100000
-// 外送：顾客看不到的配送内部信息（运费、违约金、配送公司单号）
-const PRIVATE_DELIVERY = ['courierFee', 'deductTotal', 'storeOrderId', 'courierOrderId', 'waybillId', 'error', 'sandbox']
+// 外送：顾客看不到的配送内部信息（运费、违约金、配送公司单号、给店员看的备注）
+const PRIVATE_DELIVERY = ['courierFee', 'deductTotal', 'storeOrderId', 'courierOrderId', 'waybillId', 'fetchCode', 'error', 'note', 'sandbox', 'syncedAt']
 // 微信同城配送的门店编号（自己定的），开通门店时用
 const WECHAT_OUT_STORE_ID = 'jinshan-coffee'
 // 每分钟最多查几单配送进度
@@ -437,6 +437,13 @@ async function onCourierNotify(body) {
 function storeChanged(a, b) {
   const pick = (x) => JSON.stringify([x.store, x.location, x.wechatPattern, x.wechatPrefer])
   return pick(a) !== pick(b)
+}
+
+// 店员叫骑手用：外送设置里选的配送方式，第三方配送现在能不能叫
+async function courierInfo() {
+  const s = await delivery.readSettings(db)
+  const a = couriers.adapterOf(s.provider)
+  return { provider: s.provider, name: a.name, external: a.external, ready: !a.external || (a.ready() && !!s.wechatStoreId), sandbox: a.sandbox() }
 }
 
 // 外送设置页要的东西：设置、还差哪几项、营业时间、微信同城配送配好没有
@@ -1036,7 +1043,8 @@ const handlers = {
       day: d,
       orders: orders.map(formatOrder),
       counts: countMap,
-      pendingIds: pending.data.map((o) => o._id)
+      pendingIds: pending.data.map((o) => o._id),
+      courier: await courierInfo()
     }
   },
 

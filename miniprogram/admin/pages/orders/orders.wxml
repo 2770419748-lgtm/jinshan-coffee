@@ -31,6 +31,28 @@
         </view>
       </view>
       <view class="remark" wx:if="{{item.remark}}">备注：{{item.remark}}</view>
+
+      <!-- 外送：地址、配送进度、叫骑手 -->
+      <view class="delivery" wx:if="{{item.delivery}}">
+        <view class="row-between">
+          <text class="gold">外送 · {{item.delivery.statusText}}<text wx:if="{{item.delivery.carrierName}}">（{{item.delivery.carrierName}}）</text><text class="faint" wx:if="{{item.delivery.sandbox}}"> 测试单</text></text>
+          <text class="faint">{{item.delivery.distanceKm}} 公里</text>
+        </view>
+        <view class="addr">{{item.delivery.address.place}} {{item.delivery.address.detail}}</view>
+        <view class="muted">{{item.delivery.address.name}} <text class="gold" data-phone="{{item.delivery.address.phone}}" bindtap="callPhone">{{item.delivery.address.phone}}</text></view>
+        <view class="muted" wx:if="{{item.delivery.rider}}">骑手 {{item.delivery.rider.name}} <text class="gold" data-phone="{{item.delivery.rider.phone}}" bindtap="callPhone">{{item.delivery.rider.phone}}</text></view>
+        <view class="muted" wx:if="{{item.delivery.fetchCode}}">取货码 <text class="gold">{{item.delivery.fetchCode}}</text></view>
+        <view class="danger small" wx:if="{{item.delivery.error}}">{{item.delivery.error}}</view>
+        <view class="faint small" wx:elif="{{item.delivery.note}}">{{item.delivery.note}}</view>
+        <view class="row courier-ops" wx:if="{{item.ops}}">
+          <view wx:if="{{item.ops.call}}" class="btn-gold btn-small" data-id="{{item._id}}" data-op="call" bindtap="courierAct">叫骑手</view>
+          <view wx:if="{{item.ops.self}}" class="btn-ghost btn-small" data-id="{{item._id}}" data-op="self" bindtap="courierAct">店员送出</view>
+          <view wx:if="{{item.ops.delivered}}" class="btn-gold btn-small" data-id="{{item._id}}" data-op="delivered" bindtap="courierAct">已送达</view>
+          <view wx:if="{{item.ops.refresh}}" class="btn-ghost btn-small" data-id="{{item._id}}" data-op="refresh" bindtap="courierAct">刷新</view>
+          <view wx:if="{{item.ops.mock}}" class="btn-ghost btn-small" data-id="{{item._id}}" data-op="mock" bindtap="courierAct">模拟{{item.ops.mockText}}</view>
+          <view wx:if="{{item.ops.cancel}}" class="btn-danger btn-small" data-id="{{item._id}}" data-op="cancel" bindtap="courierAct">取消配送</view>
+        </view>
+      </view>
       <view class="star-line" wx:if="{{item.starRedeem}}">集星换一杯：{{item.starRedeem.name}}（-¥{{f.yuan(item.starFee)}}）</view>
 
       <view class="row-between foot">

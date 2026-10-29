@@ -88,3 +88,16 @@
 .no-coupon {
   margin-top: 8rpx;
 }
+.address-card {
+  border-color: var(--gold);
+}
+.addr-place {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.addr-note {
+  margin-top: 12rpx;
+}
+.fee-rule {
+  margin-top: 8rpx;
+}

@@ -3,11 +3,29 @@ const pay = require('../../utils/pay')
 
 const POLL_MS = 10000
 const STEP = { pending: 1, making: 2, done: 3 }
+// 外送单：已下单 → 制作中（等骑手）→ 配送中 → 已送达
+const DELIVERY_STEP = { calling: 2, accepted: 2, arrived: 2, delivering: 3, delivered: 4 }
+// 骑手还在路上的配送状态，要接着刷新
+const DELIVERY_LIVE = ['calling', 'accepted', 'arrived', 'delivering', 'abnormal']
+
+function stepOf(order) {
+  if (!order.delivery) return STEP[order.status] || 0
+  return Math.max(STEP[order.status] === 3 ? 3 : STEP[order.status] || 0, DELIVERY_STEP[order.delivery.status] || 0)
+}
+
+// 外送单大字下面的状态
+function deliveryText(order) {
+  const d = order.delivery
+  if (order.status === 'cancelled') return '已取消'
+  if (d.status === 'waiting' || d.status === 'cancelled') return order.status === 'making' ? '制作中' : (order.status === 'done' ? '已出餐' : '待制作')
+  return d.statusText
+}
 
 Page({
   data: {
     order: null,
     step: 0,
+    statusText: '',
     loading: true
   },
 
@@ -32,12 +50,14 @@ Page({
     this.load().then(() => wx.stopPullDownRefresh())
   },
 
-  // 订单还没做好时每 10 秒刷新一次进度
+  // 订单还没做好、外送还没送到时每 10 秒刷新一次进度
   startPolling() {
     this.stopPolling()
     this.timer = setInterval(() => {
       const order = this.data.order
-      if (order && (order.status === 'pending' || order.status === 'making')) this.load()
+      if (!order) return
+      if (order.status === 'pending' || order.status === 'making') this.load()
+      else if (order.delivery && order.status !== 'cancelled' && DELIVERY_LIVE.indexOf(order.delivery.status) !== -1) this.load()
     }, POLL_MS)
   },
 
@@ -48,7 +68,7 @@ Page({
 
   load() {
     return api.coffee('getOrder', { id: this.id }).then((order) => {
-      this.setData({ order, step: STEP[order.status] || 0, loading: false })
+      this.setData({ order, step: stepOf(order), statusText: order.delivery ? deliveryText(order) : '', loading: false })
     }).catch((err) => {
       this.setData({ loading: false })
       api.toastError(err)
@@ -82,6 +102,14 @@ Page({
       if (paid) wx.showToast({ title: '付款成功', icon: 'success' })
       this.load()
     })
+  },
+
+  callRider() {
+    wx.makePhoneCall({ phoneNumber: this.data.order.delivery.rider.phone, fail: () => {} })
+  },
+
+  callShop() {
+    wx.makePhoneCall({ phoneNumber: this.data.order.shopPhone, fail: () => {} })
   },
 
   goStars() {

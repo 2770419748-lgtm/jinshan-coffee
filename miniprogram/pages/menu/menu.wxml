@@ -5,6 +5,10 @@
     <text><text class="gold">预约点单</text>，结算时选取餐时间</text>
     <text class="topbar-link" bindtap="stopReserve">不预约了</text>
   </block>
+  <block wx:elif="{{delivering}}">
+    <text><text class="gold">外送到家</text>，结算时选收货地址</text>
+    <text class="topbar-link" bindtap="stopDelivery">不外送了</text>
+  </block>
   <block wx:elif="{{tableNo}}">
     <text><text class="gold">{{tableNo}}</text> 号桌</text>
     <text class="topbar-link" bindtap="clearTable">不是这桌？</text>

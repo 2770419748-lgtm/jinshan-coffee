@@ -255,6 +255,7 @@ test('微信同城配送：没开通门店不能叫；店里信息不全开通�
   const view = await ok(owner.coffee('saveDeliverySettings', { settings: Object.assign({}, SETTINGS, { provider: 'wechat' }) }))
   assert.deepEqual(view.problems, ['在微信同城配送开通门店（下面「微信同城配送」里点开通）'])
   assert.equal(view.open, false, '没开通门店前外送先不开放')
+  assert.equal((await ok(barista.coffee('listOrders', { status: 'pending' }))).courier.ready, false, '店员这边先不显示叫骑手')
   await ok(owner.coffee('saveDeliverySettings', { settings: Object.assign({}, SETTINGS, { provider: 'wechat', store: Object.assign({}, SETTINGS.store, { house: '' }) }) }))
   await fails(owner.coffee('setupWechatStore'))
   await fails(barista.coffee('setupWechatStore'), 'FORBIDDEN')
@@ -275,6 +276,8 @@ test('微信同城配送：没开通门店不能叫；店里信息不全开通�
   assert.equal(state.courier.stores.length, 1, '再点开通是更新，不会重复建门店')
   await ok(owner.coffee('setupWechatStore'))
   assert.equal(state.courier.stores.length, 1)
+  const list = await ok(barista.coffee('listOrders', { status: 'pending' }))
+  assert.deepEqual(list.courier, { provider: 'wechat', name: '微信同城配送', external: true, ready: true, sandbox: false })
 })
 
 let wxOrder

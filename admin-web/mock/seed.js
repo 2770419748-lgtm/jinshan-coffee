@@ -1,4 +1,4 @@
-// 预览用的假数据：店主、员工、示例菜单和书、轮播、代金券、会员储值、集星、几张订单和借书单；洗车店的设置、项目、次卡、送券规则、技师和几张预约单。
+// 预览用的假数据：店主、员工、示例菜单和书、轮播、代金券、会员储值、集星、外送、几张订单和借书单；洗车店的设置、项目、次卡、送券规则、技师和几张预约单。
 // 这些数字只是预览用的，真店里的营业时间、名额、价格都由店长在后台自己填
 module.exports = async function seed(as, db) {
   const ok = async (p) => {
@@ -57,6 +57,17 @@ module.exports = async function seed(as, db) {
   await ok(as('BARISTA').member('counterRecharge', { memberNo: m1.member.memberNo, planId: p300.id }))
   await ok(as('BARISTA').member('setMemberRemark', { memberNo: m1.member.memberNo, remark: '张女士 尾号 6688' }))
   await ok(customers[0].coffee('createOrder', { mode: 'takeaway', payBy: 'balance', items: [{ productId: byName('美式')._id, qty: 1, specs: [{ name: '杯型', option: '中杯' }, { name: '温度', option: '冰' }] }] }))
+
+  // 外送：店员自己送，3 公里内 5 元、超出每公里加 2 元、满 100 免配送费；C1 用余额下了一张外送单
+  await ok(owner.coffee('saveDeliverySettings', {
+    settings: {
+      enabled: true, location: { lat: 29.58, lng: 105.07 }, hours: { open: '00:00', close: '23:59' },
+      store: { name: '进山咖啡', province: '四川省', city: '内江市', area: '东兴区', street: '', house: '预览地址 1 号', phone: '13800000000' },
+      radiusKm: 5, minOrder: 2000, baseFee: 500, baseKm: 3, perKmFee: 200, freeAbove: 10000, etaMinutes: 40, notice: '超出范围可以到店自取', provider: 'self'
+    }
+  }))
+  const home = await ok(customers[0].coffee('saveAddress', { address: { name: '张女士', phone: '13800000001', place: '东兴小区', detail: '3 栋 2 单元 501', location: { lat: 29.6, lng: 105.07 } } }))
+  await ok(customers[0].coffee('createOrder', { mode: 'delivery', addressId: home.id, payBy: 'balance', remark: '放门口就行', items: [{ productId: byName('拿铁')._id, qty: 2, specs: cup }] }))
 
   // 集星：咖啡一杯一颗星，10 颗换一杯；C1 把纸质集点卡上的 10 颗转进来，下单时用星换了一杯拿铁
   const coffeeCat = menu.categories.find((c) => c.name === '咖啡')._id

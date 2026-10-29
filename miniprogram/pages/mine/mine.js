@@ -8,6 +8,7 @@ Page({
     user: null,
     member: null,
     stars: null, // 集星：{ stars, need }，没开集星时是 null
+    delivery: false, // 店里开了外送才显示「收货地址」
     server: '', // 开发版、体验版：现在连的是 test 还是 prod；正式版是空的，不显示切换
     loading: true
   },
@@ -21,7 +22,7 @@ Page({
       api.toastError(err)
     })
     // 首页的会员卡和集星卡数据：余额、会员到期日、几颗星
-    api.common('getHome').then((home) => this.setData({ member: home.member, stars: home.stars })).catch(() => {})
+    api.common('getHome').then((home) => this.setData({ member: home.member, stars: home.stars, delivery: !!(home.delivery && home.delivery.enabled) })).catch(() => {})
   },
 
   goMember() {
@@ -47,6 +48,10 @@ Page({
 
   goCoupons() {
     wx.navigateTo({ url: '/pages/coupons/coupons' })
+  },
+
+  goAddresses() {
+    wx.navigateTo({ url: '/pages/addresses/addresses' })
   },
 
   goAdmin() {

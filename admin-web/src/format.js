@@ -51,7 +51,7 @@ export function left(dueAtMs, now) {
 export const ORDER_STATUS = { pending: '待制作', making: '制作中', done: '已完成', cancelled: '已取消' }
 export const RENTAL_STATUS = { pending: '待取书', reading: '在读', returned: '已归还', cancelled: '已取消' }
 export const RULE_TYPE = { hourly: '按小时', day: '包天' }
-export const MODE = { dine_in: '堂食', takeaway: '外带' }
+export const MODE = { dine_in: '堂食', takeaway: '外带', delivery: '外送' }
 export const ROLE_OPTIONS = [
   { value: 'owner', label: '店主（全部权限）' },
   { value: 'barista', label: '咖啡师（只管咖啡）' },

@@ -14,7 +14,9 @@
     "pages/coupons/coupons",
     "pages/member/member",
     "pages/member-logs/member-logs",
-    "pages/stars/stars"
+    "pages/stars/stars",
+    "pages/addresses/addresses",
+    "pages/address-edit/address-edit"
   ],
   "subPackages": [
     {
@@ -68,6 +70,7 @@
       { "pagePath": "pages/mine/mine", "text": "我的", "iconPath": "images/tab/mine.png", "selectedIconPath": "images/tab/mine-on.png" }
     ]
   },
+  "requiredPrivateInfos": ["chooseLocation"],
   "style": "v2",
   "sitemapLocation": "sitemap.json",
   "lazyCodeLoading": "requiredComponents"

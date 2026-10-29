@@ -1,6 +1,7 @@
 const api = require('../../utils/api')
 const table = require('../../utils/table')
 const reserve = require('../../utils/reserve')
+const delivery = require('../../utils/delivery')
 const starUtil = require('../../utils/stars')
 
 Page({
@@ -10,6 +11,7 @@ Page({
     current: 0,
     hours: null,
     reserveEnabled: false,
+    delivery: null, // 外送：{ enabled, inHours, hours, minOrder }，店里没开时 enabled 是 false，不显示入口
     claimable: 0,
     member: null, // 会员卡：{ enabled, balance, isMember, memberUntil, freeCategories, promo }，没开储值又没余额时是 null
     memberText: '',
@@ -33,7 +35,7 @@ Page({
       .then(() => wx.stopPullDownRefresh())
   },
 
-  // 轮播、营业时间、能不能预约、还有几种券可以领、会员卡、集星卡
+  // 轮播、营业时间、能不能预约、有没有外送、还有几种券可以领、会员卡、集星卡
   loadHome() {
     return api.common('getHome').then((home) => {
       const m = home.member
@@ -45,6 +47,7 @@ Page({
         current: 0,
         hours: home.hours,
         reserveEnabled: home.reserveEnabled,
+        delivery: home.delivery && home.delivery.enabled ? home.delivery : null,
         claimable: home.claimableCoupons,
         member: m,
         memberText,
@@ -61,7 +64,8 @@ Page({
       const active = orders.find((o) => o.status === 'pending' || o.status === 'making')
       let text = ''
       if (active) {
-        if (active.awaitingPay && active.payStatus === 'unpaid') text = '预约单还没付款，15 分钟内没付会自动取消'
+        if (active.awaitingPay && active.payStatus === 'unpaid') text = (active.mode === 'delivery' ? '外送单' : '预约单') + '还没付款，15 分钟内没付会自动取消'
+        else if (active.delivery) text = active.delivery.statusText === '待配送' ? (active.status === 'making' ? '外送单正在制作' : '外送单已下单') : active.delivery.statusText
         else if (active.status === 'making') text = '你的订单正在制作'
         else if (active.reserveAt) text = '已预约，到点来取'
         else text = '你的订单已下单'
@@ -99,6 +103,7 @@ Page({
   pickup() {
     table.clear()
     reserve.off()
+    delivery.off()
     wx.switchTab({ url: '/pages/menu/menu' })
   },
 
@@ -130,8 +135,33 @@ Page({
       return
     }
     table.clear()
+    delivery.off()
     reserve.on()
     wx.switchTab({ url: '/pages/menu/menu' })
+  },
+
+  // 外送：送到家，要在线付款；不在外送时间也能先看看菜单
+  deliver() {
+    const d = this.data.delivery
+    if (!d) return
+    const go = () => {
+      table.clear()
+      reserve.off()
+      delivery.on()
+      wx.switchTab({ url: '/pages/menu/menu' })
+    }
+    if (d.inHours) {
+      go()
+      return
+    }
+    wx.showModal({
+      title: '现在不在外送时间',
+      content: '外送时间 ' + d.hours.open + '–' + d.hours.close + '，现在下不了外送单。可以先看看菜单，或者到店自取。',
+      confirmText: '看看菜单',
+      success: (res) => {
+        if (res.confirm) go()
+      }
+    })
   },
 
   goCoupons() {

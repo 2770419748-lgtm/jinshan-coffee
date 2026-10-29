@@ -71,6 +71,7 @@ export const MENU = [
     items: [
       { path: '/staff', title: '员工管理', roles: OWNER },
       { path: '/settings', title: '店铺设置', roles: OWNER },
+      { path: '/delivery', title: '外送设置', roles: OWNER },
       { path: '/notify', title: '消息通知', roles: OWNER },
       { path: '/banners', title: '首页轮播', roles: OWNER },
       { path: '/coupons', title: '代金券', roles: OWNER }
@@ -116,6 +117,7 @@ const views = {
   '/rules': () => import('./views/Rules.vue'),
   '/staff': () => import('./views/Staff.vue'),
   '/settings': () => import('./views/Settings.vue'),
+  '/delivery': () => import('./views/Delivery.vue'),
   '/notify': () => import('./views/Notify.vue'),
   '/banners': () => import('./views/Banners.vue'),
   '/coupons': () => import('./views/Coupons.vue'),

@@ -14,7 +14,25 @@
     <view class="faint small reserve-note">营业时间内都能约，最早 30 分钟后。到点来吧台报取餐号取。</view>
   </view>
 
-  <view class="card">
+  <!-- 外送：收货地址、距离、送不了的原因 -->
+  <view class="card address-card" wx:if="{{delivering}}" bindtap="pickAddress" hover-class="btn-hover">
+    <view class="row">
+      <view class="flex-1" wx:if="{{address}}">
+        <view class="addr-place">{{address.place}} {{address.detail}}</view>
+        <view class="muted small">{{address.name}} {{address.phone}}</view>
+      </view>
+      <view class="flex-1 gold addr-place" wx:else>{{quote ? '添加收货地址' : '加载中…'}}</view>
+      <text class="cell-arrow"></text>
+    </view>
+    <block wx:if="{{drop}}">
+      <view class="danger small addr-note" wx:if="{{!drop.inHours}}">现在不在外送时间（{{drop.rules.hours.open}}–{{drop.rules.hours.close}}）</view>
+      <view class="danger small addr-note" wx:elif="{{drop.error}}">{{drop.error}}</view>
+      <view class="faint small addr-note" wx:elif="{{address && drop.distanceKm !== null}}">距离约 {{drop.distanceKm}} 公里<text wx:if="{{drop.rules.etaMinutes}}">，预计 {{drop.rules.etaMinutes}} 分钟左右送到</text></view>
+      <view class="faint small addr-note" wx:if="{{drop.rules.notice}}">{{drop.rules.notice}}</view>
+    </block>
+  </view>
+
+  <view class="card" wx:else>
     <view class="mode-row">
       <view class="chip {{mode === 'dine_in' ? 'on' : ''}}" data-mode="dine_in" bindtap="pickMode">堂食</view>
       <view class="chip {{mode === 'takeaway' ? 'on' : ''}}" data-mode="takeaway" bindtap="pickMode">外带</view>
@@ -39,11 +57,22 @@
     </view>
   </view>
 
+  <view class="card" wx:if="{{delivering && drop}}">
+    <view class="row-between">
+      <text>配送费</text>
+      <text class="price" wx:if="{{drop.fee}}">{{f.yuan(drop.fee)}}</text>
+      <text class="gold" wx:elif="{{address && !drop.error}}">免配送费</text>
+      <text class="faint" wx:else>选好地址后计算</text>
+    </view>
+    <view class="faint small fee-rule">{{f.deliveryRule(drop.rules)}}</view>
+    <view class="gold small fee-rule" wx:if="{{drop.short > 0}}">商品满 ¥{{f.yuan(drop.rules.minOrder)}} 起送，还差 ¥{{f.yuan(drop.short)}}</view>
+  </view>
+
   <view class="card">
     <view class="section-title remark-title">备注</view>
     <textarea
       class="remark"
-      placeholder="口味要求等，选填"
+      placeholder="{{delivering ? '口味要求、送达要求等，选填' : '口味要求等，选填'}}"
       placeholder-class="placeholder"
       maxlength="50"
       auto-height
@@ -102,8 +131,10 @@
     <view class="faint pay-note" wx:if="{{balanceLow}}">余额不够这单，<text class="gold" bindtap="goMember">去充值 ›</text></view>
     <view class="faint pay-note" wx:elif="{{payMethod === 'balance'}}">提交后直接从会员余额里扣。</view>
     <view class="faint pay-note" wx:elif="{{reserving && payMethod === 'wechat'}}">预约要先在线付款，提交后直接微信支付；15 分钟内没付款会自动取消。</view>
+    <view class="faint pay-note" wx:elif="{{delivering && payMethod === 'wechat'}}">外送要先在线付款，提交后直接微信支付；15 分钟内没付款会自动取消。</view>
     <view class="faint pay-note" wx:elif="{{payMethod === 'wechat'}}">提交后直接微信付款。</view>
     <view class="faint pay-note" wx:elif="{{reserving}}">预约要先在线付款。</view>
+    <view class="faint pay-note" wx:elif="{{delivering}}">外送要先在线付款。</view>
     <view class="faint pay-note" wx:else>下单后到吧台报取餐号付款。</view>
   </view>
 
