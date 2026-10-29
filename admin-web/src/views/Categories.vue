@@ -95,7 +95,6 @@ onMounted(load)
 </script>
 
 <style scoped>
-.narrow { max-width: 760px; }
 .small { font-size: 12px; margin-left: 8px; }
 .tip { margin-top: 12px; }
 </style>

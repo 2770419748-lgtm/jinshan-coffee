@@ -40,7 +40,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, session, setToken, isMock } from './api'
 import { MENU, allowed, current, myShops, shopOf, firstPage } from './router'
@@ -57,6 +57,14 @@ const visibleMenu = computed(() => MENU
   .filter((g) => g.shop === current.shop)
   .map((g) => ({ group: g.group, items: g.items.filter(allowed) }))
   .filter((g) => g.items.length))
+
+// 菜单比屏幕长时（手机上横着一排、电脑上竖着一列），把当前页的菜单项滚到看得见的地方
+watch(() => route.path, () => {
+  nextTick(() => {
+    const el = document.querySelector('.menu .el-menu-item.is-active')
+    if (el) el.scrollIntoView({ block: 'nearest', inline: 'center' })
+  })
+}, { immediate: true })
 
 // 切到另一家店：打开那家能进的第一页
 function switchShop(key) {
@@ -78,7 +86,7 @@ async function logout() {
 <style scoped>
 .layout { height: 100%; }
 .aside {
-  background: #101010;
+  background: #121110;
   border-right: 1px solid var(--el-border-color);
   display: flex;
   flex-direction: column;
@@ -116,18 +124,49 @@ async function logout() {
   border-right: none;
   background: transparent;
   flex: 1;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+/* 菜单项矮一点，一屏放得下；选中的项浅金底、左边一道金线，和小程序点单页的分类栏一样 */
+.menu :deep(.el-menu-item) {
+  position: relative;
+  height: 38px;
+  line-height: 38px;
+  margin: 1px 10px;
+  padding: 0 14px !important;
+  border-radius: 8px;
+  color: var(--el-text-color-regular);
+}
+.menu :deep(.el-menu-item:hover) { background: rgba(255, 255, 255, 0.04); }
+.menu :deep(.el-menu-item.is-active) {
+  background: var(--gold-soft);
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+.menu :deep(.el-menu-item.is-active)::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--el-color-primary);
 }
 .menu-group {
-  padding: 16px 20px 4px;
+  padding: 12px 24px 4px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  letter-spacing: 1px;
+  color: var(--el-text-color-placeholder);
 }
 .header {
   display: flex;
   align-items: center;
   gap: 10px;
+  height: 56px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--el-border-color);
-  background: var(--el-bg-color);
+  background: #121110;
 }
 .header .title {
   font-size: 18px;
@@ -135,7 +174,7 @@ async function logout() {
 }
 .header .spacer { flex: 1; }
 .header .preview { margin-left: 12px; }
-.main { background: var(--el-bg-color-page); }
+.main { background: var(--el-bg-color-page); padding: 24px; }
 
 /* 手机和窄屏：菜单放到顶上横着滑 */
 @media (max-width: 760px) {
@@ -146,7 +185,9 @@ async function logout() {
   .switch { padding: 0 16px 8px; }
   .menu { display: flex; overflow-x: auto; padding: 0 8px; }
   .menu-group { display: none; }
-  .menu :deep(.el-menu-item) { height: 40px; line-height: 40px; padding: 0 12px !important; white-space: nowrap; }
+  .menu { padding-bottom: 6px; }
+  .menu :deep(.el-menu-item) { height: 36px; line-height: 36px; margin: 0 2px; padding: 0 12px !important; white-space: nowrap; }
+  .menu :deep(.el-menu-item.is-active)::before { left: 12px; right: 12px; top: auto; bottom: 2px; width: auto; height: 2px; }
   .header { flex-wrap: wrap; height: auto; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); }
   .header .preview { margin-left: 0; order: 10; }
   .main { padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }

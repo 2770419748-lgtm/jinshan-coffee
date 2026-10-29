@@ -112,7 +112,6 @@ onMounted(load)
 </script>
 
 <style scoped>
-.narrow { max-width: 900px; }
 .roles {
   display: flex;
   flex-direction: column;
