@@ -7,6 +7,7 @@
 //   POST /api/upload                员工上传图片
 //   POST /pay/notify/coffee|book|member  微信支付通知（咖啡的商户号）
 //   POST /pay/notify/carwash        微信支付通知（洗车的商户号）
+//   POST /delivery/notify/wechat    微信同城配送的骑手状态回调（外送单）
 //   GET  /uploads/...               图片
 //   GET  /admin/                    电脑网页后台
 const http = require('http')
@@ -17,6 +18,7 @@ const platform = require('./platform')
 const { Database } = require('./lib/db')
 const { createWechat } = require('./lib/wechat')
 const { createWxpay } = require('./lib/wxpay')
+const { createIntracity } = require('./lib/intracity')
 const { createStorage } = require('./lib/storage')
 const { HttpError, readBody, readJson, firstFile, sendJson, sendFile } = require('./lib/http')
 const { APPS, resolveUser } = require('./lib/identity')
@@ -53,6 +55,7 @@ function loadConfig(file) {
     publicKeyId: String(pay.publicKeyId || '')
   })
   const carwash = raw.carwash || {}
+  const dw = (raw.delivery && raw.delivery.wechat) || {}
   return {
     env: raw.env === 'test' ? 'test' : 'prod',
     port: Number(raw.port || 3000),
@@ -70,6 +73,18 @@ function loadConfig(file) {
       appId: String(carwash.appId || ''),
       appSecret: String(carwash.appSecret || ''),
       pay: payOf(carwash.pay || {})
+    },
+    // 外送配送：微信同城配送的「API 安全」密钥（公众平台「开发管理 → 开发设置 → API 安全」），
+    // notifyToken 是「消息推送」的 Token，用来验配送状态回调；sandbox 为 true 时只叫测试单（不派真骑手）
+    delivery: {
+      wechat: {
+        aesKeySn: String(dw.aesKeySn || ''),
+        aesKey: String(dw.aesKey || ''),
+        rsaKeySn: String(dw.rsaKeySn || ''),
+        rsaPrivateKeyFile: dw.rsaPrivateKeyFile ? abs(dw.rsaPrivateKeyFile) : '',
+        notifyToken: String(dw.notifyToken || ''),
+        sandbox: dw.sandbox === true
+      }
     }
   }
 }
@@ -85,10 +100,11 @@ function readKey(file) {
 }
 
 // 装好各部分，返回 http 服务器。extraRoutes(req, res, url) 返回 true 表示已经处理（本地预览用）
-// wechat、pay 是咖啡小程序的；carwash: { wechat, pay } 是洗车小程序的，不传就是还没配置
-function createApp({ config, db, wechat, pay, storage, carwash, extraRoutes }) {
+// wechat、pay 是咖啡小程序的；carwash: { wechat, pay } 是洗车小程序的，不传就是还没配置；
+// couriers: { wechat } 是外送用的第三方配送（微信同城配送），不传就是还没配置
+function createApp({ config, db, wechat, pay, storage, carwash, couriers, extraRoutes }) {
   const isTest = config.env === 'test'
-  platform.configure({ db, wechat, pay, storage, carwash: carwash || null, env: isTest ? 'test' : 'prod' })
+  platform.configure({ db, wechat, pay, storage, carwash: carwash || null, couriers: couriers || null, env: isTest ? 'test' : 'prod' })
   if (config.ownerCode) process.env.OWNER_CODE = config.ownerCode
   const modules = {}
   MODULES.forEach((name) => { modules[name] = require('./functions/' + name) })
@@ -190,6 +206,25 @@ function createApp({ config, db, wechat, pay, storage, carwash, extraRoutes }) {
     res.end()
   }
 
+  // 微信同城配送的状态回调：验签名后更新外送单的配送进度；签名不对回 400（服务器每分钟也会自己查一次进度）
+  async function courierNotify(req, res) {
+    let body
+    try {
+      body = await readJson(req, MAX_NOTIFY)
+    } catch (e) {
+      return sendJson(res, 400, { return_code: -1, return_msg: 'bad request' })
+    }
+    let ok
+    try {
+      ok = await modules.coffee.onCourierNotify(body)
+    } catch (e) {
+      console.error('delivery notify failed', body && body.store_order_id, e)
+      return sendJson(res, 500, { return_code: -1, return_msg: 'retry' })
+    }
+    if (!ok) return sendJson(res, 400, { return_code: -1, return_msg: 'bad sign' })
+    sendJson(res, 200, { return_code: 0, return_msg: 'OK' })
+  }
+
   async function route(req, res) {
     const url = new URL(req.url, 'http://localhost')
     const p = url.pathname
@@ -202,6 +237,7 @@ function createApp({ config, db, wechat, pay, storage, carwash, extraRoutes }) {
       if (m && MODULES.indexOf(m[1]) !== -1) return callModule(m[1], req, res)
       const n = /^\/pay\/notify\/([a-z]+)$/.exec(p)
       if (n && PAY_MODULES.indexOf(n[1]) !== -1) return payNotify(n[1], req, res)
+      if (p === '/delivery/notify/wechat') return courierNotify(req, res)
     }
     if (req.method === 'GET' || req.method === 'HEAD') {
       if (p === '/healthz') return sendJson(res, 200, { ok: true, env: isTest ? 'test' : 'prod' })
@@ -308,17 +344,35 @@ function main() {
     wechat: createWechat({ appId: config.carwash.appId, appSecret: config.carwash.appSecret }),
     pay: makePay(config.carwash.appId, noPay(config.carwash.pay))
   }
+  // 外送的第三方配送：微信同城配送。测试版只叫沙箱测试单，不派真骑手、不扣运费
+  const dw = config.delivery.wechat
+  const intracity = createIntracity({
+    appId: config.appId,
+    accessToken: (force) => wechat.accessToken(force),
+    aesKeySn: dw.aesKeySn,
+    aesKey: dw.aesKey,
+    rsaKeySn: dw.rsaKeySn,
+    rsaPrivateKey: dw.aesKey ? readKey(dw.rsaPrivateKeyFile) : ''
+  })
+  // 回调要 HTTPS 地址，还要配了「消息推送」的 Token 才验得了签名；没有的话只靠每分钟查一次
+  const notifyUrl = /^https:\/\//.test(config.publicUrl) && dw.notifyToken ? config.publicUrl + '/delivery/notify/wechat' : ''
+  const couriers = {
+    wechat: Object.assign(intracity, { sandbox: config.env === 'test' || dw.sandbox, notifyToken: dw.notifyToken, notifyUrl })
+  }
   const storage = createStorage({ dir: config.uploadDir })
-  const { server, modules } = createApp({ config, db, wechat, pay, storage, carwash })
+  const { server, modules } = createApp({ config, db, wechat, pay, storage, carwash, couriers })
   if (config.env === 'test') console.log('这是测试版：微信支付关闭，订阅消息只发给店员')
   if (!wechat.ready()) console.warn('注意：配置文件里还没填 appId / appSecret，小程序登录和小程序码用不了')
   console.log(pay.ready() ? '微信支付已配置，商户号 ' + config.pay.mchId : '微信支付没配置（商户号下来以后按 README 填配置）')
   if (!carwash.wechat.ready()) console.warn('注意：配置文件里还没填洗车小程序的 carwash.appId / appSecret，洗车小程序登录不了')
   console.log(carwash.pay.ready() ? '洗车微信支付已配置，商户号 ' + config.carwash.pay.mchId : '洗车微信支付没配置')
+  console.log(intracity.ready() ? '微信同城配送已配置' + (couriers.wechat.sandbox ? '（沙箱，只叫测试单）' : '') : '微信同城配送没配置（外送只能店员自己送）')
   scheduleBackups(db, config.dataDir)
-  // 每分钟：取消超时没付款的预约单，提醒一次快到期的借书；洗车单超时没付款的取消、没确认完成的自动完成；集星设了有效期时每小时清一次过期的星星
+  // 每分钟：取消超时没付款的预约单、外送单，查一次第三方配送的进度，提醒一次快到期的借书；
+  // 洗车单超时没付款的取消、没确认完成的自动完成；集星设了有效期时每小时清一次过期的星星
   setInterval(() => {
     modules.coffee.expireReservations().catch((e) => console.error('取消超时预约单失败', e))
+    modules.coffee.syncDeliveries().catch((e) => console.error('查配送进度失败', e))
     modules.coffee.expireStars().catch((e) => console.error('清过期星星失败', e))
     modules.book.remindDue().catch((e) => console.error('借书到期提醒失败', e))
     modules.carwash.runTimers().catch((e) => console.error('洗车定时任务失败', e))
